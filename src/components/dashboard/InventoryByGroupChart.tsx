@@ -36,9 +36,11 @@ export default function InventoryByGroupChart() {
                             paddingAngle={2}
                             dataKey="value"
                             label={({ name, percent }) =>
-                                `${name.length > 10 ? name.substring(0, 10) + '...' : name} (${(percent * 100).toFixed(0)}%)`
+                                percent > 0.05
+                                    ? `${name.length > 10 ? name.substring(0, 10) + '...' : name} (${(percent * 100).toFixed(0)}%)`
+                                    : ''
                             }
-                            labelLine={false}
+                            labelLine={({ percent }) => percent > 0.05}
                         >
                             {groupData.map((_, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
