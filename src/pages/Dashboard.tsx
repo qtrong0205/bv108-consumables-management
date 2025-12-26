@@ -2,37 +2,51 @@ import { useEffect } from 'react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import UsageChart from '@/components/dashboard/UsageChart';
 import TopItemsTable from '@/components/dashboard/TopItemsTable';
+import InventoryByGroupChart from '@/components/dashboard/InventoryByGroupChart';
 import { Package, AlertTriangle, ShoppingCart, CheckCircle } from 'lucide-react';
+import { MOCK_MEDICAL_SUPPLIES } from '@/data/mockData';
 
 export default function Dashboard() {
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
 
+    // Tính toán thống kê từ mock data
+    const totalItems = MOCK_MEDICAL_SUPPLIES.length;
+    const lowStockItems = MOCK_MEDICAL_SUPPLIES.filter(
+        item => item.soLuongTon < item.soLuongToiThieu
+    ).length;
+    const pendingOrders = 8; // Mock data cho đơn hàng chờ xử lý
+    const approvedRequests = 15; // Mock data cho yêu cầu đã duyệt
+
     const metrics = [
         {
             title: 'Tổng số vật tư trong kho',
-            value: '1,247',
+            value: totalItems.toLocaleString('vi-VN'),
             icon: Package,
             color: 'text-primary',
+            linkTo: '/catalog',
         },
         {
             title: 'Vật tư sắp hết',
-            value: '23',
+            value: lowStockItems.toString(),
             icon: AlertTriangle,
             color: 'text-warning',
+            linkTo: '/catalog?filter=low-stock',
         },
         {
             title: 'Đơn hàng chờ xử lý',
-            value: '8',
+            value: pendingOrders.toString(),
             icon: ShoppingCart,
             color: 'text-secondary',
+            linkTo: '/orders',
         },
         {
             title: 'Yêu cầu mua sắm đã duyệt',
-            value: '15',
+            value: approvedRequests.toString(),
             icon: CheckCircle,
             color: 'text-success',
+            linkTo: '/procurement',
         },
     ];
 
@@ -49,13 +63,13 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <UsageChart />
-                </div>
-                <div className="lg:col-span-1">
-                    <TopItemsTable />
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <UsageChart />
+                <InventoryByGroupChart />
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+                <TopItemsTable />
             </div>
         </div>
     );

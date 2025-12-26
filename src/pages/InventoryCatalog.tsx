@@ -1,105 +1,31 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search } from 'lucide-react';
+import { Search, AlertTriangle } from 'lucide-react';
 import InventoryTable from '@/components/inventory/InventoryTable';
 import ItemDetailModal from '@/components/inventory/ItemDetailModal';
-
-export interface MedicalSupply {
-    id: number;                // MA_QUAN_LY
-    maVtyt: string;            // MA_VTYT_C
-    tenVtyt: string;           // TEN_VTYT_B
-    tenThuongMai: string;      // TEN_THUON
-    maHieu: string;            // MA_HIEU
-    maNhom: string;            // MA_NHOM
-    tenNhom: string;           // TEN_NHOM
-    quyCach: string;           // QUY_CACH
-    nuocSanXuat: string;       // NUOC_SX
-    hangSanXuat: string;       // HANG_SX
-    donViTinh: string;         // DON_VI_TINH
-    donGia: number;            // DON_GIA
-    soLuongKeHoach: number;    // D_LUONG_KH
-    nhaThau: string;           // NHA_THAU
-    quyetDinh: string;         // QUYET_DINH
-}
-
-export const MOCK_MEDICAL_SUPPLIES: MedicalSupply[] = [
-    {
-        id: 1,
-        maVtyt: "D05161",
-        tenVtyt: "Miếng cầm",
-        tenThuongMai: "Miếng cầm",
-        maHieu: "UP801520B",
-        maNhom: "N02.04.040",
-        tenNhom: "Miếng cầm",
-        quyCach: "20 miếng/ h",
-        nuocSanXuat: "Thổ Nhĩ Kỳ",
-        hangSanXuat: "GENCO",
-        donViTinh: "Miếng",
-        donGia: 94500,
-        soLuongKeHoach: 1,
-        nhaThau: "CÔNG TY 1",
-        quyetDinh: "8890/QĐ-BV;G1;N1;2024"
-    },
-    {
-        id: 3,
-        maVtyt: "D05341",
-        tenVtyt: "Mũi cắt xương",
-        tenThuongMai: "Mũi cắt xương",
-        maHieu: "Carbide burs M1",
-        maNhom: "N08.00.000",
-        tenNhom: "Nhóm 8. Vật tư tiêu hao",
-        quyCach: "Vỉ/ 10 mũi",
-        nuocSanXuat: "Nhật Bản",
-        hangSanXuat: "Mani",
-        donViTinh: "Mũi",
-        donGia: 105000,
-        soLuongKeHoach: 3,
-        nhaThau: "CÔNG TY 3",
-        quyetDinh: "8896/QĐ-BV;G1;N1;2024"
-    },
-    {
-        id: 9,
-        maVtyt: "D04432",
-        tenVtyt: "Phin lọc khuẩn",
-        tenThuongMai: "Phin lọc khuẩn",
-        maHieu: "GM-001-010",
-        maNhom: "N08.00.350",
-        tenNhom: "Phin lọc vi khuẩn",
-        quyCach: "100 cái/ thùng",
-        nuocSanXuat: "Trung Quốc",
-        hangSanXuat: "Bain Medical",
-        donViTinh: "Cái",
-        donGia: 12880,
-        soLuongKeHoach: 9,
-        nhaThau: "CÔNG TY 9",
-        quyetDinh: "8896/QĐ-BV;G1;N1;2024"
-    },
-    {
-        id: 11,
-        maVtyt: "D06531",
-        tenVtyt: "Sond tiểu nam",
-        tenThuongMai: "Sond tiểu nam",
-        maHieu: "1 way",
-        maNhom: "N04.04.010",
-        tenNhom: "Ống thông tiểu",
-        quyCach: "10 cái/ Hộp",
-        nuocSanXuat: "Trung Quốc",
-        hangSanXuat: "Guangdong Ec",
-        donViTinh: "Cái",
-        donGia: 5345,
-        soLuongKeHoach: 11,
-        nhaThau: "CÔNG TY 11",
-        quyetDinh: "8896/QĐ-BV;G1;N1;2024"
-    }
-];
+import { MedicalSupply } from '@/types';
+import { MOCK_MEDICAL_SUPPLIES } from '@/data/mockData';
 
 export default function InventoryCatalog() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
+    const [stockFilter, setStockFilter] = useState<'all' | 'low-stock'>('all');
     const [filteredItems, setFilteredItems] = useState(MOCK_MEDICAL_SUPPLIES);
     const [selectedItem, setSelectedItem] = useState<MedicalSupply | null>(null);
+
+    // Đọc filter từ URL khi component mount
+    useEffect(() => {
+        const filterParam = searchParams.get('filter');
+        if (filterParam === 'low-stock') {
+            setStockFilter('low-stock');
+        } else {
+            setStockFilter('all');
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -108,6 +34,7 @@ export default function InventoryCatalog() {
     useEffect(() => {
         let filtered = MOCK_MEDICAL_SUPPLIES;
 
+        // Filter theo tìm kiếm
         if (searchTerm) {
             filtered = filtered.filter(
                 (item) =>
@@ -116,14 +43,30 @@ export default function InventoryCatalog() {
             );
         }
 
+        // Filter theo danh mục
         if (categoryFilter !== 'all') {
             filtered = filtered.filter((item) => item.tenNhom === categoryFilter);
         }
 
+        // Filter theo tình trạng tồn kho
+        if (stockFilter === 'low-stock') {
+            filtered = filtered.filter((item) => item.soLuongTon < item.soLuongToiThieu);
+        }
+
         setFilteredItems(filtered);
-    }, [searchTerm, categoryFilter]);
+    }, [searchTerm, categoryFilter, stockFilter]);
 
     const categories = ['all', ...Array.from(new Set(MOCK_MEDICAL_SUPPLIES.map((item) => item.tenNhom)))];
+    const lowStockCount = MOCK_MEDICAL_SUPPLIES.filter((item) => item.soLuongTon < item.soLuongToiThieu).length;
+
+    const handleStockFilterChange = (value: 'all' | 'low-stock') => {
+        setStockFilter(value);
+        if (value === 'low-stock') {
+            setSearchParams({ filter: 'low-stock' });
+        } else {
+            setSearchParams({});
+        }
+    };
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -132,6 +75,20 @@ export default function InventoryCatalog() {
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Danh mục tồn kho</h1>
                     <p className="text-muted-foreground">Quản lý và giám sát tồn kho vật tư y tế</p>
                 </div>
+                {lowStockCount > 0 && (
+                    <div
+                        onClick={() => handleStockFilterChange(stockFilter === 'low-stock' ? 'all' : 'low-stock')}
+                        className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer transition-colors ${stockFilter === 'low-stock'
+                            ? 'bg-warning/20 border-warning'
+                            : 'bg-warning/10 border-warning hover:bg-warning/20'
+                            }`}
+                    >
+                        <AlertTriangle className="w-5 h-5 text-warning" strokeWidth={2} />
+                        <span className="text-sm font-medium text-foreground">
+                            {stockFilter === 'low-stock' ? 'Đang lọc: ' : ''}{lowStockCount} vật tư sắp hết
+                        </span>
+                    </div>
+                )}
             </div>
 
             <Card className="bg-neutral border-border">
@@ -160,6 +117,15 @@ export default function InventoryCatalog() {
                                         {category === 'all' ? 'Tất cả danh mục' : category}
                                     </SelectItem>
                                 ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={stockFilter} onValueChange={(v) => handleStockFilterChange(v as 'all' | 'low-stock')}>
+                            <SelectTrigger className="w-full md:w-48 bg-neutral text-foreground border-border">
+                                <SelectValue placeholder="Tình trạng tồn kho" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Tất cả</SelectItem>
+                                <SelectItem value="low-stock">Sắp hết hàng</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

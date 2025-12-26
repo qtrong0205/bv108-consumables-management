@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MedicalSupply } from '@/pages/InventoryCatalog';
+import { MedicalSupply } from '@/types';
 import { ChevronRight } from 'lucide-react';
 
 interface InventoryTableProps {
