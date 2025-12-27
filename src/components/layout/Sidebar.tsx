@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Package, ClipboardList, ShoppingCart, FileText, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ClipboardList, ShoppingCart, FileText, Settings, LogOut, PhoneCall } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     const navItems = [
         { path: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
         { path: '/catalog', label: 'Danh mục vật tư', icon: Package },
+        { path: '/goi-hang', label: 'Gọi Hàng', icon: PhoneCall },
         { path: '/procurement', label: 'Kế hoạch mua sắm', icon: ClipboardList },
         { path: '/orders', label: 'Quản lý đơn hàng', icon: ShoppingCart },
         { path: '/reports', label: 'Báo cáo', icon: FileText },

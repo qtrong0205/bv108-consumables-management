@@ -18,3 +18,22 @@ export interface MedicalSupply {
     soLuongToiThieu: number;   // Số lượng tối thiểu (ngưỡng cảnh báo)
     soLuongTieuHao: number;    // Số lượng đã tiêu hao trong tháng
 }
+
+export interface OrderRequest {
+    id: number;                // STT
+    nhaThau: string;           // NHA_THAU
+    maQuanLy: string;          // MA_QUAN_LY
+    maVtytCu: string;          // MA_VTYT_CU
+    tenVtytBv: string;         // TEN_VTYT_BV
+    maHieu: string;            // MA_HIEU
+    hangSx: string;            // HANG_SX
+    donViTinh: string;         // DON_VI_TINH
+    quyCach: string;           // QUY_CACH
+    dotGoiHang: number;        // Đợt gọi hàng
+    email?: string;            // Email của nhà thầu
+}
+
+export interface OrderHistory extends OrderRequest {
+    ngayDatHang: Date;         // Ngày đặt hàng
+    trangThai: string;         // Trạng thái đơn hàng
+}
