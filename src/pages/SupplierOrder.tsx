@@ -8,7 +8,7 @@ import { OrderRequest, OrderHistory } from '@/types';
 import { MOCK_ORDER_REQUESTS, MOCK_ORDER_HISTORY } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
 
-export default function GoiHang() {
+export default function SupplierOrder() {
     const [activeOrders, setActiveOrders] = useState<OrderRequest[]>([]);
     const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
@@ -29,7 +29,7 @@ export default function GoiHang() {
         activeOrders.forEach(order => {
             if (selectedIds.includes(order.id)) {
                 const newDotGoiHang = order.dotGoiHang - 1;
-                
+
                 if (newDotGoiHang > 0) {
                     // Still has remaining orders, keep in active list
                     updatedOrders.push({
@@ -37,7 +37,7 @@ export default function GoiHang() {
                         dotGoiHang: newDotGoiHang
                     });
                 }
-                
+
                 // Add to history
                 newHistoryItems.push({
                     ...order,
@@ -99,8 +99,8 @@ export default function GoiHang() {
                                     Lịch sử ({orderHistory.length})
                                 </TabsTrigger>
                             </TabsList>
-                            <Button 
-                                onClick={handlePlaceOrder} 
+                            <Button
+                                onClick={handlePlaceOrder}
                                 disabled={selectedOrders.length === 0}
                                 className="gap-2"
                             >
@@ -112,7 +112,7 @@ export default function GoiHang() {
                         <TabsContent value="active" className="mt-0">
                             <div className="space-y-4">
                                 {activeOrders.length > 0 ? (
-                                    <OrderRequestTable 
+                                    <OrderRequestTable
                                         orders={activeOrders}
                                         selectedOrders={selectedOrders}
                                         setSelectedOrders={setSelectedOrders}

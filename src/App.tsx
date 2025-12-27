@@ -7,8 +7,9 @@ import InventoryCatalog from './pages/InventoryCatalog';
 import ProcurementPlanning from './pages/ProcurementPlanning';
 import OrderManagement from './pages/OrderManagement';
 import Reports from './pages/Reports';
-import GoiHang from './pages/GoiHang';
+import GoiHang from './pages/SupplierOrder';
 import { Toaster } from '@/components/ui/toaster';
+import SupplierOrder from './pages/SupplierOrder';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -50,7 +51,7 @@ function App() {
                     <Route index element={<Navigate to="/dashboard" replace />} />
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="catalog" element={<InventoryCatalog />} />
-                    <Route path="goi-hang" element={<GoiHang />} />
+                    <Route path="suppliers" element={<SupplierOrder />} />
                     <Route path="procurement" element={<ProcurementPlanning userRole={userRole} />} />
                     <Route path="orders" element={<OrderManagement userRole={userRole} />} />
                     <Route path="reports" element={<Reports />} />

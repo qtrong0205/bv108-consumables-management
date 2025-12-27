@@ -15,7 +15,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     const navItems = [
         { path: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
         { path: '/catalog', label: 'Danh mục vật tư', icon: Package },
-        { path: '/goi-hang', label: 'Gọi Hàng', icon: PhoneCall },
+        { path: '/suppliers', label: 'Gọi Hàng', icon: PhoneCall },
         { path: '/procurement', label: 'Kế hoạch mua sắm', icon: ClipboardList },
         { path: '/orders', label: 'Quản lý đơn hàng', icon: ShoppingCart },
         { path: '/reports', label: 'Báo cáo', icon: FileText },
