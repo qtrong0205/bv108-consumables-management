@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Mail } from 'lucide-react';
 import OrderRequestTable from '@/components/inventory/OrderRequestTable';
 import { OrderRequest, OrderHistory } from '@/types';
 import { MOCK_ORDER_REQUESTS, MOCK_ORDER_HISTORY } from '@/data/mockData';
+import { useToast } from '@/hooks/use-toast';
 
 export default function GoiHang() {
     const [activeOrders, setActiveOrders] = useState<OrderRequest[]>([]);
     const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
+    const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
+    const { toast } = useToast();
 
     useEffect(() => {
         // Filter orders with dotGoiHang > 0 for active tab
@@ -47,6 +52,30 @@ export default function GoiHang() {
 
         setActiveOrders(updatedOrders);
         setOrderHistory([...newHistoryItems, ...orderHistory]);
+        setSelectedOrders([]);
+    };
+
+    const handlePlaceOrder = () => {
+        if (selectedOrders.length === 0) {
+            toast({
+                title: "Chưa chọn đơn hàng",
+                description: "Vui lòng chọn ít nhất một đơn hàng để đặt",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const selectedCompanies = activeOrders
+            .filter(order => selectedOrders.includes(order.id))
+            .map(order => order.nhaThau)
+            .filter((value, index, self) => self.indexOf(value) === index);
+
+        toast({
+            title: "Đặt hàng thành công",
+            description: `Đã gửi email đến ${selectedCompanies.length} nhà thầu: ${selectedCompanies.join(', ')}`,
+        });
+
+        handleOrderPlaced(selectedOrders);
     };
 
     return (
@@ -61,21 +90,32 @@ export default function GoiHang() {
             <Card className="bg-neutral border-border">
                 <CardContent className="pt-6">
                     <Tabs defaultValue="active" className="w-full">
-                        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
-                            <TabsTrigger value="active">
-                                Đơn hàng cần gọi ({activeOrders.length})
-                            </TabsTrigger>
-                            <TabsTrigger value="history">
-                                Lịch sử ({orderHistory.length})
-                            </TabsTrigger>
-                        </TabsList>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                            <TabsList className="grid w-full max-w-md grid-cols-2">
+                                <TabsTrigger value="active">
+                                    Đơn hàng cần gọi ({activeOrders.length})
+                                </TabsTrigger>
+                                <TabsTrigger value="history">
+                                    Lịch sử ({orderHistory.length})
+                                </TabsTrigger>
+                            </TabsList>
+                            <Button 
+                                onClick={handlePlaceOrder} 
+                                disabled={selectedOrders.length === 0}
+                                className="gap-2"
+                            >
+                                <Mail className="w-4 h-4" />
+                                ĐẶT HÀNG ({selectedOrders.length})
+                            </Button>
+                        </div>
 
                         <TabsContent value="active" className="mt-0">
                             <div className="space-y-4">
                                 {activeOrders.length > 0 ? (
                                     <OrderRequestTable 
-                                        orders={activeOrders} 
-                                        onOrderPlaced={handleOrderPlaced}
+                                        orders={activeOrders}
+                                        selectedOrders={selectedOrders}
+                                        setSelectedOrders={setSelectedOrders}
                                     />
                                 ) : (
                                     <div className="text-center py-12">
@@ -98,8 +138,7 @@ export default function GoiHang() {
                                                         <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">STT</th>
                                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
                                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT cũ</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Tên VT BV</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã hiệu</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Tên vật tư</th>
                                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
                                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Ngày đặt</th>
                                                         <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
@@ -108,13 +147,17 @@ export default function GoiHang() {
                                                 <tbody>
                                                     {orderHistory.map((order, index) => (
                                                         <tr key={`${order.id}-${index}`} className="border-b border-border hover:bg-muted/50">
-                                                            <td className="px-4 py-3 text-sm text-foreground text-center">{index + 1}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">{order.nhaThau}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">{order.maVtytCu}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">{order.tenVtytBv}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">{order.maHieu}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">{order.hangSx}</td>
+                                                            <td className="px-4 py-3 text-xs text-foreground text-center">{index + 1}</td>
+                                                            <td className="px-4 py-3 text-xs text-foreground">{order.nhaThau}</td>
+                                                            <td className="px-4 py-3 text-xs font-mono text-foreground">{order.maVtytCu}</td>
                                                             <td className="px-4 py-3 text-sm text-foreground">
+                                                                <div className="max-w-[200px]">
+                                                                    <p className="font-medium truncate" title={order.tenVtytBv}>{order.tenVtytBv}</p>
+                                                                    <p className="text-xs text-muted-foreground truncate" title={order.maHieu}>{order.maHieu}</p>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs text-foreground">{order.hangSx}</td>
+                                                            <td className="px-4 py-3 text-xs text-foreground">
                                                                 {new Date(order.ngayDatHang).toLocaleDateString('vi-VN')}
                                                             </td>
                                                             <td className="px-4 py-3 text-sm text-center">
