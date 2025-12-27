@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Mail } from 'lucide-react';
-import OrderRequestTable from '@/components/inventory/OrderRequestTable';
+import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import { OrderRequest, OrderHistory } from '@/types';
 import { MOCK_ORDER_REQUESTS, MOCK_ORDER_HISTORY } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
