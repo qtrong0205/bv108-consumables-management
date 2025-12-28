@@ -61,7 +61,11 @@ export default function InventoryCatalog() {
     }, [searchTerm, categoryFilter, stockFilter]);
 
     const categories = ['all', ...Array.from(new Set(MOCK_MEDICAL_SUPPLIES.map((item) => item.tenNhom)))];
-    const lowStockCount = MOCK_MEDICAL_SUPPLIES.filter((item) => item.soLuongTon < item.soLuongToiThieu).length;
+    const lowStock = MOCK_MEDICAL_SUPPLIES.map((item) => {
+        if (item.soLuongTon < item.soLuongToiThieu) return item.maVtyt
+    }).filter((item) => item)
+    console.log(lowStock)
+    const lowStockCount = lowStock.length
 
     const handleStockFilterChange = (value: 'all' | 'low-stock') => {
         setStockFilter(value);
@@ -196,7 +200,7 @@ export default function InventoryCatalog() {
                 </CardContent>
             </Card>
 
-            <InventoryTable items={filteredItems} onRowClick={setSelectedItem} />
+            <InventoryTable items={filteredItems} lowStockItems={lowStock} onRowClick={setSelectedItem} />
 
             {selectedItem && (
                 <ItemDetailModal

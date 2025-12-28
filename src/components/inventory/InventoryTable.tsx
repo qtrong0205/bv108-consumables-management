@@ -1,14 +1,17 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MedicalSupply } from '@/types';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, AlertTriangle } from 'lucide-react';
 
 interface InventoryTableProps {
     items: MedicalSupply[];
+    lowStockItems: string[];
     onRowClick: (item: MedicalSupply) => void;
 }
 
-export default function InventoryTable({ items, onRowClick }: InventoryTableProps) {
+export default function InventoryTable({ items, lowStockItems, onRowClick }: InventoryTableProps) {
+    const isLowStock = (maVtyt: string) => lowStockItems.includes(maVtyt);
+
     return (
         <Card className="bg-neutral border-border">
             <CardContent className="p-0">
@@ -19,7 +22,7 @@ export default function InventoryTable({ items, onRowClick }: InventoryTableProp
                             <div
                                 key={item.id}
                                 onClick={() => onRowClick(item)}
-                                className="p-4 hover:bg-tertiary transition-colors cursor-pointer active:bg-tertiary/80"
+                                className={`p-4 hover:bg-tertiary transition-colors cursor-pointer active:bg-tertiary/80 ${isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
                             >
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="flex-1 min-w-0">
@@ -28,6 +31,12 @@ export default function InventoryTable({ items, onRowClick }: InventoryTableProp
                                             <Badge variant="outline" className="bg-tertiary text-foreground border-border text-[10px] px-1.5 py-0">
                                                 {item.tenNhom.length > 12 ? item.tenNhom.substring(0, 12) + '...' : item.tenNhom}
                                             </Badge>
+                                            {isLowStock(item.maVtyt) && (
+                                                <Badge variant="outline" className="bg-warning/20 text-warning border-warning text-[10px] px-1.5 py-0 flex items-center gap-1">
+                                                    <AlertTriangle className="w-3 h-3" />
+                                                    Sắp hết
+                                                </Badge>
+                                            )}
                                         </div>
                                         <p className="font-medium text-sm text-foreground truncate">{item.tenVtyt}</p>
                                         <p className="text-xs text-muted-foreground truncate">{item.hangSanXuat} - {item.nuocSanXuat}</p>
@@ -59,6 +68,7 @@ export default function InventoryTable({ items, onRowClick }: InventoryTableProp
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">ĐVT</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium whitespace-nowrap">Đơn giá</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">SL KH</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
                             </tr>
                         </thead>
@@ -67,7 +77,7 @@ export default function InventoryTable({ items, onRowClick }: InventoryTableProp
                                 <tr
                                     key={item.id}
                                     onClick={() => onRowClick(item)}
-                                    className="hover:bg-tertiary transition-colors cursor-pointer"
+                                    className={`hover:bg-tertiary transition-colors cursor-pointer ${isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
                                 >
                                     <td className="px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap">
                                         {item.maVtyt}
@@ -96,6 +106,18 @@ export default function InventoryTable({ items, onRowClick }: InventoryTableProp
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground text-center font-medium">
                                         {item.soLuongKeHoach}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                        {isLowStock(item.maVtyt) ? (
+                                            <Badge variant="outline" className="bg-warning/20 text-warning border-warning text-xs flex items-center gap-1 w-fit mx-auto">
+                                                <AlertTriangle className="w-3 h-3" />
+                                                Sắp hết
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="bg-green-500/20 text-green-600 border-green-500 text-xs">
+                                                Đủ hàng
+                                            </Badge>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground">
                                         <div className="max-w-[120px] truncate" title={item.nhaThau}>
