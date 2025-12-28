@@ -1,13 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState } from 'react';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import InventoryCatalog from './pages/InventoryCatalog';
 import ProcurementPlanning from './pages/ProcurementPlanning';
 import OrderManagement from './pages/OrderManagement';
 import Reports from './pages/Reports';
-import GoiHang from './pages/SupplierOrder';
 import { Toaster } from '@/components/ui/toaster';
 import SupplierOrder from './pages/SupplierOrder';
 
@@ -35,6 +35,16 @@ function App() {
                             <Navigate to="/dashboard" replace />
                         ) : (
                             <LoginPage onLogin={handleLogin} />
+                        )
+                    }
+                />
+                <Route
+                    path="/register"
+                    element={
+                        isAuthenticated ? (
+                            <Navigate to="/dashboard" replace />
+                        ) : (
+                            <RegisterPage />
                         )
                     }
                 />

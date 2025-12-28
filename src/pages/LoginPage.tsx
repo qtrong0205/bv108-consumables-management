@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,9 +80,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                                     <SelectValue placeholder="Chọn vai trò" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Admin">Quản trị viên</SelectItem>
-                                    <SelectItem value="Officer">Nhân viên</SelectItem>
-                                    <SelectItem value="Staff">Cán bộ</SelectItem>
+                                    <SelectItem value="Department Commander">Chỉ huy khoa</SelectItem>
+                                    <SelectItem value="Contractor">Nhân viên thầu</SelectItem>
+                                    <SelectItem value="Warehouse Staff">Nhân viên kho</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -107,13 +108,22 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                             Đăng nhập
                         </Button>
 
-                        <div className="text-center">
+                        <div className="text-center space-y-2">
                             <a
                                 href="#"
-                                className="text-sm text-secondary hover:text-secondary/80 transition-colors"
+                                className="text-sm text-secondary hover:text-secondary/80 transition-colors block"
                             >
                                 Quên mật khẩu?
                             </a>
+                            <p className="text-sm text-muted-foreground">
+                                Chưa có tài khoản?{' '}
+                                <Link
+                                    to="/register"
+                                    className="text-secondary hover:text-secondary/80 transition-colors font-medium"
+                                >
+                                    Đăng ký ngay
+                                </Link>
+                            </p>
                         </div>
                     </form>
                 </CardContent>
