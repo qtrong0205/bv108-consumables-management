@@ -3,21 +3,25 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertTriangle, FileDown, FileUp } from 'lucide-react';
+import { Search, AlertTriangle, FileDown, FileUp, ChevronDown, X } from 'lucide-react';
 import InventoryTable from '@/components/inventory/InventoryTable';
 import ItemDetailModal from '@/components/inventory/ItemDetailModal';
 import { MedicalSupply } from '@/types';
 import { MOCK_MEDICAL_SUPPLIES } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 
 export default function InventoryCatalog() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [stockFilter, setStockFilter] = useState<'all' | 'low-stock'>('all');
     const [filteredItems, setFilteredItems] = useState(MOCK_MEDICAL_SUPPLIES);
     const [selectedItem, setSelectedItem] = useState<MedicalSupply | null>(null);
+    const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
@@ -47,9 +51,9 @@ export default function InventoryCatalog() {
             );
         }
 
-        // Filter theo danh mục
-        if (categoryFilter !== 'all') {
-            filtered = filtered.filter((item) => item.tenNhom === categoryFilter);
+        // Filter theo danh mục (nhiều danh mục)
+        if (selectedCategories.length > 0) {
+            filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom));
         }
 
         // Filter theo tình trạng tồn kho
@@ -58,9 +62,9 @@ export default function InventoryCatalog() {
         }
 
         setFilteredItems(filtered);
-    }, [searchTerm, categoryFilter, stockFilter]);
+    }, [searchTerm, selectedCategories, stockFilter]);
 
-    const categories = ['all', ...Array.from(new Set(MOCK_MEDICAL_SUPPLIES.map((item) => item.tenNhom)))];
+    const categories = Array.from(new Set(MOCK_MEDICAL_SUPPLIES.map((item) => item.tenNhom)));
     const lowStock = MOCK_MEDICAL_SUPPLIES.map((item) => {
         if (item.soLuongTon < item.soLuongToiThieu) return item.maVtyt
     }).filter((item) => item)
@@ -74,6 +78,28 @@ export default function InventoryCatalog() {
         } else {
             setSearchParams({});
         }
+    };
+
+    const handleCategoryToggle = (category: string) => {
+        setSelectedCategories(prev => {
+            if (prev.includes(category)) {
+                return prev.filter(c => c !== category);
+            } else {
+                return [...prev, category];
+            }
+        });
+    };
+
+    const handleSelectAllCategories = () => {
+        if (selectedCategories.length === categories.length) {
+            setSelectedCategories([]);
+        } else {
+            setSelectedCategories([...categories]);
+        }
+    };
+
+    const handleClearCategories = () => {
+        setSelectedCategories([]);
     };
 
     const handleImportClick = () => {
@@ -175,18 +201,75 @@ export default function InventoryCatalog() {
                                 className="pl-10 bg-neutral text-foreground border-border"
                             />
                         </div>
-                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                            <SelectTrigger className="w-full md:w-64 bg-neutral text-foreground border-border">
-                                <SelectValue placeholder="Lọc theo danh mục" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {categories.map((category) => (
-                                    <SelectItem key={category} value={category}>
-                                        {category === 'all' ? 'Tất cả danh mục' : category}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+
+                        {/* Multi-select Category Filter */}
+                        <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full md:w-72 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">
+                                        {selectedCategories.length === 0
+                                            ? 'Tất cả danh mục'
+                                            : selectedCategories.length === 1
+                                                ? selectedCategories[0]
+                                                : `${selectedCategories.length} danh mục đã chọn`}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn danh mục</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleSelectAllCategories}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {selectedCategories.length === categories.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {categories.map((category) => (
+                                        <div
+                                            key={category}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => handleCategoryToggle(category)}
+                                        >
+                                            <Checkbox
+                                                id={category}
+                                                checked={selectedCategories.includes(category)}
+                                                onCheckedChange={() => handleCategoryToggle(category)}
+                                            />
+                                            <label
+                                                htmlFor={category}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {category}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                                {selectedCategories.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleClearCategories}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
                         <Select value={stockFilter} onValueChange={(v) => handleStockFilterChange(v as 'all' | 'low-stock')}>
                             <SelectTrigger className="w-full md:w-48 bg-neutral text-foreground border-border">
                                 <SelectValue placeholder="Tình trạng tồn kho" />
@@ -197,6 +280,30 @@ export default function InventoryCatalog() {
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Hiển thị các danh mục đã chọn */}
+                    {selectedCategories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
+                            <span className="text-sm text-muted-foreground">Đang lọc:</span>
+                            {selectedCategories.map((category) => (
+                                <Badge
+                                    key={category}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => handleCategoryToggle(category)}
+                                >
+                                    {category}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
+                            <button
+                                onClick={handleClearCategories}
+                                className="text-xs text-muted-foreground hover:text-foreground underline"
+                            >
+                                Xóa tất cả
+                            </button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
