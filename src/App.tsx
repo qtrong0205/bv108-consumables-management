@@ -10,6 +10,7 @@ import OrderManagement from './pages/OrderManagement';
 import Reports from './pages/Reports';
 import { Toaster } from '@/components/ui/toaster';
 import SupplierOrder from './pages/SupplierOrder';
+import MaterialForecast from './pages/MaterialForecast';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,6 +64,7 @@ function App() {
                     <Route path="catalog" element={<InventoryCatalog />} />
                     <Route path="suppliers" element={<SupplierOrder />} />
                     <Route path="procurement" element={<ProcurementPlanning userRole={userRole} />} />
+                    <Route path="forecast" element={<MaterialForecast />} />
                     <Route path="orders" element={<OrderManagement userRole={userRole} />} />
                     <Route path="reports" element={<Reports />} />
                 </Route>
