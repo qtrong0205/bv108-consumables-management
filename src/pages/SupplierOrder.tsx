@@ -59,20 +59,29 @@ export default function SupplierOrder() {
         if (selectedOrders.length === 0) {
             toast({
                 title: "Chưa chọn đơn hàng",
-                description: "Vui lòng chọn ít nhất một đơn hàng để đặt",
+                description: "Vui lòng chọn ít nhất một vật tư để đặt hàng",
                 variant: "destructive"
             });
             return;
         }
 
-        const selectedCompanies = activeOrders
-            .filter(order => selectedOrders.includes(order.id))
-            .map(order => order.nhaThau)
-            .filter((value, index, self) => self.indexOf(value) === index);
+        // Nhóm vật tư theo nhà thầu
+        const selectedItems = activeOrders.filter(order => selectedOrders.includes(order.id));
+        const groupedBySupplier: { [key: string]: OrderRequest[] } = {};
+
+        selectedItems.forEach(order => {
+            if (!groupedBySupplier[order.nhaThau]) {
+                groupedBySupplier[order.nhaThau] = [];
+            }
+            groupedBySupplier[order.nhaThau].push(order);
+        });
+
+        const supplierCount = Object.keys(groupedBySupplier).length;
+        const supplierNames = Object.keys(groupedBySupplier).join(', ');
 
         toast({
             title: "Đặt hàng thành công",
-            description: `Đã gửi email đến ${selectedCompanies.length} nhà thầu: ${selectedCompanies.join(', ')}`,
+            description: `Đã gửi email đến ${supplierCount} nhà thầu (${selectedItems.length} vật tư): ${supplierNames}`,
         });
 
         handleOrderPlaced(selectedOrders);
