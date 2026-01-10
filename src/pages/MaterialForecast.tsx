@@ -209,13 +209,15 @@ export default function MaterialForecast() {
         const state = approvalStates[stt];
         if (!state) return null;
 
+        const baseClass = "text-[10px] whitespace-nowrap shrink-0 min-w-[85px] justify-center cursor-pointer transition-all";
+
         switch (state.status) {
             case 'approved':
-                return <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px]"><CheckCircle2 className="w-3 h-3 mr-1" />Đã duyệt</Badge>;
+                return <Badge className={`bg-green-100 text-green-700 border-green-300 hover:bg-green-200 hover:border-green-400 ${baseClass}`}><CheckCircle2 className="w-3 h-3 mr-1" />Đã duyệt</Badge>;
             case 'rejected':
-                return <Badge variant="destructive" className="text-[10px]"><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
+                return <Badge className={`bg-red-100 text-red-700 border-red-300 hover:bg-red-200 hover:border-red-400 ${baseClass}`}><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             case 'edited':
-                return <Badge className="bg-orange-100 text-orange-700 border-orange-300 text-[10px]"><FilePen className="w-3 h-3 mr-1" />Đã sửa</Badge>;
+                return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:border-orange-400 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Đã sửa</Badge>;
             default:
                 return null;
         }
@@ -335,8 +337,8 @@ export default function MaterialForecast() {
                                         <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
                                         <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
                                         <td className="px-3 py-3 text-sm text-foreground">
-                                            <div className="max-w-[200px] flex items-center gap-2">
-                                                <p className="font-medium truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <p className="font-medium truncate flex-1 min-w-0" title={item.tenVtytBv}>{item.tenVtytBv}</p>
                                                 {getStatusBadge(item.stt)}
                                             </div>
                                         </td>

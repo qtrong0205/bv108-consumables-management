@@ -15,11 +15,11 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     const navItems = [
         { path: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
         { path: '/catalog', label: 'Danh mục vật tư', icon: Package },
+        { path: '/forecast', label: 'Dự trù vật tư', icon: Calculator },
         { path: '/suppliers', label: 'Gọi Hàng', icon: PhoneCall },
         { path: '/procurement', label: 'Kế hoạch mua sắm', icon: ClipboardList },
         { path: '/orders', label: 'Quản lý đơn hàng', icon: ShoppingCart },
         { path: '/reports', label: 'Báo cáo', icon: FileText },
-        { path: '/forecast', label: 'Dự trù vật tư', icon: Calculator },
     ];
 
     const bottomItems = [
@@ -50,8 +50,8 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                     <div className="flex items-center gap-3">
                         <img src="./logo.jpg" alt="Logo" className="w-10 h-10 object-contain" />
                         <div>
-                            <h1 className="text-lg font-semibold text-primary-foreground">Vật Tư Y Tế</h1>
-                            <p className="text-xs text-primary-foreground/80">Hệ Thống Quản Lý</p>
+                            <h1 className="text-lg font-semibold text-primary-foreground">Ban KHVT</h1>
+                            <p className="text-xs text-primary-foreground/80">Quản Lý Vật Tư Y Tế</p>
                         </div>
                     </div>
                 </div>
