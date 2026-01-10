@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Mail } from 'lucide-react';
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
+import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
 import { OrderRequest, OrderHistory } from '@/types';
 import { MOCK_ORDER_REQUESTS, MOCK_ORDER_HISTORY } from '@/data/mockData';
 import { useToast } from '@/hooks/use-toast';
@@ -139,51 +140,11 @@ export default function SupplierOrder() {
                         <TabsContent value="history" className="mt-0">
                             <div className="space-y-4">
                                 {orderHistory.length > 0 ? (
-                                    <div className="rounded-md border border-border overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead className="bg-primary text-primary-foreground">
-                                                    <tr>
-                                                        <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">STT</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT cũ</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Tên vật tư</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Ngày đặt</th>
-                                                        <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {orderHistory.map((order, index) => (
-                                                        <tr key={`${order.id}-${index}`} className="border-b border-border hover:bg-muted/50">
-                                                            <td className="px-4 py-3 text-xs text-foreground text-center">{index + 1}</td>
-                                                            <td className="px-4 py-3 text-xs text-foreground">{order.nhaThau}</td>
-                                                            <td className="px-4 py-3 text-xs font-mono text-foreground">{order.maVtytCu}</td>
-                                                            <td className="px-4 py-3 text-sm text-foreground">
-                                                                <div className="max-w-[200px]">
-                                                                    <p className="font-medium truncate" title={order.tenVtytBv}>{order.tenVtytBv}</p>
-                                                                    <p className="text-xs text-muted-foreground truncate" title={order.maHieu}>{order.maHieu}</p>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-xs text-foreground">{order.hangSx}</td>
-                                                            <td className="px-4 py-3 text-xs text-foreground">
-                                                                {new Date(order.ngayDatHang).toLocaleDateString('vi-VN')}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-sm text-center">
-                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                    {order.trangThai}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
+                                    <OrderHistoryTable orders={orderHistory} />
                                 ) : (
                                     <div className="text-center py-12">
                                         <p className="text-muted-foreground text-lg">
-                                            Chưa có lịch sử đặt hàng
+                                            Chưa có lịch sử gọi hàng
                                         </p>
                                     </div>
                                 )}
