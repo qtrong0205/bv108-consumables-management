@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, X } from 'lucide-react';
+import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, X, CheckCheck, AlertTriangle } from 'lucide-react';
 import { DATA_DU_TRU_MAU, IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +44,7 @@ export default function MaterialForecast() {
     const [lyDoTuChoi, setLyDoTuChoi] = useState('');
     const [isRejectMode, setIsRejectMode] = useState(false);
     const [approvalStates, setApprovalStates] = useState<ApprovalState>({});
+    const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
 
     // Người dùng hiện tại (giả lập)
     const CURRENT_USER = 'TS. Phạm Văn Dũng';
@@ -223,6 +224,39 @@ export default function MaterialForecast() {
         }
     };
 
+    // Đếm số vật tư chưa duyệt
+    const pendingCount = filteredData.filter(item => !approvalStates[item.stt]).length;
+    const approvedCount = filteredData.filter(item => approvalStates[item.stt]?.status === 'approved' || approvalStates[item.stt]?.status === 'edited').length;
+
+    // Duyệt tất cả
+    const handleApproveAll = () => {
+        const newApprovalStates: ApprovalState = { ...approvalStates };
+        const now = new Date();
+
+        filteredData.forEach(item => {
+            if (!approvalStates[item.stt]) {
+                newApprovalStates[item.stt] = {
+                    status: 'approved',
+                    nguoiDuyet: CURRENT_USER,
+                    thoiGian: now,
+                };
+            }
+        });
+
+        setApprovalStates(newApprovalStates);
+        setIsApproveAllDialogOpen(false);
+
+        toast({
+            title: "Duyệt tất cả thành công",
+            description: `Đã phê duyệt ${pendingCount} vật tư chưa duyệt`,
+        });
+    };
+
+    // Tính tổng giá trị của các vật tư chưa duyệt
+    const pendingTotalValue = filteredData
+        .filter(item => !approvalStates[item.stt])
+        .reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
+
     return (
         <div className="p-6 lg:p-8 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -246,11 +280,19 @@ export default function MaterialForecast() {
                         <Save className="w-4 h-4 mr-2" strokeWidth={2} />
                         Lưu dự trù
                     </Button>
+                    <Button
+                        className="bg-green-600 hover:bg-green-700 text-white font-normal"
+                        onClick={() => setIsApproveAllDialogOpen(true)}
+                        disabled={pendingCount === 0}
+                    >
+                        <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
+                        Duyệt tất cả ({pendingCount})
+                    </Button>
                 </div>
             </div>
 
             {/* Thống kê tổng quan */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="bg-neutral border-border">
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -281,6 +323,25 @@ export default function MaterialForecast() {
                                 <p className="text-2xl font-semibold text-foreground">{totalValue.toLocaleString('vi-VN')}đ</p>
                             </div>
                             <Calculator className="w-8 h-8 text-green-500 opacity-50" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-neutral border-border">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Tiến độ phê duyệt</p>
+                                <p className="text-2xl font-semibold text-foreground">
+                                    {approvedCount}/{filteredData.length}
+                                </p>
+                            </div>
+                            <CheckCircle2 className="w-8 h-8 text-green-500 opacity-50" />
+                        </div>
+                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                            <div
+                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${filteredData.length > 0 ? (approvedCount / filteredData.length) * 100 : 0}%` }}
+                            />
                         </div>
                     </CardContent>
                 </Card>
@@ -597,6 +658,52 @@ export default function MaterialForecast() {
                                 Đóng
                             </Button>
                         )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Dialog xác nhận duyệt tất cả */}
+            <Dialog open={isApproveAllDialogOpen} onOpenChange={setIsApproveAllDialogOpen}>
+                <DialogContent className="sm:max-w-[450px] bg-neutral border-border">
+                    <DialogHeader>
+                        <DialogTitle className="text-foreground flex items-center gap-2">
+                            <CheckCheck className="w-5 h-5 text-green-500" />
+                            Xác nhận phê duyệt tất cả
+                        </DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
+                            Bạn có chắc chắn muốn phê duyệt tất cả vật tư đang chờ duyệt?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm text-muted-foreground">Số vật tư sẽ được duyệt:</span>
+                                <span className="font-semibold text-green-500">{pendingCount} vật tư</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Tổng giá trị:</span>
+                                <span className="font-semibold text-foreground">{pendingTotalValue.toLocaleString('vi-VN')} VNĐ</span>
+                            </div>
+                        </div>
+                        <p className="text-sm text-yellow-500 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            Hành động này không thể hoàn tác sau khi thực hiện.
+                        </p>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            onClick={() => setIsApproveAllDialogOpen(false)}
+                            variant="outline"
+                        >
+                            Hủy bỏ
+                        </Button>
+                        <Button
+                            onClick={handleApproveAll}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            <CheckCheck className="w-4 h-4 mr-2" />
+                            Xác nhận duyệt tất cả
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
