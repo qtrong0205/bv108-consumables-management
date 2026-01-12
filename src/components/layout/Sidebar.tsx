@@ -17,8 +17,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
         { path: '/catalog', label: 'Danh mục vật tư', icon: Package },
         { path: '/forecast', label: 'Dự trù vật tư', icon: Calculator },
         { path: '/suppliers', label: 'Gọi Hàng', icon: PhoneCall },
-        { path: '/procurement', label: 'Kế hoạch mua sắm', icon: ClipboardList },
-        { path: '/orders', label: 'Quản lý đơn hàng', icon: ShoppingCart },
         { path: '/reports', label: 'Báo cáo', icon: FileText },
     ];
 

@@ -63,9 +63,7 @@ function App() {
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="catalog" element={<InventoryCatalog />} />
                     <Route path="suppliers" element={<SupplierOrder />} />
-                    <Route path="procurement" element={<ProcurementPlanning userRole={userRole} />} />
                     <Route path="forecast" element={<MaterialForecast />} />
-                    <Route path="orders" element={<OrderManagement userRole={userRole} />} />
                     <Route path="reports" element={<Reports />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/login" replace />} />
