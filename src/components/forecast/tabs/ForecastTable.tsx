@@ -7,34 +7,35 @@ import { Calculator, CheckCircle2, Search } from "lucide-react"
 import React from "react"
 
 interface IForecastTableProps {
-    totalForecast: number;
-    totalOrder: number;
-    totalValue: number;
-    approvedCount: number;
-    filteredData: IVatTuDuTru[];
-    searchTerm: string;
-    setSearchTerm: React.Dispatch<React.SetStateAction<string>>;
-    handleRowClick: (item: IVatTuDuTru) => void;
-    getStatusBadge: (stt: number) => React.ReactNode;
-    handleForecastChange: (stt: number, value: string) => void;
-    handleForecastFocus: (stt: number, value: number) => void;
-    handleForecastBlur: (stt: number, newValue: number) => void;
+    statistics: {
+        totalForecast: number;
+        totalOrder: number;
+        totalValue: number;
+        approvedCount: number;
+    };
+    tableData: {
+        filteredData: IVatTuDuTru[];
+        searchTerm: string;
+        onSearchChange: (value: string) => void;
+    };
+    handlers: {
+        onRowClick: (item: IVatTuDuTru) => void;
+        getStatusBadge: (stt: number) => React.ReactNode;
+        onForecastChange: (stt: number, value: string) => void;
+        onForecastFocus: (stt: number, value: number) => void;
+        onForecastBlur: (stt: number, newValue: number) => void;
+    };
 }
 
 const ForecastTable = ({
-    totalForecast,
-    totalOrder,
-    totalValue,
-    approvedCount,
-    filteredData,
-    searchTerm,
-    setSearchTerm,
-    handleRowClick,
-    getStatusBadge,
-    handleForecastChange,
-    handleForecastFocus,
-    handleForecastBlur,
+    statistics,
+    tableData,
+    handlers,
 }: IForecastTableProps) => {
+    const { totalForecast, totalOrder, totalValue, approvedCount } = statistics;
+    const { filteredData, searchTerm, onSearchChange } = tableData;
+    const { onRowClick, getStatusBadge, onForecastChange, onForecastFocus, onForecastBlur } = handlers;
+
     return (
         <TabsContent value="forecast" className="space-y-6">
             {/* Thống kê tổng quan */}
@@ -105,7 +106,7 @@ const ForecastTable = ({
                             type="search"
                             placeholder="Tìm theo tên, mã vật tư hoặc nhà thầu..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => onSearchChange(e.target.value)}
                             className="pl-10 bg-neutral text-foreground border-border"
                         />
                     </div>
@@ -139,7 +140,7 @@ const ForecastTable = ({
                                     <tr
                                         key={item.stt}
                                         className="hover:bg-tertiary transition-colors cursor-pointer"
-                                        onClick={() => handleRowClick(item)}
+                                        onClick={() => onRowClick(item)}
                                     >
                                         <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
                                         <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
@@ -178,9 +179,9 @@ const ForecastTable = ({
                                                 type="number"
                                                 min="0"
                                                 value={item.duTru}
-                                                onChange={(e) => handleForecastChange(item.stt, e.target.value)}
-                                                onFocus={() => handleForecastFocus(item.stt, item.duTru)}
-                                                onBlur={(e) => handleForecastBlur(item.stt, parseInt(e.target.value) || 0)}
+                                                onChange={(e) => onForecastChange(item.stt, e.target.value)}
+                                                onFocus={() => onForecastFocus(item.stt, item.duTru)}
+                                                onBlur={(e) => onForecastBlur(item.stt, parseInt(e.target.value) || 0)}
                                                 className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
                                             />
                                         </td>

@@ -426,18 +426,24 @@ export default function MaterialForecast() {
                 </TabsList>
 
                 <ForecastTable
-                    totalForecast={totalForecast}
-                    totalOrder={totalOrder}
-                    totalValue={totalValue}
-                    approvedCount={approvedCount}
-                    filteredData={filteredData}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                    handleRowClick={handleRowClick}
-                    getStatusBadge={getStatusBadge}
-                    handleForecastChange={handleForecastChange}
-                    handleForecastFocus={handleForecastFocus}
-                    handleForecastBlur={handleForecastBlur}
+                    statistics={{
+                        totalForecast,
+                        totalOrder,
+                        totalValue,
+                        approvedCount,
+                    }}
+                    tableData={{
+                        filteredData,
+                        searchTerm,
+                        onSearchChange: setSearchTerm,
+                    }}
+                    handlers={{
+                        onRowClick: handleRowClick,
+                        getStatusBadge,
+                        onForecastChange: handleForecastChange,
+                        onForecastFocus: handleForecastFocus,
+                        onForecastBlur: handleForecastBlur,
+                    }}
                 />
 
                 {/* Tab Lịch sử thay đổi */}
@@ -451,22 +457,30 @@ export default function MaterialForecast() {
 
             {/* Dialog phê duyệt */}
             <ApproveDialog
-                isDialogOpen={isDialogOpen}
-                setIsDialogOpen={setIsDialogOpen}
-                selectedItem={selectedItem}
-                getStatusBadge={getStatusBadge}
-                isEditMode={isEditMode}
-                setIsEditMode={setIsEditMode}
-                editDuTru={editDuTru}
-                setEditDuTru={setEditDuTru}
-                approvalStates={approvalStates}
-                isRejectMode={isRejectMode}
-                setIsRejectMode={setIsRejectMode}
-                lyDoTuChoi={lyDoTuChoi}
-                setLyDoTuChoi={setLyDoTuChoi}
-                handleApprove={handleApprove}
-                handleReject={handleReject}
-                handleEditAndApprove={handleEditAndApprove}
+                dialog={{
+                    open: isDialogOpen,
+                    onOpenChange: setIsDialogOpen,
+                    selectedItem,
+                    approvalStates,
+                    getStatusBadge,
+                }}
+                editMode={{
+                    isActive: isEditMode,
+                    setActive: setIsEditMode,
+                    editValue: editDuTru,
+                    setEditValue: setEditDuTru,
+                }}
+                rejectMode={{
+                    isActive: isRejectMode,
+                    setActive: setIsRejectMode,
+                    reason: lyDoTuChoi,
+                    setReason: setLyDoTuChoi,
+                }}
+                actions={{
+                    onApprove: handleApprove,
+                    onReject: handleReject,
+                    onEditAndApprove: handleEditAndApprove,
+                }}
             />
 
             {/* Dialog xác nhận duyệt tất cả */}

@@ -1,5 +1,5 @@
 import { IVatTuDuTru } from "@/data/mockData";
-import { ApprovalState } from "@/pages/MaterialForecast";
+import { ApprovalState } from "@/data/forecast/type";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,44 +15,45 @@ import { CheckCircle2, XCircle, FilePen, Save, X } from "lucide-react";
 import React from "react";
 
 interface IApproveDialogProps {
-    isDialogOpen: boolean;
-    setIsDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    selectedItem: IVatTuDuTru | null;
-    getStatusBadge: (stt: number) => React.ReactNode;
-    isEditMode: boolean;
-    setIsEditMode: React.Dispatch<React.SetStateAction<boolean>>;
-    editDuTru: number;
-    setEditDuTru: React.Dispatch<React.SetStateAction<number>>;
-    approvalStates: ApprovalState;
-    isRejectMode: boolean;
-    setIsRejectMode: React.Dispatch<React.SetStateAction<boolean>>;
-    lyDoTuChoi: string;
-    setLyDoTuChoi: React.Dispatch<React.SetStateAction<string>>;
-    handleApprove: () => void;
-    handleReject: () => void;
-    handleEditAndApprove: () => void;
+    dialog: {
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+        selectedItem: IVatTuDuTru | null;
+        approvalStates: ApprovalState;
+        getStatusBadge: (stt: number) => React.ReactNode;
+    };
+    editMode: {
+        isActive: boolean;
+        setActive: (value: boolean) => void;
+        editValue: number;
+        setEditValue: (value: number) => void;
+    };
+    rejectMode: {
+        isActive: boolean;
+        setActive: (value: boolean) => void;
+        reason: string;
+        setReason: (value: string) => void;
+    };
+    actions: {
+        onApprove: () => void;
+        onReject: () => void;
+        onEditAndApprove: () => void;
+    };
 }
 
 const ApproveDialog = ({
-    isDialogOpen,
-    setIsDialogOpen,
-    selectedItem,
-    getStatusBadge,
-    isEditMode,
-    setIsEditMode,
-    editDuTru,
-    setEditDuTru,
-    approvalStates,
-    isRejectMode,
-    setIsRejectMode,
-    lyDoTuChoi,
-    setLyDoTuChoi,
-    handleApprove,
-    handleReject,
-    handleEditAndApprove,
+    dialog,
+    editMode,
+    rejectMode,
+    actions,
 }: IApproveDialogProps) => {
+    const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge } = dialog;
+    const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
+    const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
+    const { onApprove, onReject, onEditAndApprove } = actions;
+
     return (
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -167,7 +168,7 @@ const ApproveDialog = ({
                     {!approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
                         <>
                             <Button
-                                onClick={handleApprove}
+                                onClick={onApprove}
                                 className="bg-green-600 hover:bg-green-700 text-white"
                             >
                                 <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -194,7 +195,7 @@ const ApproveDialog = ({
                     {isEditMode && (
                         <>
                             <Button
-                                onClick={handleEditAndApprove}
+                                onClick={onEditAndApprove}
                                 className="bg-orange-600 hover:bg-orange-700 text-white"
                             >
                                 <Save className="w-4 h-4 mr-2" />
@@ -216,7 +217,7 @@ const ApproveDialog = ({
                     {isRejectMode && (
                         <>
                             <Button
-                                onClick={handleReject}
+                                onClick={onReject}
                                 variant="destructive"
                             >
                                 Xác nhận từ chối
@@ -235,7 +236,7 @@ const ApproveDialog = ({
 
                     {approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
                         <Button
-                            onClick={() => setIsDialogOpen(false)}
+                            onClick={() => onOpenChange(false)}
                             variant="outline"
                         >
                             Đóng
