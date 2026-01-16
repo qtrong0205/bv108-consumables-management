@@ -18,39 +18,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ApproveDialog from '@/components/forecast/dialog/ApproveDialog';
 import ApproveAllDialog from '@/components/forecast/dialog/ApproveAllDialog';
 import RejectReasonDetailDialog from '@/components/forecast/dialog/RejectReasonDetailDialog';
+import { ApprovalState, HistoryEntry } from '@/data/forecast/type';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 
 // Loại hành động trong lịch sử
 type HistoryActionType = 'approve' | 'reject' | 'edit' | 'edit_quantity' | 'approve_all';
-
-export interface HistoryEntry {
-    id: number;
-    stt: number;
-    maVtyt: string;
-    tenVtyt: string;
-    actionType: HistoryActionType;
-    nguoiThucHien: string;
-    thoiGian: Date;
-    chiTiet?: {
-        lyDo?: string;
-        duTruGoc?: number;
-        duTruMoi?: number;
-        soLuongDuyet?: number;
-    };
-}
-
-export interface ApprovalState {
-    [stt: number]: {
-        status: ApprovalStatus;
-        lyDo?: string;
-        duTruGoc?: number;
-        duTruSua?: number;
-        nguoiDuyet?: string;
-        thoiGian?: Date;
-    };
-}
 
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState('');
