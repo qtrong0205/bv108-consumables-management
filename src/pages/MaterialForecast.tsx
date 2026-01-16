@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, X, CheckCheck, AlertTriangle, History, Clock } from 'lucide-react';
+import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, AlertTriangle, History, Clock } from 'lucide-react';
 import { DATA_DU_TRU_MAU, IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -14,8 +14,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ApproveDialog from '@/components/forecast/dialog/ApproveDialog';
+import ApproveAllDialog from '@/components/forecast/dialog/ApproveAllDialog';
+import RejectReasonDetailDialog from '@/components/forecast/dialog/RejectReasonDetailDialog';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
@@ -23,7 +25,7 @@ type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 // Loại hành động trong lịch sử
 type HistoryActionType = 'approve' | 'reject' | 'edit' | 'edit_quantity' | 'approve_all';
 
-interface HistoryEntry {
+export interface HistoryEntry {
     id: number;
     stt: number;
     maVtyt: string;
@@ -39,7 +41,7 @@ interface HistoryEntry {
     };
 }
 
-interface ApprovalState {
+export interface ApprovalState {
     [stt: number]: {
         status: ApprovalStatus;
         lyDo?: string;
@@ -401,6 +403,7 @@ export default function MaterialForecast() {
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Dự trù vật tư</h1>
@@ -720,297 +723,40 @@ export default function MaterialForecast() {
             </Tabs>
 
             {/* Dialog phê duyệt */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            Phê duyệt dự trù vật tư
-                            {selectedItem && getStatusBadge(selectedItem.stt)}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {selectedItem?.tenVtytBv}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {selectedItem && (
-                        <div className="space-y-4 py-4">
-                            {/* Thông tin vật tư */}
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">Mã vật tư</p>
-                                    <p className="font-medium">{selectedItem.maVtytCu}</p>
-                                </div>
-                                <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">Quy cách</p>
-                                    <p className="font-medium">{selectedItem.quyCach}</p>
-                                </div>
-                                <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">SL Tồn kho</p>
-                                    <p className="font-medium">{selectedItem.slTon}</p>
-                                </div>
-                                <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">Đơn giá</p>
-                                    <p className="font-medium">{selectedItem.donGia.toLocaleString('vi-VN')}đ</p>
-                                </div>
-                            </div>
-
-                            {/* Số lượng dự trù */}
-                            <div className="bg-green-50 dark:bg-green-950/30 p-4 rounded-lg border border-green-200">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Số lượng dự trù</p>
-                                        {isEditMode ? (
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                value={editDuTru}
-                                                onChange={(e) => setEditDuTru(parseInt(e.target.value) || 0)}
-                                                className="w-32 mt-1 bg-white"
-                                            />
-                                        ) : (
-                                            <p className="text-2xl font-bold text-green-700">{selectedItem.duTru}</p>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-muted-foreground">Gọi hàng</p>
-                                        <p className="text-2xl font-bold text-green-700">
-                                            {isEditMode
-                                                ? Math.ceil(editDuTru / selectedItem.slTrongQuyCach)
-                                                : selectedItem.goiHang
-                                            }
-                                        </p>
-                                    </div>
-                                </div>
-                                {isEditMode && (
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                        Giá trị: {(Math.ceil(editDuTru / selectedItem.slTrongQuyCach) * selectedItem.donGia * selectedItem.slTrongQuyCach).toLocaleString('vi-VN')}đ
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Hiển thị trạng thái đã phê duyệt */}
-                            {approvalStates[selectedItem.stt] && (
-                                <div className={`p-3 rounded-lg border ${approvalStates[selectedItem.stt].status === 'approved'
-                                    ? 'bg-green-50 border-green-200 dark:bg-green-950/30'
-                                    : approvalStates[selectedItem.stt].status === 'rejected'
-                                        ? 'bg-red-50 border-red-200 dark:bg-red-950/30'
-                                        : 'bg-orange-50 border-orange-200 dark:bg-orange-950/30'
-                                    }`}>
-                                    <p className="text-sm font-medium">
-                                        {approvalStates[selectedItem.stt].status === 'approved' && '✅ Đã phê duyệt'}
-                                        {approvalStates[selectedItem.stt].status === 'rejected' && '❌ Đã từ chối'}
-                                        {approvalStates[selectedItem.stt].status === 'edited' && '✏️ Đã sửa và duyệt'}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Bởi: {approvalStates[selectedItem.stt].nguoiDuyet} - {approvalStates[selectedItem.stt].thoiGian?.toLocaleString('vi-VN')}
-                                    </p>
-                                    {approvalStates[selectedItem.stt].lyDo && (
-                                        <p className="text-sm text-red-600 mt-1">Lý do: {approvalStates[selectedItem.stt].lyDo}</p>
-                                    )}
-                                    {approvalStates[selectedItem.stt].duTruGoc !== undefined && (
-                                        <p className="text-sm text-orange-600 mt-1">
-                                            Đã sửa: {approvalStates[selectedItem.stt].duTruGoc} → {approvalStates[selectedItem.stt].duTruSua}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Form từ chối */}
-                            {isRejectMode && (
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Lý do từ chối</label>
-                                    <Textarea
-                                        placeholder="Nhập lý do từ chối..."
-                                        value={lyDoTuChoi}
-                                        onChange={(e) => setLyDoTuChoi(e.target.value)}
-                                        rows={3}
-                                        className="resize-none"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <DialogFooter className="flex-col sm:flex-row gap-2">
-                        {!approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
-                            <>
-                                <Button
-                                    onClick={handleApprove}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    Phê duyệt
-                                </Button>
-                                <Button
-                                    onClick={() => setIsRejectMode(true)}
-                                    variant="destructive"
-                                >
-                                    <XCircle className="w-4 h-4 mr-2" />
-                                    Từ chối
-                                </Button>
-                                <Button
-                                    onClick={() => setIsEditMode(true)}
-                                    variant="outline"
-                                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                                >
-                                    <FilePen className="w-4 h-4 mr-2" />
-                                    Sửa và duyệt
-                                </Button>
-                            </>
-                        )}
-
-                        {isEditMode && (
-                            <>
-                                <Button
-                                    onClick={handleEditAndApprove}
-                                    className="bg-orange-600 hover:bg-orange-700 text-white"
-                                >
-                                    <Save className="w-4 h-4 mr-2" />
-                                    Xác nhận sửa và duyệt
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        setIsEditMode(false);
-                                        setEditDuTru(selectedItem?.duTru ?? 0);
-                                    }}
-                                    variant="outline"
-                                >
-                                    <X className="w-4 h-4 mr-2" />
-                                    Hủy
-                                </Button>
-                            </>
-                        )}
-
-                        {isRejectMode && (
-                            <>
-                                <Button
-                                    onClick={handleReject}
-                                    variant="destructive"
-                                >
-                                    Xác nhận từ chối
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        setIsRejectMode(false);
-                                        setLyDoTuChoi('');
-                                    }}
-                                    variant="outline"
-                                >
-                                    Hủy
-                                </Button>
-                            </>
-                        )}
-
-                        {approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
-                            <Button
-                                onClick={() => setIsDialogOpen(false)}
-                                variant="outline"
-                            >
-                                Đóng
-                            </Button>
-                        )}
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ApproveDialog
+                isDialogOpen={isDialogOpen}
+                setIsDialogOpen={setIsDialogOpen}
+                selectedItem={selectedItem}
+                getStatusBadge={getStatusBadge}
+                isEditMode={isEditMode}
+                setIsEditMode={setIsEditMode}
+                editDuTru={editDuTru}
+                setEditDuTru={setEditDuTru}
+                approvalStates={approvalStates}
+                isRejectMode={isRejectMode}
+                setIsRejectMode={setIsRejectMode}
+                lyDoTuChoi={lyDoTuChoi}
+                setLyDoTuChoi={setLyDoTuChoi}
+                handleApprove={handleApprove}
+                handleReject={handleReject}
+                handleEditAndApprove={handleEditAndApprove}
+            />
 
             {/* Dialog xác nhận duyệt tất cả */}
-            <Dialog open={isApproveAllDialogOpen} onOpenChange={setIsApproveAllDialogOpen}>
-                <DialogContent className="sm:max-w-[450px] bg-neutral border-border">
-                    <DialogHeader>
-                        <DialogTitle className="text-foreground flex items-center gap-2">
-                            <CheckCheck className="w-5 h-5 text-green-500" />
-                            Xác nhận phê duyệt tất cả
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
-                            Bạn có chắc chắn muốn phê duyệt tất cả vật tư đang chờ duyệt?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm text-muted-foreground">Số vật tư sẽ được duyệt:</span>
-                                <span className="font-semibold text-green-500">{pendingCount} vật tư</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">Tổng giá trị:</span>
-                                <span className="font-semibold text-foreground">{pendingTotalValue.toLocaleString('vi-VN')} VNĐ</span>
-                            </div>
-                        </div>
-                        <p className="text-sm text-yellow-500 flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4" />
-                            Hành động này không thể hoàn tác sau khi thực hiện.
-                        </p>
-                    </div>
-                    <DialogFooter className="gap-2">
-                        <Button
-                            onClick={() => setIsApproveAllDialogOpen(false)}
-                            variant="outline"
-                        >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            onClick={handleApproveAll}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                            <CheckCheck className="w-4 h-4 mr-2" />
-                            Xác nhận duyệt tất cả
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ApproveAllDialog
+                isApproveAllDialogOpen={isApproveAllDialogOpen}
+                setIsApproveAllDialogOpen={setIsApproveAllDialogOpen}
+                pendingCount={pendingCount}
+                pendingTotalValue={pendingTotalValue}
+                handleApproveAll={handleApproveAll}
+            />
 
             {/* Dialog chi tiết lý do từ chối */}
-            <Dialog open={isHistoryDetailDialogOpen} onOpenChange={setIsHistoryDetailDialogOpen}>
-                <DialogContent className="sm:max-w-md bg-neutral border-border">
-                    <DialogHeader>
-                        <DialogTitle className="text-foreground flex items-center gap-2">
-                            <XCircle className="w-5 h-5 text-red-500" />
-                            Chi tiết từ chối dự trù
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
-                            Thông tin chi tiết về lý do từ chối vật tư
-                        </DialogDescription>
-                    </DialogHeader>
-                    {selectedHistoryEntry && (
-                        <div className="space-y-4 py-4">
-                            {/* Thông tin vật tư */}
-                            <div className="bg-tertiary p-4 rounded-lg space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Mã vật tư:</span>
-                                    <span className="text-sm font-mono font-medium">{selectedHistoryEntry.maVtyt}</span>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-muted-foreground">Tên vật tư:</span>
-                                    <p className="text-sm font-medium mt-1">{selectedHistoryEntry.tenVtyt}</p>
-                                </div>
-                            </div>
-
-                            {/* Lý do từ chối */}
-                            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-4 rounded-lg">
-                                <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-2">Lý do từ chối:</p>
-                                <p className="text-sm text-foreground">{selectedHistoryEntry.chiTiet?.lyDo}</p>
-                            </div>
-
-                            {/* Thông tin người từ chối */}
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4" />
-                                    {selectedHistoryEntry.thoiGian.toLocaleString('vi-VN')}
-                                </div>
-                                <span>Bởi: {selectedHistoryEntry.nguoiThucHien}</span>
-                            </div>
-                        </div>
-                    )}
-                    <DialogFooter>
-                        <Button
-                            onClick={() => setIsHistoryDetailDialogOpen(false)}
-                            variant="outline"
-                        >
-                            Đóng
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <RejectReasonDetailDialog
+                isHistoryDetailDialogOpen={isHistoryDetailDialogOpen}
+                setIsHistoryDetailDialogOpen={setIsHistoryDetailDialogOpen}
+                selectedHistoryEntry={selectedHistoryEntry}
+            />
         </div>
     );
 }
