@@ -19,6 +19,8 @@ import ApproveDialog from '@/components/forecast/dialog/ApproveDialog';
 import ApproveAllDialog from '@/components/forecast/dialog/ApproveAllDialog';
 import RejectReasonDetailDialog from '@/components/forecast/dialog/RejectReasonDetailDialog';
 import { ApprovalState, HistoryEntry } from '@/data/forecast/type';
+import ForecastTable from '@/components/forecast/tabs/ForecastTable';
+import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
@@ -86,7 +88,7 @@ export default function MaterialForecast() {
     const [originalDuTru, setOriginalDuTru] = useState<{ stt: number; value: number } | null>(null);
 
     // Xử lý thay đổi giá trị dự trù
-    const handleDuTruChange = (stt: number, value: string) => {
+    const handleForecastChange = (stt: number, value: string) => {
         const numValue = parseInt(value) || 0;
 
         setData(prevData =>
@@ -101,12 +103,12 @@ export default function MaterialForecast() {
     };
 
     // Lưu giá trị gốc khi focus
-    const handleDuTruFocus = (stt: number, value: number) => {
+    const handleForecastFocus = (stt: number, value: number) => {
         setOriginalDuTru({ stt, value });
     };
 
     // Ghi lịch sử khi blur (nếu có thay đổi)
-    const handleDuTruBlur = (stt: number, newValue: number) => {
+    const handleForecastBlur = (stt: number, newValue: number) => {
         if (originalDuTru && originalDuTru.stt === stt && originalDuTru.value !== newValue) {
             const item = data.find(i => i.stt === stt);
             if (item) {
@@ -128,8 +130,8 @@ export default function MaterialForecast() {
     };
 
     // Tính toán tổng
-    const totalDuTru = filteredData.reduce((sum, item) => sum + item.duTru, 0);
-    const totalGoiHang = filteredData.reduce((sum, item) => sum + item.goiHang, 0);
+    const totalForecast = filteredData.reduce((sum, item) => sum + item.duTru, 0);
+    const totalOrder = filteredData.reduce((sum, item) => sum + item.goiHang, 0);
     const totalValue = filteredData.reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
 
     // Lưu dữ liệu
@@ -423,277 +425,28 @@ export default function MaterialForecast() {
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="forecast" className="space-y-6">
-                    {/* Thống kê tổng quan */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card className="bg-neutral border-border">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Tổng số lượng dự trù</p>
-                                        <p className="text-2xl font-semibold text-foreground">{totalDuTru.toLocaleString('vi-VN')}</p>
-                                    </div>
-                                    <Calculator className="w-8 h-8 text-primary opacity-50" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-neutral border-border">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Tổng số gói hàng</p>
-                                        <p className="text-2xl font-semibold text-foreground">{totalGoiHang.toLocaleString('vi-VN')}</p>
-                                    </div>
-                                    <Calculator className="w-8 h-8 text-secondary opacity-50" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-neutral border-border">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Tổng giá trị ước tính</p>
-                                        <p className="text-2xl font-semibold text-foreground">{totalValue.toLocaleString('vi-VN')}đ</p>
-                                    </div>
-                                    <Calculator className="w-8 h-8 text-green-500 opacity-50" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-neutral border-border">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Tiến độ phê duyệt</p>
-                                        <p className="text-2xl font-semibold text-foreground">
-                                            {approvedCount}/{filteredData.length}
-                                        </p>
-                                    </div>
-                                    <CheckCircle2 className="w-8 h-8 text-green-500 opacity-50" />
-                                </div>
-                                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: `${filteredData.length > 0 ? (approvedCount / filteredData.length) * 100 : 0}%` }}
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Bộ lọc */}
-                    <Card className="bg-neutral border-border">
-                        <CardHeader>
-                            <CardTitle className="text-foreground">Tìm kiếm</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="relative max-w-md">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={2} />
-                                <Input
-                                    type="search"
-                                    placeholder="Tìm theo tên, mã vật tư hoặc nhà thầu..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 bg-neutral text-foreground border-border"
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Bảng dữ liệu */}
-                    <Card className="bg-neutral border-border">
-                        <CardContent className="p-0">
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-[1200px]">
-                                    <thead className="bg-primary text-primary-foreground">
-                                        <tr>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">STT</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium">Tên vật tư</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã hiệu</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Quy cách</th>
-                                            <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap">Đơn giá</th>
-                                            <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Xuất</th>
-                                            <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Nhập</th>
-                                            <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Tồn</th>
-                                            <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
-                                            <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600">Dự trù</th>
-                                            <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600">Gọi hàng</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border">
-                                        {filteredData.map((item) => (
-                                            <tr
-                                                key={item.stt}
-                                                className="hover:bg-tertiary transition-colors cursor-pointer"
-                                                onClick={() => handleRowClick(item)}
-                                            >
-                                                <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
-                                                <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
-                                                <td className="px-3 py-3 text-sm text-foreground">
-                                                    <div className="flex items-center gap-2 min-w-0">
-                                                        <p className="font-medium truncate flex-1 min-w-0" title={item.tenVtytBv}>{item.tenVtytBv}</p>
-                                                        {getStatusBadge(item.stt)}
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">{item.maHieu}</td>
-                                                <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">{item.hangSx}</td>
-                                                <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">
-                                                    {item.quyCach} ({item.slTrongQuyCach} {item.donViTinh})
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
-                                                    {item.donGia.toLocaleString('vi-VN')}
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                                    {item.slXuat}
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                                    {item.slNhap}
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                                    <Badge variant={item.slTon < 50 ? "destructive" : "secondary"} className="text-xs">
-                                                        {item.slTon}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground">
-                                                    <div className="max-w-[100px] truncate" title={item.nhaThau}>
-                                                        {item.nhaThau}
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={item.duTru}
-                                                        onChange={(e) => handleDuTruChange(item.stt, e.target.value)}
-                                                        onFocus={() => handleDuTruFocus(item.stt, item.duTru)}
-                                                        onBlur={(e) => handleDuTruBlur(item.stt, parseInt(e.target.value) || 0)}
-                                                        className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
-                                                    />
-                                                </td>
-                                                <td className="px-3 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
-                                                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                                                        {item.goiHang}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot className="bg-tertiary border-t-2 border-border">
-                                        <tr>
-                                            <td colSpan={11} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
-                                                Tổng cộng:
-                                            </td>
-                                            <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">
-                                                {totalDuTru}
-                                            </td>
-                                            <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">
-                                                {totalGoiHang}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-
-                            {filteredData.length === 0 && (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    Không tìm thấy vật tư nào
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                <ForecastTable
+                    totalForecast={totalForecast}
+                    totalOrder={totalOrder}
+                    totalValue={totalValue}
+                    approvedCount={approvedCount}
+                    filteredData={filteredData}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    handleRowClick={handleRowClick}
+                    getStatusBadge={getStatusBadge}
+                    handleForecastChange={handleForecastChange}
+                    handleForecastFocus={handleForecastFocus}
+                    handleForecastBlur={handleForecastBlur}
+                />
 
                 {/* Tab Lịch sử thay đổi */}
-                <TabsContent value="history" className="space-y-6">
-                    <Card className="bg-neutral border-border">
-                        <CardHeader>
-                            <CardTitle className="text-foreground flex items-center gap-2">
-                                <History className="w-5 h-5" />
-                                Lịch sử thay đổi dự trù
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            {historyLog.length === 0 ? (
-                                <div className="text-center py-12 text-muted-foreground">
-                                    <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                    <p>Chưa có thay đổi nào được ghi nhận</p>
-                                    <p className="text-sm mt-2">Các thay đổi về phê duyệt, từ chối, sửa số lượng sẽ được hiển thị ở đây</p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-primary text-primary-foreground">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Thời gian</th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Hành động</th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium">Tên vật tư</th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium">Chi tiết</th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Người thực hiện</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-border">
-                                            {historyLog.map((entry) => (
-                                                <tr key={entry.id} className="hover:bg-tertiary transition-colors">
-                                                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <Clock className="w-3 h-3" />
-                                                            {entry.thoiGian.toLocaleString('vi-VN')}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {getActionBadge(entry.actionType)}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap">
-                                                        {entry.maVtyt || '-'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-sm text-foreground">
-                                                        <div className="max-w-[300px] truncate" title={entry.tenVtyt}>
-                                                            {entry.tenVtyt}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs text-foreground">
-                                                        {entry.chiTiet?.lyDo && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                onClick={() => {
-                                                                    setSelectedHistoryEntry(entry);
-                                                                    setIsHistoryDetailDialogOpen(true);
-                                                                }}
-                                                            >
-                                                                <XCircle className="w-3 h-3 mr-1" />
-                                                                Xem lý do
-                                                            </Button>
-                                                        )}
-                                                        {entry.chiTiet?.duTruGoc !== undefined && entry.chiTiet?.duTruMoi !== undefined && (
-                                                            <span className="text-orange-600">
-                                                                SL: {entry.chiTiet.duTruGoc} → {entry.chiTiet.duTruMoi}
-                                                            </span>
-                                                        )}
-                                                        {entry.chiTiet?.soLuongDuyet !== undefined && (
-                                                            <span className="text-emerald-600">
-                                                                {entry.chiTiet.soLuongDuyet} vật tư
-                                                            </span>
-                                                        )}
-                                                        {!entry.chiTiet?.lyDo && entry.chiTiet?.duTruGoc === undefined && entry.chiTiet?.soLuongDuyet === undefined && (
-                                                            <span className="text-muted-foreground">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">
-                                                        {entry.nguoiThucHien}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                <HistoryForecast
+                    historyLog={historyLog}
+                    getActionBadge={getActionBadge}
+                    setSelectedHistoryEntry={setSelectedHistoryEntry}
+                    setIsHistoryDetailDialogOpen={setIsHistoryDetailDialogOpen}
+                />
             </Tabs>
 
             {/* Dialog phê duyệt */}
