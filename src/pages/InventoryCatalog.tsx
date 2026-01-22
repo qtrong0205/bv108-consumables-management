@@ -68,7 +68,6 @@ export default function InventoryCatalog() {
     const lowStock = MOCK_MEDICAL_SUPPLIES.map((item) => {
         if (item.soLuongTon < item.soLuongToiThieu) return item.maVtyt
     }).filter((item) => item)
-    console.log(lowStock)
     const lowStockCount = lowStock.length
 
     const handleStockFilterChange = (value: 'all' | 'low-stock') => {

@@ -52,8 +52,6 @@ export default function SupplierOrder() {
         });
     };
 
-    console.log('ACTIVE ORDERS (FROM APPROVED):', activeOrders);
-
     return (
         <div className="p-6 lg:p-8 space-y-6">
             <div>
