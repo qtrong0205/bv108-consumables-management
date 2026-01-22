@@ -1,114 +1,81 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Mail } from 'lucide-react';
+
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
-import { OrderRequest, OrderHistory } from '@/types';
-import { MOCK_ORDER_REQUESTS, MOCK_ORDER_HISTORY } from '@/data/mockData';
+
+import { OrderHistory } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { useOrder } from '@/context/OrderContext';
 
 export default function SupplierOrder() {
-    const [activeOrders, setActiveOrders] = useState<OrderRequest[]>([]);
+    const { toast } = useToast();
+    const { approvedOrders, removeOrders } = useOrder();
+
     const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
-    const { toast } = useToast();
 
-    useEffect(() => {
-        // Filter orders with dotGoiHang > 0 for active tab
-        setActiveOrders(MOCK_ORDER_REQUESTS.filter((order: OrderRequest) => order.dotGoiHang > 0));
-        setOrderHistory(MOCK_ORDER_HISTORY);
-        window.scrollTo(0, 0);
-    }, []);
-
-    const handleOrderPlaced = (selectedIds: number[]) => {
-        const now = new Date();
-        const updatedOrders: OrderRequest[] = [];
-        const newHistoryItems: OrderHistory[] = [];
-
-        activeOrders.forEach(order => {
-            if (selectedIds.includes(order.id)) {
-                const newDotGoiHang = order.dotGoiHang - 1;
-
-                if (newDotGoiHang > 0) {
-                    // Still has remaining orders, keep in active list
-                    updatedOrders.push({
-                        ...order,
-                        dotGoiHang: newDotGoiHang
-                    });
-                }
-
-                // Add to history
-                newHistoryItems.push({
-                    ...order,
-                    ngayDatHang: now,
-                    trangThai: 'Đã gửi email'
-                });
-            } else {
-                // Not selected, keep as is
-                updatedOrders.push(order);
-            }
-        });
-
-        setActiveOrders(updatedOrders);
-        setOrderHistory([...newHistoryItems, ...orderHistory]);
-        setSelectedOrders([]);
-    };
+    const activeOrders = approvedOrders;
 
     const handlePlaceOrder = () => {
         if (selectedOrders.length === 0) {
             toast({
-                title: "Chưa chọn đơn hàng",
-                description: "Vui lòng chọn ít nhất một vật tư để đặt hàng",
-                variant: "destructive"
+                title: 'Chưa chọn đơn hàng',
+                description: 'Vui lòng chọn ít nhất một vật tư để đặt hàng',
+                variant: 'destructive',
             });
             return;
         }
 
-        // Nhóm vật tư theo nhà thầu
-        const selectedItems = activeOrders.filter(order => selectedOrders.includes(order.id));
-        const groupedBySupplier: { [key: string]: OrderRequest[] } = {};
+        const now = new Date();
 
-        selectedItems.forEach(order => {
-            if (!groupedBySupplier[order.nhaThau]) {
-                groupedBySupplier[order.nhaThau] = [];
-            }
-            groupedBySupplier[order.nhaThau].push(order);
-        });
+        const newHistory: OrderHistory[] = activeOrders
+            .filter(order => selectedOrders.includes(order.id))
+            .map(order => ({
+                ...order,
+                ngayDatHang: now,
+                trangThai: 'Đã gửi email',
+            }));
 
-        const supplierCount = Object.keys(groupedBySupplier).length;
-        const supplierNames = Object.keys(groupedBySupplier).join(', ');
+        removeOrders(selectedOrders);
+
+        setOrderHistory(prev => [...newHistory, ...prev]);
+        setSelectedOrders([]);
 
         toast({
-            title: "Đặt hàng thành công",
-            description: `Đã gửi email đến ${supplierCount} nhà thầu (${selectedItems.length} vật tư): ${supplierNames}`,
+            title: 'Đặt hàng thành công',
+            description: `Đã gửi ${newHistory.length} vật tư`,
         });
-
-        handleOrderPlaced(selectedOrders);
     };
+
+    console.log('ACTIVE ORDERS (FROM APPROVED):', activeOrders);
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold text-foreground mb-2">Gọi Hàng</h1>
-                    <p className="text-muted-foreground">Quản lý và đặt hàng vật tư y tế từ nhà thầu</p>
-                </div>
+            <div>
+                <h1 className="text-2xl font-semibold mb-2">Gọi hàng</h1>
+                <p className="text-muted-foreground">
+                    Danh sách vật tư chờ gọi (từ dự trù đã duyệt)
+                </p>
             </div>
 
-            <Card className="bg-neutral border-border">
+            <Card>
                 <CardContent className="pt-6">
-                    <Tabs defaultValue="active" className="w-full">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                            <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <Tabs defaultValue="active">
+                        <div className="flex justify-between mb-4">
+                            <TabsList className="grid grid-cols-2 w-[300px]">
                                 <TabsTrigger value="active">
-                                    Đơn hàng cần gọi ({activeOrders.length})
+                                    Đơn cần gọi ({activeOrders.length})
                                 </TabsTrigger>
                                 <TabsTrigger value="history">
                                     Lịch sử ({orderHistory.length})
                                 </TabsTrigger>
                             </TabsList>
+
                             <Button
                                 onClick={handlePlaceOrder}
                                 disabled={selectedOrders.length === 0}
@@ -119,36 +86,28 @@ export default function SupplierOrder() {
                             </Button>
                         </div>
 
-                        <TabsContent value="active" className="mt-0">
-                            <div className="space-y-4">
-                                {activeOrders.length > 0 ? (
-                                    <OrderRequestTable
-                                        orders={activeOrders}
-                                        selectedOrders={selectedOrders}
-                                        setSelectedOrders={setSelectedOrders}
-                                    />
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <p className="text-muted-foreground text-lg">
-                                            Không có đơn hàng nào cần gọi
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                        <TabsContent value="active">
+                            {activeOrders.length > 0 ? (
+                                <OrderRequestTable
+                                    orders={activeOrders}
+                                    selectedOrders={selectedOrders}
+                                    setSelectedOrders={setSelectedOrders}
+                                />
+                            ) : (
+                                <p className="text-center text-muted-foreground py-12">
+                                    Chưa có vật tư nào được duyệt để gọi hàng
+                                </p>
+                            )}
                         </TabsContent>
 
-                        <TabsContent value="history" className="mt-0">
-                            <div className="space-y-4">
-                                {orderHistory.length > 0 ? (
-                                    <OrderHistoryTable orders={orderHistory} />
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <p className="text-muted-foreground text-lg">
-                                            Chưa có lịch sử gọi hàng
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                        <TabsContent value="history">
+                            {orderHistory.length > 0 ? (
+                                <OrderHistoryTable orders={orderHistory} />
+                            ) : (
+                                <p className="text-center text-muted-foreground py-12">
+                                    Chưa có lịch sử gọi hàng
+                                </p>
+                            )}
                         </TabsContent>
                     </Tabs>
                 </CardContent>

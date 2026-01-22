@@ -11,6 +11,7 @@ import Reports from './pages/Reports';
 import { Toaster } from '@/components/ui/toaster';
 import SupplierOrder from './pages/SupplierOrder';
 import MaterialForecast from './pages/MaterialForecast';
+import { OrderProvider } from './context/OrderContext';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -27,49 +28,51 @@ function App() {
     };
 
     return (
-        <Router>
-            <Routes>
-                <Route
-                    path="/login"
-                    element={
-                        isAuthenticated ? (
-                            <Navigate to="/dashboard" replace />
-                        ) : (
-                            <LoginPage onLogin={handleLogin} />
-                        )
-                    }
-                />
-                <Route
-                    path="/register"
-                    element={
-                        isAuthenticated ? (
-                            <Navigate to="/dashboard" replace />
-                        ) : (
-                            <RegisterPage />
-                        )
-                    }
-                />
-                <Route
-                    path="/"
-                    element={
-                        isAuthenticated ? (
-                            <DashboardLayout userRole={userRole} onLogout={handleLogout} />
-                        ) : (
-                            <Navigate to="/login" replace />
-                        )
-                    }
-                >
-                    <Route index element={<Navigate to="/dashboard" replace />} />
-                    <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="catalog" element={<InventoryCatalog />} />
-                    <Route path="suppliers" element={<SupplierOrder />} />
-                    <Route path="forecast" element={<MaterialForecast />} />
-                    <Route path="reports" element={<Reports />} />
-                </Route>
-                <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-            <Toaster />
-        </Router>
+        <OrderProvider>
+            <Router>
+                <Routes>
+                    <Route
+                        path="/login"
+                        element={
+                            isAuthenticated ? (
+                                <Navigate to="/dashboard" replace />
+                            ) : (
+                                <LoginPage onLogin={handleLogin} />
+                            )
+                        }
+                    />
+                    <Route
+                        path="/register"
+                        element={
+                            isAuthenticated ? (
+                                <Navigate to="/dashboard" replace />
+                            ) : (
+                                <RegisterPage />
+                            )
+                        }
+                    />
+                    <Route
+                        path="/"
+                        element={
+                            isAuthenticated ? (
+                                <DashboardLayout userRole={userRole} onLogout={handleLogout} />
+                            ) : (
+                                <Navigate to="/login" replace />
+                            )
+                        }
+                    >
+                        <Route index element={<Navigate to="/dashboard" replace />} />
+                        <Route path="dashboard" element={<Dashboard />} />
+                        <Route path="catalog" element={<InventoryCatalog />} />
+                        <Route path="suppliers" element={<SupplierOrder />} />
+                        <Route path="forecast" element={<MaterialForecast />} />
+                        <Route path="reports" element={<Reports />} />
+                    </Route>
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                </Routes>
+                <Toaster />
+            </Router>
+        </OrderProvider>
     );
 }
 

@@ -23,6 +23,7 @@ import ForecastTable from '@/components/forecast/tabs/ForecastTable';
 import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
 import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
+import { useOrder } from '@/context/OrderContext';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
@@ -38,6 +39,9 @@ export default function MaterialForecast() {
     const [filteredData, setFilteredData] = useState<IVatTuDuTru[]>(DATA_DU_TRU_MAU);
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState('forecast');
+
+    // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
+    const { addApprovedOrder, addApprovedOrdersBulk } = useOrder();
 
     // State cho dialog phê duyệt
     const [selectedItem, setSelectedItem] = useState<IVatTuDuTru | null>(null);
@@ -361,6 +365,9 @@ export default function MaterialForecast() {
         // Cập nhật vào bản ghi tháng hiện tại
         updateCurrentMonthRecord(selectedItem, 'approved', CURRENT_USER);
 
+        // Thêm vào danh sách gọi hàng
+        addApprovedOrder(selectedItem);
+
         // Ghi lịch sử
         addHistoryEntry({
             stt: selectedItem.stt,
@@ -463,6 +470,9 @@ export default function MaterialForecast() {
         // Cập nhật vào bản ghi tháng hiện tại (với số lượng đã sửa)
         updateCurrentMonthRecord(selectedItem, 'edited', CURRENT_USER, editDuTru);
 
+        // Thêm vào danh sách gọi hàng (với số lượng đã sửa)
+        addApprovedOrder(selectedItem, editDuTru);
+
         // Ghi lịch sử
         addHistoryEntry({
             stt: selectedItem.stt,
@@ -528,6 +538,9 @@ export default function MaterialForecast() {
 
         // Cập nhật hàng loạt vào bản ghi tháng hiện tại
         updateCurrentMonthRecordBulk(pendingItems, CURRENT_USER);
+
+        // Thêm hàng loạt vào danh sách gọi hàng
+        addApprovedOrdersBulk(pendingItems);
 
         // Ghi lịch sử duyệt tất cả
         addHistoryEntry({
