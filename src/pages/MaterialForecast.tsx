@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, AlertTriangle, History, Clock } from 'lucide-react';
+import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, AlertTriangle, History, Clock, Calendar } from 'lucide-react';
 import { DATA_DU_TRU_MAU, IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -18,15 +18,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ApproveDialog from '@/components/forecast/dialog/ApproveDialog';
 import ApproveAllDialog from '@/components/forecast/dialog/ApproveAllDialog';
 import RejectReasonDetailDialog from '@/components/forecast/dialog/RejectReasonDetailDialog';
-import { ApprovalState, HistoryEntry } from '@/data/forecast/type';
+import { ApprovalState, HistoryEntry, HistoryActionType, MonthlyForecastRecord, MonthlyForecastItem } from '@/data/forecast/type';
 import ForecastTable from '@/components/forecast/tabs/ForecastTable';
 import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
+import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
+import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 
-// Loại hành động trong lịch sử
-type HistoryActionType = 'approve' | 'reject' | 'edit' | 'edit_quantity' | 'approve_all';
+// Lấy tháng và năm hiện tại
+const CURRENT_DATE = new Date();
+const CURRENT_MONTH = CURRENT_DATE.getMonth() + 1; // 1-12
+const CURRENT_YEAR = CURRENT_DATE.getFullYear();
 
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -52,6 +56,11 @@ export default function MaterialForecast() {
     // State cho dialog chi tiết lịch sử
     const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null);
     const [isHistoryDetailDialogOpen, setIsHistoryDetailDialogOpen] = useState(false);
+
+    // State cho lịch sử dự trù theo tháng (ban đầu chỉ có mock data, chưa có tháng hiện tại)
+    const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([
+        ...MOCK_MONTHLY_FORECAST_HISTORY
+    ]);
 
     // Người dùng hiện tại (giả lập)
     const CURRENT_USER = 'TS. Phạm Văn Dũng';
@@ -129,6 +138,180 @@ export default function MaterialForecast() {
         setOriginalDuTru(null);
     };
 
+    // Hàm cập nhật bản ghi tháng hiện tại
+    const updateCurrentMonthRecord = (
+        item: IVatTuDuTru,
+        status: ApprovalStatus,
+        nguoiDuyet: string,
+        duTruValue?: number
+    ) => {
+        const now = new Date();
+        const currentMonthId = `forecast-${CURRENT_YEAR}-${CURRENT_MONTH.toString().padStart(2, '0')}`;
+        const finalDuTru = duTruValue ?? item.duTru;
+        const goiHang = Math.ceil(finalDuTru / item.slTrongQuyCach);
+        const thanhTien = goiHang * item.donGia * item.slTrongQuyCach;
+
+        const newItem: MonthlyForecastItem = {
+            stt: item.stt,
+            maVtyt: item.maVtytCu,
+            tenVtyt: item.tenVtytBv,
+            quyCach: item.quyCach,
+            donViTinh: item.donViTinh,
+            duTru: finalDuTru,
+            goiHang: goiHang,
+            donGia: item.donGia,
+            thanhTien: thanhTien,
+            trangThai: status,
+            nguoiDuyet: nguoiDuyet,
+            ngayDuyet: now,
+        };
+
+        setMonthlyForecastHistory(prev => {
+            // Kiểm tra xem bản ghi tháng hiện tại đã tồn tại chưa
+            const existingRecordIndex = prev.findIndex(record => record.id === currentMonthId);
+
+            if (existingRecordIndex === -1) {
+                // Tạo bản ghi mới cho tháng hiện tại
+                const newRecord: MonthlyForecastRecord = {
+                    id: currentMonthId,
+                    thang: CURRENT_MONTH,
+                    nam: CURRENT_YEAR,
+                    ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
+                    ngayDuyet: now,
+                    nguoiTao: 'BS. Nguyễn Văn An',
+                    nguoiDuyet: nguoiDuyet,
+                    tongSoVatTu: 1,
+                    tongGiaTri: thanhTien,
+                    trangThai: status === 'rejected' ? 'rejected' : (status === 'approved' || status === 'edited' ? 'approved' : 'partial'),
+                    danhSachVatTu: [newItem],
+                };
+                // Thêm vào đầu danh sách
+                return [newRecord, ...prev];
+            }
+
+            // Cập nhật bản ghi đã có
+            return prev.map(record => {
+                if (record.id === currentMonthId) {
+                    // Kiểm tra xem vật tư đã có trong danh sách chưa
+                    const existingIndex = record.danhSachVatTu.findIndex(vt => vt.stt === item.stt);
+                    let updatedList: MonthlyForecastItem[];
+
+                    if (existingIndex >= 0) {
+                        // Cập nhật vật tư đã có
+                        updatedList = [...record.danhSachVatTu];
+                        updatedList[existingIndex] = newItem;
+                    } else {
+                        // Thêm vật tư mới
+                        updatedList = [...record.danhSachVatTu, newItem];
+                    }
+
+                    // Tính lại tổng
+                    const tongGiaTri = updatedList.reduce((sum, vt) => sum + vt.thanhTien, 0);
+                    const approvedOrEdited = updatedList.filter(vt => vt.trangThai === 'approved' || vt.trangThai === 'edited').length;
+                    const rejected = updatedList.filter(vt => vt.trangThai === 'rejected').length;
+
+                    // Xác định trạng thái tổng
+                    let trangThai: 'approved' | 'partial' | 'rejected' = 'partial';
+                    if (rejected === updatedList.length) {
+                        trangThai = 'rejected';
+                    } else if (approvedOrEdited === updatedList.length) {
+                        trangThai = 'approved';
+                    }
+
+                    return {
+                        ...record,
+                        danhSachVatTu: updatedList,
+                        tongSoVatTu: updatedList.length,
+                        tongGiaTri: tongGiaTri,
+                        nguoiDuyet: nguoiDuyet,
+                        ngayDuyet: now,
+                        trangThai: trangThai,
+                    };
+                }
+                return record;
+            });
+        });
+    };
+
+    // Hàm cập nhật hàng loạt vào bản ghi tháng
+    const updateCurrentMonthRecordBulk = (items: IVatTuDuTru[], nguoiDuyet: string) => {
+        if (items.length === 0) return;
+
+        const now = new Date();
+        const currentMonthId = `forecast-${CURRENT_YEAR}-${CURRENT_MONTH.toString().padStart(2, '0')}`;
+
+        const newItems: MonthlyForecastItem[] = items.map(item => ({
+            stt: item.stt,
+            maVtyt: item.maVtytCu,
+            tenVtyt: item.tenVtytBv,
+            quyCach: item.quyCach,
+            donViTinh: item.donViTinh,
+            duTru: item.duTru,
+            goiHang: item.goiHang,
+            donGia: item.donGia,
+            thanhTien: item.goiHang * item.donGia * item.slTrongQuyCach,
+            trangThai: 'approved' as ApprovalStatus,
+            nguoiDuyet: nguoiDuyet,
+            ngayDuyet: now,
+        }));
+
+        setMonthlyForecastHistory(prev => {
+            // Kiểm tra xem bản ghi tháng hiện tại đã tồn tại chưa
+            const existingRecordIndex = prev.findIndex(record => record.id === currentMonthId);
+
+            if (existingRecordIndex === -1) {
+                // Tạo bản ghi mới cho tháng hiện tại
+                const tongGiaTri = newItems.reduce((sum, vt) => sum + vt.thanhTien, 0);
+                const newRecord: MonthlyForecastRecord = {
+                    id: currentMonthId,
+                    thang: CURRENT_MONTH,
+                    nam: CURRENT_YEAR,
+                    ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
+                    ngayDuyet: now,
+                    nguoiTao: 'BS. Nguyễn Văn An',
+                    nguoiDuyet: nguoiDuyet,
+                    tongSoVatTu: newItems.length,
+                    tongGiaTri: tongGiaTri,
+                    trangThai: 'approved',
+                    danhSachVatTu: newItems,
+                };
+                // Thêm vào đầu danh sách
+                return [newRecord, ...prev];
+            }
+
+            // Cập nhật bản ghi đã có
+            return prev.map(record => {
+                if (record.id === currentMonthId) {
+                    // Merge danh sách - cập nhật hoặc thêm mới
+                    const updatedList = [...record.danhSachVatTu];
+
+                    newItems.forEach(newItem => {
+                        const existingIndex = updatedList.findIndex(vt => vt.stt === newItem.stt);
+                        if (existingIndex >= 0) {
+                            updatedList[existingIndex] = newItem;
+                        } else {
+                            updatedList.push(newItem);
+                        }
+                    });
+
+                    const tongGiaTri = updatedList.reduce((sum, vt) => sum + vt.thanhTien, 0);
+                    const approvedOrEdited = updatedList.filter(vt => vt.trangThai === 'approved' || vt.trangThai === 'edited').length;
+
+                    return {
+                        ...record,
+                        danhSachVatTu: updatedList,
+                        tongSoVatTu: updatedList.length,
+                        tongGiaTri: tongGiaTri,
+                        nguoiDuyet: nguoiDuyet,
+                        ngayDuyet: now,
+                        trangThai: approvedOrEdited === updatedList.length ? 'approved' : 'partial',
+                    };
+                }
+                return record;
+            });
+        });
+    };
+
     // Tính toán tổng
     const totalForecast = filteredData.reduce((sum, item) => sum + item.duTru, 0);
     const totalOrder = filteredData.reduce((sum, item) => sum + item.goiHang, 0);
@@ -175,6 +358,9 @@ export default function MaterialForecast() {
             }
         }));
 
+        // Cập nhật vào bản ghi tháng hiện tại
+        updateCurrentMonthRecord(selectedItem, 'approved', CURRENT_USER);
+
         // Ghi lịch sử
         addHistoryEntry({
             stt: selectedItem.stt,
@@ -217,6 +403,9 @@ export default function MaterialForecast() {
                 thoiGian: now,
             }
         }));
+
+        // Cập nhật vào bản ghi tháng hiện tại
+        updateCurrentMonthRecord(selectedItem, 'rejected', CURRENT_USER);
 
         // Ghi lịch sử
         addHistoryEntry({
@@ -270,6 +459,9 @@ export default function MaterialForecast() {
                 thoiGian: now,
             }
         }));
+
+        // Cập nhật vào bản ghi tháng hiện tại (với số lượng đã sửa)
+        updateCurrentMonthRecord(selectedItem, 'edited', CURRENT_USER, editDuTru);
 
         // Ghi lịch sử
         addHistoryEntry({
@@ -333,6 +525,9 @@ export default function MaterialForecast() {
 
         setApprovalStates(newApprovalStates);
         setIsApproveAllDialogOpen(false);
+
+        // Cập nhật hàng loạt vào bản ghi tháng hiện tại
+        updateCurrentMonthRecordBulk(pendingItems, CURRENT_USER);
 
         // Ghi lịch sử duyệt tất cả
         addHistoryEntry({
@@ -423,6 +618,10 @@ export default function MaterialForecast() {
                         <History className="w-4 h-4 mr-2" />
                         Lịch sử thay đổi ({historyLog.length})
                     </TabsTrigger>
+                    <TabsTrigger value="monthly-history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Lịch sử theo tháng
+                    </TabsTrigger>
                 </TabsList>
 
                 <ForecastTable
@@ -453,6 +652,9 @@ export default function MaterialForecast() {
                     setSelectedHistoryEntry={setSelectedHistoryEntry}
                     setIsHistoryDetailDialogOpen={setIsHistoryDetailDialogOpen}
                 />
+
+                {/* Tab Lịch sử dự trù theo tháng */}
+                <MonthlyForecastHistory data={monthlyForecastHistory} />
             </Tabs>
 
             {/* Dialog phê duyệt */}

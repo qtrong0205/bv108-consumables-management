@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HistoryEntry } from "@/data/forecast/type";
+import { HistoryEntry, HistoryActionType } from "@/data/forecast/type";
 import { TabsContent } from "@radix-ui/react-tabs";
 import { Clock, History, XCircle } from "lucide-react";
 import React from "react";
@@ -8,7 +8,7 @@ import React from "react";
 interface IHistoryForecastProps {
     historyLog: HistoryEntry[];
     getActionBadge: (actionType: HistoryActionType) => React.ReactNode;
-    setSelectedHistoryEntry: React.Dispatch<React.SetStateAction<HistoryEntry>>;
+    setSelectedHistoryEntry: React.Dispatch<React.SetStateAction<HistoryEntry | null>>;
     setIsHistoryDetailDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
