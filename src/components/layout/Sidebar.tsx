@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Package, ClipboardList, ShoppingCart, FileText, Settings, LogOut, PhoneCall, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -13,15 +12,16 @@ export default function Sidebar({ currentPath }: SidebarProps) {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
     const navItems = [
-        { path: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-        { path: '/catalog', label: 'Danh mục vật tư', icon: Package },
-        { path: '/forecast', label: 'Dự trù vật tư', icon: Calculator },
-        { path: '/suppliers', label: 'Gọi Hàng', icon: PhoneCall },
-        { path: '/reports', label: 'Báo cáo', icon: FileText },
+        { path: '/dashboard', label: 'Tổng quan' },
+        { path: '/catalog', label: 'Danh mục vật tư' },
+        { path: '/forecast', label: 'Dự trù vật tư' },
+        { path: '/suppliers', label: 'Gọi Hàng' },
+        { path: '/invoices', label: 'Hóa đơn' },
+        { path: '/reports', label: 'Báo cáo' },
     ];
 
     const bottomItems = [
-        { path: '/settings', label: 'Cài đặt', icon: Settings },
+        { path: '/settings', label: 'Cài đặt' },
     ];
 
     const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
@@ -56,7 +56,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
 
                 <nav className="flex-1 p-4 space-y-1">
                     {navItems.map((item) => {
-                        const Icon = item.icon;
                         const isActive = currentPath === item.path;
                         return (
                             <Link
@@ -70,7 +69,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                                         : 'hover:bg-primary-foreground/10'
                                 )}
                             >
-                                <Icon className="w-5 h-5" strokeWidth={2} />
                                 <span className="text-sm">{item.label}</span>
                             </Link>
                         );
@@ -79,7 +77,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
 
                 <div className="p-4 border-t border-primary-foreground/20 space-y-1">
                     {bottomItems.map((item) => {
-                        const Icon = item.icon;
                         return (
                             <Link
                                 key={item.path}
@@ -87,7 +84,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                                 onClick={() => setIsMobileOpen(false)}
                                 className="flex items-center gap-3 px-4 py-3 rounded-md hover:bg-primary-foreground/10 transition-colors cursor-pointer text-primary-foreground"
                             >
-                                <Icon className="w-5 h-5" strokeWidth={2} />
                                 <span className="text-sm">{item.label}</span>
                             </Link>
                         );

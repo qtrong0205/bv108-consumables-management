@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { IVatTuDuTru } from '@/data/mockData';
-import { OrderRequest } from '@/types';
+import { OrderRequest, Invoice, OrderHistory } from '@/types';
 
 interface OrderContextType {
     // Danh sách vật tư đã duyệt chờ gọi hàng (dưới dạng OrderRequest)
@@ -11,12 +11,20 @@ interface OrderContextType {
     addApprovedOrdersBulk: (items: IVatTuDuTru[]) => void;
     // Xóa vật tư khỏi danh sách (khi đã gọi hàng xong)
     removeOrders: (ids: number[]) => void;
+    // Danh sách hóa đơn từ uBot
+    invoices: Invoice[];
+    addInvoices: (invoices: Invoice[]) => void;
+    // Lịch sử đơn hàng
+    orderHistory: OrderHistory[];
+    addToOrderHistory: (orders: OrderHistory[]) => void;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export function OrderProvider({ children }: { children: ReactNode }) {
     const [approvedOrders, setApprovedOrders] = useState<OrderRequest[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
 
     // Chuyển đổi IVatTuDuTru sang OrderRequest
     const convertToOrderRequest = (item: IVatTuDuTru, duTruValue?: number): OrderRequest => {
@@ -88,6 +96,24 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         setApprovedOrders(prev => prev.filter(order => !ids.includes(order.id)));
     };
 
+    // Thêm hóa đơn từ uBot
+    const addInvoices = (newInvoices: Invoice[]) => {
+        setInvoices(prev => {
+            const updated = [...prev];
+            newInvoices.forEach(inv => {
+                const idx = updated.findIndex(i => i.id === inv.id);
+                if (idx >= 0) updated[idx] = inv;
+                else updated.push(inv);
+            });
+            return updated;
+        });
+    };
+
+    // Thêm vào lịch sử đơn hàng
+    const addToOrderHistory = (orders: OrderHistory[]) => {
+        setOrderHistory(prev => [...orders, ...prev]);
+    };
+
     return (
         <OrderContext.Provider
             value={{
@@ -95,6 +121,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 addApprovedOrder,
                 addApprovedOrdersBulk,
                 removeOrders,
+                invoices,
+                addInvoices,
+                orderHistory,
+                addToOrderHistory,
             }}
         >
             {children}

@@ -14,9 +14,8 @@ import { useOrder } from '@/context/OrderContext';
 
 export default function SupplierOrder() {
     const { toast } = useToast();
-    const { approvedOrders, removeOrders } = useOrder();
+    const { approvedOrders, removeOrders, orderHistory, addToOrderHistory } = useOrder();
 
-    const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
 
     const activeOrders = approvedOrders;
@@ -39,11 +38,12 @@ export default function SupplierOrder() {
                 ...order,
                 ngayDatHang: now,
                 trangThai: 'Đã gửi email',
+                emailSent: true,
             }));
 
         removeOrders(selectedOrders);
 
-        setOrderHistory(prev => [...newHistory, ...prev]);
+        addToOrderHistory(newHistory);
         setSelectedOrders([]);
 
         toast({

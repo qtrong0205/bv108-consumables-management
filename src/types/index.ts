@@ -36,4 +36,16 @@ export interface OrderRequest {
 export interface OrderHistory extends OrderRequest {
     ngayDatHang: Date;         // Ngày đặt hàng
     trangThai: string;         // Trạng thái đơn hàng
+    emailSent?: boolean;       // Đã gửi email chưa
+}
+
+// Hóa đơn từ uBot
+export interface Invoice {
+    id: string;
+    maHoaDon: string;          // Mã hóa đơn
+    maQuanLy: string;          // Mã quản lý (để map với đơn hàng)
+    soLuong: number;           // Số lượng trên hóa đơn
+    ngayTaoHoaDon: Date;
+    trangThaiHoaDon: string;   // Đã nhận / Đang xử lý
+    ghiChu?: string;
 }

@@ -11,6 +11,7 @@ import Reports from './pages/Reports';
 import { Toaster } from '@/components/ui/toaster';
 import SupplierOrder from './pages/SupplierOrder';
 import MaterialForecast from './pages/MaterialForecast';
+import InvoiceManagement from './pages/InvoiceManagement';
 import { OrderProvider } from './context/OrderContext';
 
 function App() {
@@ -66,6 +67,7 @@ function App() {
                         <Route path="catalog" element={<InventoryCatalog />} />
                         <Route path="suppliers" element={<SupplierOrder />} />
                         <Route path="forecast" element={<MaterialForecast />} />
+                        <Route path="invoices" element={<InvoiceManagement />} />
                         <Route path="reports" element={<Reports />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/login" replace />} />
