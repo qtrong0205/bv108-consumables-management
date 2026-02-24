@@ -11,6 +11,9 @@ interface InventoryTableProps {
 
 export default function InventoryTable({ items, lowStockItems, onRowClick }: InventoryTableProps) {
     const isLowStock = (maVtyt: string) => lowStockItems.includes(maVtyt);
+    
+    // Helper để hiển thị giá trị hoặc để trống
+    const displayValue = (value: any) => value || '';
 
     return (
         <Card className="bg-neutral border-border">
@@ -27,9 +30,9 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xs font-mono text-muted-foreground">{item.maVtyt}</span>
+                                            <span className="text-xs font-mono text-muted-foreground">{displayValue(item.maVtyt)}</span>
                                             <Badge variant="outline" className="bg-tertiary text-foreground border-border text-[10px] px-1.5 py-0">
-                                                {item.tenNhom.length > 12 ? item.tenNhom.substring(0, 12) + '...' : item.tenNhom}
+                                                {displayValue(item.tenNhom).length > 12 ? displayValue(item.tenNhom).substring(0, 12) + '...' : displayValue(item.tenNhom)}
                                             </Badge>
                                             {isLowStock(item.maVtyt) && (
                                                 <Badge variant="outline" className="bg-warning/20 text-warning border-warning text-[10px] px-1.5 py-0 flex items-center gap-1">
@@ -38,17 +41,17 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                                 </Badge>
                                             )}
                                         </div>
-                                        <p className="font-medium text-sm text-foreground truncate">{item.tenVtyt}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{item.hangSanXuat} - {item.nuocSanXuat}</p>
+                                        <p className="font-medium text-sm text-foreground truncate">{displayValue(item.tenVtyt)}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{displayValue(item.hangSanXuat)} - {displayValue(item.nuocSanXuat)}</p>
                                     </div>
                                     <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
                                     <div className="flex items-center gap-3 text-xs">
-                                        <span className="text-muted-foreground">{item.donViTinh}</span>
-                                        <span className="text-muted-foreground">SL: <span className="text-foreground font-medium">{item.soLuongKeHoach}</span></span>
+                                        <span className="text-muted-foreground">{displayValue(item.donViTinh)}</span>
+                                        <span className="text-muted-foreground">SL: <span className="text-foreground font-medium">{item.soLuongKeHoach || 0}</span></span>
                                     </div>
-                                    <span className="text-sm font-semibold text-primary">{item.donGia.toLocaleString('vi-VN')}đ</span>
+                                    <span className="text-sm font-semibold text-primary">{(item.donGia || 0).toLocaleString('vi-VN')}đ</span>
                                 </div>
                             </div>
                         ))}
@@ -80,32 +83,32 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                     className={`hover:bg-tertiary transition-colors cursor-pointer ${isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
                                 >
                                     <td className="px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap">
-                                        {item.maVtyt}
+                                        {displayValue(item.maVtyt)}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-foreground">
                                         <div className="max-w-[200px]">
-                                            <p className="font-medium truncate" title={item.tenVtyt}>{item.tenVtyt}</p>
-                                            <p className="text-xs text-muted-foreground truncate" title={item.maHieu}>{item.maHieu}</p>
+                                            <p className="font-medium truncate" title={displayValue(item.tenVtyt)}>{displayValue(item.tenVtyt)}</p>
+                                            <p className="text-xs text-muted-foreground truncate" title={displayValue(item.maHieu)}>{displayValue(item.maHieu)}</p>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant="outline" className="bg-tertiary text-foreground border-border text-xs whitespace-nowrap">
-                                            {item.tenNhom.length > 15 ? item.tenNhom.substring(0, 15) + '...' : item.tenNhom}
+                                            {displayValue(item.tenNhom).length > 15 ? displayValue(item.tenNhom).substring(0, 15) + '...' : displayValue(item.tenNhom)}
                                         </Badge>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{item.quyCach}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{displayValue(item.quyCach)}</td>
                                     <td className="px-4 py-3 text-xs text-foreground">
                                         <div className="max-w-[100px]">
-                                            <p className="truncate" title={item.hangSanXuat}>{item.hangSanXuat}</p>
-                                            <p className="text-muted-foreground truncate" title={item.nuocSanXuat}>{item.nuocSanXuat}</p>
+                                            <p className="truncate" title={displayValue(item.hangSanXuat)}>{displayValue(item.hangSanXuat)}</p>
+                                            <p className="text-muted-foreground truncate" title={displayValue(item.nuocSanXuat)}>{displayValue(item.nuocSanXuat)}</p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{item.donViTinh}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{displayValue(item.donViTinh)}</td>
                                     <td className="px-4 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
-                                        {item.donGia.toLocaleString('vi-VN')}
+                                        {(item.donGia || 0).toLocaleString('vi-VN')}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground text-center font-medium">
-                                        {item.soLuongKeHoach}
+                                        {item.soLuongKeHoach || 0}
                                     </td>
                                     <td className="px-4 py-3 text-center">
                                         {isLowStock(item.maVtyt) ? (
@@ -120,8 +123,8 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground">
-                                        <div className="max-w-[120px] truncate" title={item.nhaThau}>
-                                            {item.nhaThau}
+                                        <div className="max-w-[120px] truncate" title={displayValue(item.nhaThau)}>
+                                            {displayValue(item.nhaThau)}
                                         </div>
                                     </td>
                                 </tr>

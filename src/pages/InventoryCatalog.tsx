@@ -1,29 +1,50 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertTriangle, FileDown, FileUp, ChevronDown, X } from 'lucide-react';
+import { Search, AlertTriangle, FileDown, FileUp, ChevronDown, X, Loader2 } from 'lucide-react';
 import InventoryTable from '@/components/inventory/InventoryTable';
 import ItemDetailModal from '@/components/inventory/ItemDetailModal';
 import { MedicalSupply } from '@/types';
-import { MOCK_MEDICAL_SUPPLIES } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { useSupplies, useSupplyGroups, useSupplySearch } from '@/hooks/use-supplies';
+import ApiDebug from '@/components/debug/ApiDebug';
+import Pagination from '@/components/ui/pagination';
 
 export default function InventoryCatalog() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchInput, setSearchInput] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [stockFilter, setStockFilter] = useState<'all' | 'low-stock'>('all');
-    const [filteredItems, setFilteredItems] = useState(MOCK_MEDICAL_SUPPLIES);
     const [selectedItem, setSelectedItem] = useState<MedicalSupply | null>(null);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    
+    // Hook cho danh sách thông thường
+    const normalList = useSupplies(1, 100);
+    
+    // Hook cho tìm kiếm
+    const searchList = useSupplySearch(100);
+    
+    // Chọn hook nào để dùng dựa trên searchInput
+    const isSearching = searchInput.trim().length > 0;
+    const activeHook = isSearching ? searchList : normalList;
+    
+    const { supplies, loading, error, page, pageSize, total, totalPages, setPage, setPageSize } = activeHook;
+    const { groups: categories, loading: groupsLoading } = useSupplyGroups();
+    
+    // Cập nhật keyword cho search hook khi searchInput thay đổi
+    useEffect(() => {
+        if (isSearching && 'setKeyword' in searchList) {
+            searchList.setKeyword(searchInput.trim());
+        }
+    }, [searchInput, isSearching]);
 
     // Đọc filter từ URL khi component mount
     useEffect(() => {
@@ -38,22 +59,25 @@ export default function InventoryCatalog() {
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
-
+    
+    // Hiển thị thông báo lỗi nếu có
     useEffect(() => {
-        let filtered = MOCK_MEDICAL_SUPPLIES;
-
-        // Filter theo tìm kiếm
-        if (searchTerm) {
-            filtered = filtered.filter(
-                (item) =>
-                    item.tenVtyt.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.maVtyt.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+        if (error) {
+            toast({
+                title: "Lỗi tải dữ liệu",
+                description: error,
+                variant: "destructive",
+            });
         }
+    }, [error, toast]);
+
+    // Filter dữ liệu TRÊN CLIENT (chỉ filter category và stock, không filter search)
+    const filteredItems = useMemo(() => {
+        let filtered = supplies;
 
         // Filter theo danh mục (nhiều danh mục)
         if (selectedCategories.length > 0) {
-            filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom));
+            filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom || ''));
         }
 
         // Filter theo tình trạng tồn kho
@@ -61,14 +85,17 @@ export default function InventoryCatalog() {
             filtered = filtered.filter((item) => item.soLuongTon < item.soLuongToiThieu);
         }
 
-        setFilteredItems(filtered);
-    }, [searchTerm, selectedCategories, stockFilter]);
-
-    const categories = Array.from(new Set(MOCK_MEDICAL_SUPPLIES.map((item) => item.tenNhom)));
-    const lowStock = MOCK_MEDICAL_SUPPLIES.map((item) => {
-        if (item.soLuongTon < item.soLuongToiThieu) return item.maVtyt
-    }).filter((item) => item)
-    const lowStockCount = lowStock.length
+        return filtered;
+    }, [supplies, selectedCategories, stockFilter]);
+    
+    // Tính toán lowStock từ dữ liệu supplies
+    const lowStock = useMemo(() => {
+        return supplies
+            .filter((item) => item.soLuongTon < item.soLuongToiThieu)
+            .map((item) => item.maVtyt);
+    }, [supplies]);
+    
+    const lowStockCount = lowStock.length;
 
     const handleStockFilterChange = (value: 'all' | 'low-stock') => {
         setStockFilter(value);
@@ -138,10 +165,20 @@ export default function InventoryCatalog() {
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
+            {/* Debug Component */}
+            {error && <ApiDebug />}
+            
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Danh mục tồn kho</h1>
-                    <p className="text-muted-foreground">Quản lý và giám sát tồn kho vật tư y tế</p>
+                    <p className="text-muted-foreground">
+                        Quản lý và giám sát tồn kho vật tư y tế
+                        {!loading && total > 0 && (
+                            <span className="ml-2 text-primary font-medium">
+                                • {total.toLocaleString('vi-VN')} vật tư
+                            </span>
+                        )}
+                    </p>
                 </div>
                 <div className="flex gap-3">
                     {lowStockCount > 0 && (
@@ -195,8 +232,8 @@ export default function InventoryCatalog() {
                             <Input
                                 type="search"
                                 placeholder="Tìm theo tên hoặc mã vật tư..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                value={searchInput}
+                                onChange={(e) => setSearchInput(e.target.value)}
                                 className="pl-10 bg-neutral text-foreground border-border"
                             />
                         </div>
@@ -278,6 +315,19 @@ export default function InventoryCatalog() {
                                 <SelectItem value="low-stock">Sắp hết hàng</SelectItem>
                             </SelectContent>
                         </Select>
+                        
+                        {/* Page Size Selector */}
+                        <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
+                            <SelectTrigger className="w-full md:w-40 bg-neutral text-foreground border-border">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="50">50 / trang</SelectItem>
+                                <SelectItem value="100">100 / trang</SelectItem>
+                                <SelectItem value="200">200 / trang</SelectItem>
+                                <SelectItem value="500">500 / trang</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Hiển thị các danh mục đã chọn */}
@@ -306,7 +356,51 @@ export default function InventoryCatalog() {
                 </CardContent>
             </Card>
 
-            <InventoryTable items={filteredItems} lowStockItems={lowStock} onRowClick={setSelectedItem} />
+            {/* Loading state */}
+            {loading && (
+                <Card className="bg-neutral border-border">
+                    <CardContent className="p-8 flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                        <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Error state */}
+            {error && !loading && (
+                <Card className="bg-neutral border-border">
+                    <CardContent className="p-8 flex flex-col items-center justify-center">
+                        <AlertTriangle className="w-8 h-8 text-warning mb-4" />
+                        <p className="text-foreground font-medium mb-2">Không thể tải dữ liệu</p>
+                        <p className="text-muted-foreground text-sm">{error}</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Inventory Table */}
+            {!loading && !error && (
+                <>
+                    <InventoryTable items={filteredItems} lowStockItems={lowStock} onRowClick={setSelectedItem} />
+                    
+                    {/* Pagination - chỉ hiển thị khi không filter */}
+                    {!searchInput && selectedCategories.length === 0 && stockFilter === 'all' && (
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            totalItems={total}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                        />
+                    )}
+                    
+                    {/* Thông tin khi có filter */}
+                    {(searchInput || selectedCategories.length > 0 || stockFilter === 'low-stock') && (
+                        <div className="text-center text-sm text-muted-foreground">
+                            Đang hiển thị {filteredItems.length} / {supplies.length} vật tư (đã filter)
+                        </div>
+                    )}
+                </>
+            )}
 
             {selectedItem && (
                 <ItemDetailModal
