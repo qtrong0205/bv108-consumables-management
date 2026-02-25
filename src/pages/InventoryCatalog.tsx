@@ -25,20 +25,20 @@ export default function InventoryCatalog() {
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
-    
+
     // Hook cho danh sách thông thường
     const normalList = useSupplies(1, 100);
-    
+
     // Hook cho tìm kiếm
     const searchList = useSupplySearch(100);
-    
+
     // Chọn hook nào để dùng dựa trên searchInput
     const isSearching = searchInput.trim().length > 0;
     const activeHook = isSearching ? searchList : normalList;
-    
+
     const { supplies, loading, error, page, pageSize, total, totalPages, setPage, setPageSize } = activeHook;
     const { groups: categories, loading: groupsLoading } = useSupplyGroups();
-    
+
     // Cập nhật keyword cho search hook khi searchInput thay đổi
     useEffect(() => {
         if (isSearching && 'setKeyword' in searchList) {
@@ -59,7 +59,7 @@ export default function InventoryCatalog() {
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
-    
+
     // Hiển thị thông báo lỗi nếu có
     useEffect(() => {
         if (error) {
@@ -87,14 +87,14 @@ export default function InventoryCatalog() {
 
         return filtered;
     }, [supplies, selectedCategories, stockFilter]);
-    
+
     // Tính toán lowStock từ dữ liệu supplies
     const lowStock = useMemo(() => {
         return supplies
             .filter((item) => item.soLuongTon < item.soLuongToiThieu)
             .map((item) => item.maVtyt);
     }, [supplies]);
-    
+
     const lowStockCount = lowStock.length;
 
     const handleStockFilterChange = (value: 'all' | 'low-stock') => {
@@ -167,7 +167,7 @@ export default function InventoryCatalog() {
         <div className="p-6 lg:p-8 space-y-6">
             {/* Debug Component */}
             {error && <ApiDebug />}
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Danh mục tồn kho</h1>
@@ -315,7 +315,7 @@ export default function InventoryCatalog() {
                                 <SelectItem value="low-stock">Sắp hết hàng</SelectItem>
                             </SelectContent>
                         </Select>
-                        
+
                         {/* Page Size Selector */}
                         <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
                             <SelectTrigger className="w-full md:w-40 bg-neutral text-foreground border-border">
@@ -381,7 +381,7 @@ export default function InventoryCatalog() {
             {!loading && !error && (
                 <>
                     <InventoryTable items={filteredItems} lowStockItems={lowStock} onRowClick={setSelectedItem} />
-                    
+
                     {/* Pagination - chỉ hiển thị khi không filter */}
                     {!searchInput && selectedCategories.length === 0 && stockFilter === 'all' && (
                         <Pagination
@@ -392,7 +392,7 @@ export default function InventoryCatalog() {
                             onPageChange={setPage}
                         />
                     )}
-                    
+
                     {/* Thông tin khi có filter */}
                     {(searchInput || selectedCategories.length > 0 || stockFilter === 'low-stock') && (
                         <div className="text-center text-sm text-muted-foreground">
@@ -407,6 +407,8 @@ export default function InventoryCatalog() {
                     item={selectedItem}
                     isOpen={!!selectedItem}
                     onClose={() => setSelectedItem(null)}
+                    allSupplies={supplies}
+                    onItemChange={setSelectedItem}
                 />
             )}
         </div>

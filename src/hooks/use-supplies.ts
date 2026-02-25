@@ -3,9 +3,11 @@ import { apiService, ApiSupply, PaginationResponse, getNullableString, getNullab
 import { MedicalSupply } from '@/types';
 
 // Chuyển đổi API response sang định dạng MedicalSupply
-const convertApiSupplyToMedicalSupply = (apiSupply: ApiSupply): MedicalSupply => {
+const convertApiSupplyToMedicalSupply = (apiSupply: ApiSupply, index: number): MedicalSupply => {
+  // Tạo id unique từ nhiều trường để tránh trùng key
+  const uniqueId = `${apiSupply.idx1}-${apiSupply.id || ''}-${index}`;
   return {
-    id: apiSupply.idx1,
+    id: uniqueId,
     maVtyt: getNullableString(apiSupply.id),
     tenVtyt: getNullableString(apiSupply.name),
     tenThuongMai: getNullableString(apiSupply.name),
@@ -55,7 +57,7 @@ export const useSupplies = (initialPage: number = 1, initialPageSize: number = 2
         setLoading(true);
         setError(null);
         const response: PaginationResponse<ApiSupply> = await apiService.getSupplies(page, pageSize);
-        const convertedSupplies = response.data.map(convertApiSupplyToMedicalSupply);
+        const convertedSupplies = response.data.map((item, index) => convertApiSupplyToMedicalSupply(item, index));
         setSupplies(convertedSupplies);
         setTotal(response.total);
         setTotalPages(response.totalPages);
@@ -115,7 +117,7 @@ export const useSupplySearch = (initialPageSize: number = 20): UseSupplySearchRe
         setLoading(true);
         setError(null);
         const response: PaginationResponse<ApiSupply> = await apiService.searchSupplies(keyword, page, pageSize);
-        const convertedSupplies = response.data.map(convertApiSupplyToMedicalSupply);
+        const convertedSupplies = response.data.map((item, index) => convertApiSupplyToMedicalSupply(item, index));
         setSupplies(convertedSupplies);
         setTotal(response.total);
         setTotalPages(response.totalPages);

@@ -8,22 +8,31 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { MedicalSupply } from '@/types';
-import { Package, ImageOff } from 'lucide-react';
-import { useState } from 'react';
+import { Package, ImageOff, ChevronRight } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ItemDetailModalProps {
     item: MedicalSupply;
     isOpen: boolean;
     onClose: () => void;
+    allSupplies?: MedicalSupply[]; // Danh sách tất cả vật tư để lọc vật tư liên quan
+    onItemChange?: (item: MedicalSupply) => void; // Callback khi chuyển sang vật tư khác
 }
 
-export default function ItemDetailModal({ item, isOpen, onClose }: ItemDetailModalProps) {
+export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [], onItemChange }: ItemDetailModalProps) {
     const isLowStock = item.soLuongTon < item.soLuongToiThieu;
     const [imageError, setImageError] = useState(false);
 
     // Giả lập URL ảnh - trong thực tế sẽ lấy từ item.imageUrl
     const imageUrl = item.imageUrl || null;
 
+    // Lấy danh sách vật tư cùng nhóm (trừ vật tư hiện tại)
+    const relatedItems = useMemo(() => {
+        return allSupplies.filter(
+            supply => supply.maNhom === item.maNhom && supply.id !== item.id
+        );
+    }, [allSupplies, item.maNhom, item.id]);
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="bg-neutral text-foreground border-border max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -180,6 +189,73 @@ export default function ItemDetailModal({ item, isOpen, onClose }: ItemDetailMod
                                 <strong>Cảnh báo:</strong> Vật tư này dưới ngưỡng tồn kho tối thiểu. Cần đặt hàng bổ sung.
                             </p>
                         </div>
+                    )}
+
+                    {/* Danh sách vật tư cùng nhóm */}
+                    {relatedItems.length > 0 && (
+                        <>
+                            <Separator />
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-semibold text-foreground">
+                                        Vật tư cùng nhóm "{item.maNhom}"
+                                    </h3>
+                                    <Badge variant="outline" className="text-xs">
+                                        {relatedItems.length} vật tư
+                                    </Badge>
+                                </div>
+                                <ScrollArea className="h-[200px] rounded-md border border-border">
+                                    <div className="divide-y divide-border">
+                                        {relatedItems.map((related) => {
+                                            const relatedLowStock = related.soLuongTon < related.soLuongToiThieu;
+                                            return (
+                                                <div
+                                                    key={related.id}
+                                                    onClick={() => onItemChange?.(related)}
+                                                    className={`p-3 hover:bg-muted/50 transition-colors ${onItemChange ? 'cursor-pointer' : ''}`}
+                                                    title={`Xem chi tiết: ${related.tenVtyt}`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p
+                                                                className="text-sm font-medium text-foreground line-clamp-2 leading-tight"
+                                                                title={related.tenVtyt}
+                                                            >
+                                                                {related.tenVtyt}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground font-mono mt-1">
+                                                                {related.maVtyt}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                                            <div className="text-right hidden sm:block">
+                                                                <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                                                                    {related.donGia.toLocaleString('vi-VN')}đ
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    /{related.donViTinh}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right min-w-[50px]">
+                                                                <p className={`text-sm font-semibold ${relatedLowStock ? 'text-destructive' : 'text-success'}`}>
+                                                                    {related.soLuongTon}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    tồn kho
+                                                                </p>
+                                                            </div>
+                                                            {onItemChange && (
+                                                                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        </>
                     )}
                 </div>
             </DialogContent>
