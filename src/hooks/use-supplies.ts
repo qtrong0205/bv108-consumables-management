@@ -58,6 +58,7 @@ export const useSupplies = (initialPage: number = 1, initialPageSize: number = 2
         setError(null);
         const response: PaginationResponse<ApiSupply> = await apiService.getSupplies(page, pageSize);
         const convertedSupplies = response.data.map((item, index) => convertApiSupplyToMedicalSupply(item, index));
+        console.log(convertedSupplies)
         setSupplies(convertedSupplies);
         setTotal(response.total);
         setTotalPages(response.totalPages);
