@@ -21,7 +21,6 @@ interface ItemDetailModalProps {
 }
 
 export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [], onItemChange }: ItemDetailModalProps) {
-    const isLowStock = item.soLuongTon < item.soLuongToiThieu;
     const [imageError, setImageError] = useState(false);
 
     // Giả lập URL ảnh - trong thực tế sẽ lấy từ item.imageUrl
@@ -94,17 +93,9 @@ export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [
                             </div>
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <p className="text-sm text-muted-foreground mb-1">Trạng thái</p>
-                                    {isLowStock ? (
-                                        <Badge className="bg-destructive text-destructive-foreground">Sắp hết</Badge>
-                                    ) : (
-                                        <Badge className="bg-success text-success-foreground">Còn hàng</Badge>
-                                    )}
-                                </div>
-                                <div className="flex-1">
                                     <p className="text-sm text-muted-foreground mb-1">Tồn kho</p>
-                                    <p className={`text-lg font-semibold ${isLowStock ? 'text-destructive' : 'text-success'}`}>
-                                        {item.soLuongTon} / {item.soLuongToiThieu}
+                                    <p className="text-lg font-semibold text-foreground">
+                                        {item.soLuongTon} {item.donViTinh}
                                     </p>
                                 </div>
                             </div>
@@ -148,30 +139,6 @@ export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [
 
                     <Separator />
 
-                    {/* Số lượng kế hoạch và tiêu hao */}
-                    <div className="grid grid-cols-4 gap-6">
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Tồn kho hiện tại</p>
-                            <p className={`text-2xl font-semibold ${isLowStock ? 'text-destructive' : 'text-success'}`}>
-                                {item.soLuongTon}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Ngưỡng tối thiểu</p>
-                            <p className="text-2xl font-semibold text-foreground">{item.soLuongToiThieu}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">SL Kế hoạch</p>
-                            <p className="text-foreground font-medium text-lg">{item.soLuongKeHoach}</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Tiêu hao/tháng</p>
-                            <p className="text-foreground font-medium text-lg">{item.soLuongTieuHao}</p>
-                        </div>
-                    </div>
-
-                    <Separator />
-
                     <div className="grid grid-cols-1 gap-4">
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Nhà thầu trúng thầu</p>
@@ -182,14 +149,6 @@ export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [
                             <p className="text-foreground font-medium font-mono">{item.quyetDinh}</p>
                         </div>
                     </div>
-
-                    {isLowStock && (
-                        <div className="p-4 bg-warning/10 border border-warning rounded-lg">
-                            <p className="text-sm text-foreground">
-                                <strong>Cảnh báo:</strong> Vật tư này dưới ngưỡng tồn kho tối thiểu. Cần đặt hàng bổ sung.
-                            </p>
-                        </div>
-                    )}
 
                     {/* Danh sách vật tư cùng nhóm */}
                     {relatedItems.length > 0 && (
@@ -206,52 +165,49 @@ export default function ItemDetailModal({ item, isOpen, onClose, allSupplies = [
                                 </div>
                                 <ScrollArea className="h-[200px] rounded-md border border-border">
                                     <div className="divide-y divide-border">
-                                        {relatedItems.map((related) => {
-                                            const relatedLowStock = related.soLuongTon < related.soLuongToiThieu;
-                                            return (
-                                                <div
-                                                    key={related.id}
-                                                    onClick={() => onItemChange?.(related)}
-                                                    className={`p-3 hover:bg-muted/50 transition-colors ${onItemChange ? 'cursor-pointer' : ''}`}
-                                                    title={`Xem chi tiết: ${related.tenVtyt}`}
-                                                >
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="flex-1 min-w-0">
-                                                            <p
-                                                                className="text-sm font-medium text-foreground line-clamp-2 leading-tight"
-                                                                title={related.tenVtyt}
-                                                            >
-                                                                {related.tenVtyt}
+                                        {relatedItems.map((related) => (
+                                            <div
+                                                key={related.id}
+                                                onClick={() => onItemChange?.(related)}
+                                                className={`p-3 hover:bg-muted/50 transition-colors ${onItemChange ? 'cursor-pointer' : ''}`}
+                                                title={`Xem chi tiết: ${related.tenVtyt}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p
+                                                            className="text-sm font-medium text-foreground line-clamp-2 leading-tight"
+                                                            title={related.tenVtyt}
+                                                        >
+                                                            {related.tenVtyt}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground font-mono mt-1">
+                                                            {related.maVtyt}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                                        <div className="text-right hidden sm:block">
+                                                            <p className="text-sm font-medium text-foreground whitespace-nowrap">
+                                                                {related.donGia.toLocaleString('vi-VN')}đ
                                                             </p>
-                                                            <p className="text-xs text-muted-foreground font-mono mt-1">
-                                                                {related.maVtyt}
+                                                            <p className="text-xs text-muted-foreground">
+                                                                /{related.donViTinh}
                                                             </p>
                                                         </div>
-                                                        <div className="flex items-center gap-3 flex-shrink-0">
-                                                            <div className="text-right hidden sm:block">
-                                                                <p className="text-sm font-medium text-foreground whitespace-nowrap">
-                                                                    {related.donGia.toLocaleString('vi-VN')}đ
-                                                                </p>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    /{related.donViTinh}
-                                                                </p>
-                                                            </div>
-                                                            <div className="text-right min-w-[50px]">
-                                                                <p className={`text-sm font-semibold ${relatedLowStock ? 'text-destructive' : 'text-success'}`}>
-                                                                    {related.soLuongTon}
-                                                                </p>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    tồn kho
-                                                                </p>
-                                                            </div>
-                                                            {onItemChange && (
-                                                                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                                            )}
+                                                        <div className="text-right min-w-[50px]">
+                                                            <p className="text-sm font-semibold text-foreground">
+                                                                {related.soLuongTon}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                tồn kho
+                                                            </p>
                                                         </div>
+                                                        {onItemChange && (
+                                                            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                        )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+                                            </div>
+                                        ))}
                                     </div>
                                 </ScrollArea>
                             </div>
