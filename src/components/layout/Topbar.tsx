@@ -1,6 +1,7 @@
 import { Bell, User, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,6 +19,7 @@ interface TopbarProps {
 
 export default function Topbar({ userRole, onLogout, currentPath }: TopbarProps) {
     const showSearch = currentPath === '/catalog';
+    const navigate = useNavigate();
 
     return (
         <header className="h-16 bg-neutral border-b border-border flex items-center justify-between px-6 lg:px-8">
@@ -63,7 +65,7 @@ export default function Topbar({ userRole, onLogout, currentPath }: TopbarProps)
                             <div className="text-xs text-muted-foreground">{userRole}</div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-foreground cursor-pointer">Hồ sơ</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/profile')} className="text-foreground cursor-pointer">Hồ sơ</DropdownMenuItem>
                         <DropdownMenuItem className="text-foreground cursor-pointer">Cài đặt</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={onLogout} className="text-destructive cursor-pointer">

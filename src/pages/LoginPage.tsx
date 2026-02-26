@@ -3,24 +3,44 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AuthResponse, apiService } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 interface LoginPageProps {
-    onLogin: (role: string) => void;
+    onLogin: (auth: AuthResponse) => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (username && password && role) {
-            onLogin(role);
+
+        if (!email.trim() || !password.trim()) {
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const auth = await apiService.login({
+                email: email.trim(),
+                password,
+            });
+            onLogin(auth);
+        } catch (error) {
+            toast({
+                title: 'Đăng nhập thất bại',
+                description: error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -48,13 +68,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
-                            <Label htmlFor="username" className="text-foreground">Tên đăng nhập</Label>
+                            <Label htmlFor="email" className="text-foreground">Email</Label>
                             <Input
-                                id="username"
-                                type="text"
-                                placeholder="Nhập tên đăng nhập"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                id="email"
+                                type="email"
+                                placeholder="Nhập email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 required
                                 className="bg-neutral text-foreground border-border"
                             />
@@ -73,20 +93,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="role" className="text-foreground">Vai trò</Label>
-                            <Select value={role} onValueChange={setRole} required>
-                                <SelectTrigger id="role" className="bg-neutral text-foreground border-border">
-                                    <SelectValue placeholder="Chọn vai trò" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Department Commander">Chỉ huy khoa</SelectItem>
-                                    <SelectItem value="Contractor">Nhân viên thầu</SelectItem>
-                                    <SelectItem value="Warehouse Staff">Nhân viên kho</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
                         <div className="flex items-center space-x-2">
                             <Checkbox
                                 id="remember"
@@ -103,9 +109,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
                         <Button
                             type="submit"
+                            disabled={isLoading}
                             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-normal"
                         >
-                            Đăng nhập
+                            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
                         </Button>
 
                         <div className="text-center space-y-2">

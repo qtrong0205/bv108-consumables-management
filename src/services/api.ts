@@ -1,8 +1,8 @@
-
-// Cấu hình API
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-// Kiểu dữ liệu API Response
+const AUTH_TOKEN_KEY = 'bv108_auth_token';
+const AUTH_USER_KEY = 'bv108_auth_user';
+
 export interface ApiSupply {
   idx1: number;
   productId: { Int32: number; Valid: boolean } | null;
@@ -39,7 +39,50 @@ export interface ErrorResponse {
   message: string;
 }
 
-// Hàm trợ giúp để lấy giá trị nullable
+export interface AuthUser {
+  id: number;
+  username: string;
+  email: string;
+  role: 'nhan_vien' | 'truong_khoa';
+}
+
+export interface AuthResponse {
+  token: string;
+  expiresAt: string;
+  user: AuthUser;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  role: 'nhan_vien' | 'truong_khoa';
+}
+
+export interface UpdateProfileRequest {
+  username: string;
+  email: string;
+}
+
+export interface UpdateProfileResponse {
+  message: string;
+  user: AuthUser;
+}
+
+export interface GetProfileResponse {
+  user: AuthUser;
+}
+
+export interface StoredAuth {
+  token: string;
+  user: AuthUser;
+}
+
 export const getNullableString = (value: { String: string; Valid: boolean } | null | undefined): string => {
   return value?.Valid ? value.String : '';
 };
@@ -49,7 +92,48 @@ export const getNullableNumber = (value: { Int32: number; Valid: boolean } | { F
   return 'Int32' in value ? value.Int32 : value.Float64;
 };
 
-// Service API
+export const storeAuth = (auth: AuthResponse): void => {
+  localStorage.setItem(AUTH_TOKEN_KEY, auth.token);
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(auth.user));
+};
+
+export const clearStoredAuth = (): void => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+};
+
+export const getStoredAuth = (): StoredAuth | null => {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const rawUser = localStorage.getItem(AUTH_USER_KEY);
+
+  if (!token || !rawUser) {
+    return null;
+  }
+
+  try {
+    const user = JSON.parse(rawUser) as AuthUser;
+    return { token, user };
+  } catch {
+    clearStoredAuth();
+    return null;
+  }
+};
+
+export const updateStoredAuthUser = (updatedUser: AuthUser): StoredAuth | null => {
+  const currentAuth = getStoredAuth();
+  if (!currentAuth) {
+    return null;
+  }
+
+  const nextAuth: StoredAuth = {
+    token: currentAuth.token,
+    user: updatedUser,
+  };
+
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextAuth.user));
+  return nextAuth;
+};
+
 class ApiService {
   private baseUrl: string;
 
@@ -57,85 +141,85 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  // Lấy tất cả vật tư có phân trang
+  private async request<T>(path: string, options: RequestInit = {}, includeAuth: boolean = false): Promise<T> {
+    const headers = new Headers(options.headers || {});
+    headers.set('Content-Type', 'application/json');
+
+    if (includeAuth) {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      let message = 'Yêu cầu thất bại';
+      try {
+        const error = (await response.json()) as ErrorResponse;
+        message = error.message || message;
+      } catch {
+        message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  async login(payload: LoginRequest): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async register(payload: RegisterRequest): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateProfile(payload: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+    return this.request<UpdateProfileResponse>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async getProfile(): Promise<GetProfileResponse> {
+    return this.request<GetProfileResponse>('/auth/profile', {
+      method: 'GET',
+    }, true);
+  }
+
   async getSupplies(page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    try {
-      console.log('🔄 Đang gọi API:', `${this.baseUrl}/supplies?page=${page}&pageSize=${pageSize}`);
-      const response = await fetch(`${this.baseUrl}/supplies?page=${page}&pageSize=${pageSize}`);
-      
-      console.log('📡 Response status:', response.status);
-      
-      if (!response.ok) {
-        let errorMessage = 'Không thể tải dữ liệu vật tư';
-        try {
-          const error: ErrorResponse = await response.json();
-          errorMessage = error.message || errorMessage;
-        } catch {
-          errorMessage = `Lỗi HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      console.log('✅ Đã tải dữ liệu thành công:', data.total, 'items');
-      return data;
-    } catch (error) {
-      console.error('❌ Lỗi khi gọi API:', error);
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra backend đã chạy chưa.');
-      }
-      throw error;
-    }
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies?page=${page}&pageSize=${pageSize}`);
   }
 
-  // Lấy chi tiết vật tư theo ID
   async getSupplyById(id: number): Promise<ApiSupply> {
-    const response = await fetch(`${this.baseUrl}/supplies/${id}`);
-    if (!response.ok) {
-      const error: ErrorResponse = await response.json();
-      throw new Error(error.message || 'Failed to fetch supply');
-    }
-    return response.json();
+    return this.request<ApiSupply>(`/supplies/${id}`);
   }
 
-  // Tìm kiếm vật tư
   async searchSupplies(keyword: string, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    const response = await fetch(`${this.baseUrl}/supplies/search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`);
-    if (!response.ok) {
-      const error: ErrorResponse = await response.json();
-      throw new Error(error.message || 'Failed to search supplies');
-    }
-    return response.json();
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`);
   }
 
-  // Lấy tất cả nhóm vật tư
   async getGroups(): Promise<{ groups: string[]; total: number }> {
-    const response = await fetch(`${this.baseUrl}/supplies/groups`);
-    if (!response.ok) {
-      const error: ErrorResponse = await response.json();
-      throw new Error(error.message || 'Failed to fetch groups');
-    }
-    return response.json();
+    return this.request<{ groups: string[]; total: number }>('/supplies/groups');
   }
 
-  // Lấy vật tư theo nhóm
   async getSuppliesByGroup(groupName: string, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    const response = await fetch(`${this.baseUrl}/supplies/group?groupName=${encodeURIComponent(groupName)}&page=${page}&pageSize=${pageSize}`);
-    if (!response.ok) {
-      const error: ErrorResponse = await response.json();
-      throw new Error(error.message || 'Failed to fetch supplies by group');
-    }
-    return response.json();
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/group?groupName=${encodeURIComponent(groupName)}&page=${page}&pageSize=${pageSize}`);
   }
 
-  // Lấy vật tư tồn kho thấp
   async getLowStockSupplies(threshold: number = 20, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    const response = await fetch(`${this.baseUrl}/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
-    if (!response.ok) {
-      const error: ErrorResponse = await response.json();
-      throw new Error(error.message || 'Failed to fetch low stock supplies');
-    }
-    return response.json();
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
   }
 }
 

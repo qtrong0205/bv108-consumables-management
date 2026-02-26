@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
+import { apiService } from '@/services/api';
 
 export default function RegisterPage() {
     const [staffName, setStaffName] = useState('');
@@ -75,16 +76,28 @@ export default function RegisterPage() {
         }
 
         setIsLoading(true);
+        try {
+            await apiService.register({
+                username: staffName.trim(),
+                email: email.trim().toLowerCase(),
+                password,
+                role: role as 'nhan_vien' | 'truong_khoa',
+            });
 
-        // Simulate API call
-        setTimeout(() => {
             setIsLoading(false);
             toast({
                 title: "Đăng ký thành công",
                 description: "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập.",
             });
             navigate('/login');
-        }, 1500);
+        } catch (error) {
+            setIsLoading(false);
+            toast({
+                title: "Đăng ký thất bại",
+                description: error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định',
+                variant: "destructive",
+            });
+        }
     };
 
     return (
@@ -191,9 +204,8 @@ export default function RegisterPage() {
                                     <SelectValue placeholder="Chọn vai trò" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Department Commander">Chỉ huy khoa</SelectItem>
-                                    <SelectItem value="Contractor">Nhân viên thầu</SelectItem>
-                                    <SelectItem value="Warehouse Staff">Nhân viên kho</SelectItem>
+                                    <SelectItem value="truong_khoa">Trưởng khoa</SelectItem>
+                                    <SelectItem value="nhan_vien">Nhân viên</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

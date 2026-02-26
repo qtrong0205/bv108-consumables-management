@@ -5,25 +5,34 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import InventoryCatalog from './pages/InventoryCatalog';
-import ProcurementPlanning from './pages/ProcurementPlanning';
-import OrderManagement from './pages/OrderManagement';
 import Reports from './pages/Reports';
 import { Toaster } from '@/components/ui/toaster';
 import SupplierOrder from './pages/SupplierOrder';
 import MaterialForecast from './pages/MaterialForecast';
 import InvoiceManagement from './pages/InvoiceManagement';
+import ProfilePage from './pages/ProfilePage';
 import { OrderProvider } from './context/OrderContext';
+import { AuthResponse, clearStoredAuth, getStoredAuth, storeAuth } from './services/api';
+
+const formatRoleLabel = (role: string): string => {
+    if (role === 'truong_khoa') return 'Trưởng khoa';
+    if (role === 'nhan_vien') return 'Nhân viên';
+    return role;
+};
 
 function App() {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [userRole, setUserRole] = useState<string>('');
+    const initialAuth = getStoredAuth();
+    const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialAuth?.token));
+    const [userRole, setUserRole] = useState<string>(initialAuth ? formatRoleLabel(initialAuth.user.role) : '');
 
-    const handleLogin = (role: string) => {
+    const handleLogin = (auth: AuthResponse) => {
+        storeAuth(auth);
         setIsAuthenticated(true);
-        setUserRole(role);
+        setUserRole(formatRoleLabel(auth.user.role));
     };
 
     const handleLogout = () => {
+        clearStoredAuth();
         setIsAuthenticated(false);
         setUserRole('');
     };
@@ -69,6 +78,7 @@ function App() {
                         <Route path="forecast" element={<MaterialForecast />} />
                         <Route path="invoices" element={<InvoiceManagement />} />
                         <Route path="reports" element={<Reports />} />
+                        <Route path="profile" element={<ProfilePage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
