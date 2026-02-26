@@ -50,3 +50,24 @@ export interface Invoice {
     trangThaiHoaDon: string;   // Đã nhận / Đang xử lý
     ghiChu?: string;
 }
+
+// Hóa đơn UBot từ database (bảng hoa_don)
+export interface HoaDonUBot {
+    id: number;
+    trangThaiHoaDon: string;
+    loaiHoaDon: string;
+    soHoaDon: string;
+    ngayHoaDon: string;        // ISO date string
+    maSoThueNguoiBan: string;
+    congTy: string;
+    diaChi: string;
+    linkTraCuuHoaDon: string;
+    idHoaDon: string;
+    sttDongHang: number;
+    tenHangHoa: string;
+    maHangHoa: string;
+    donViTinh: string;
+    soLuong: number;
+    donGiaChuaThue: number;
+    thueSuatGtgt: number;
+}
