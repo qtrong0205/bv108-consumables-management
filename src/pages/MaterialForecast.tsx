@@ -24,6 +24,7 @@ import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
 import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
 import { useOrder } from '@/context/OrderContext';
+import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
@@ -329,11 +330,72 @@ export default function MaterialForecast() {
         });
     };
 
-    // Xuất Excel
+    // Xuất Excel với thư viện xlsx
     const handleExport = () => {
+        // Chuẩn bị dữ liệu cho Excel
+        const excelData = filteredData.map((item) => ({
+            'STT': item.stt,
+            'Mã VT': item.maVtytCu,
+            'Tên vật tư': item.tenVtytBv,
+            'Mã hiệu': item.maHieu,
+            'Hãng SX': item.hangSx,
+            'Quy cách': `${item.quyCach} (${item.slTrongQuyCach} ${item.donViTinh})`,
+            'Đơn giá': item.donGia,
+            'SL Xuất': item.slXuat,
+            'SL Nhập': item.slNhap,
+            'SL Tồn': item.slTon,
+            'Nhà thầu': item.nhaThau,
+            'Dự trù': item.duTru,
+            'Gọi hàng': item.goiHang,
+        }));
+
+        // Thêm dòng tổng cộng
+        excelData.push({
+            'STT': '' as any,
+            'Mã VT': '',
+            'Tên vật tư': '',
+            'Mã hiệu': '',
+            'Hãng SX': '',
+            'Quy cách': '',
+            'Đơn giá': '' as any,
+            'SL Xuất': '' as any,
+            'SL Nhập': '' as any,
+            'SL Tồn': '' as any,
+            'Nhà thầu': 'Tổng cộng:',
+            'Dự trù': totalForecast,
+            'Gọi hàng': totalOrder,
+        });
+
+        // Tạo workbook và worksheet
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Dự trù vật tư');
+
+        // Điều chỉnh độ rộng cột
+        const colWidths = [
+            { wch: 3 },   // STT
+            { wch: 8 },  // Mã VT
+            { wch: 30 },  // Tên vật tư
+            { wch: 12 },  // Mã hiệu
+            { wch: 12 },  // Hãng SX
+            { wch: 18 },  // Quy cách
+            { wch: 10 },  // Đơn giá
+            { wch: 8 },  // SL Xuất
+            { wch: 8 },  // SL Nhập
+            { wch: 8 },  // SL Tồn
+            { wch: 15 },  // Nhà thầu
+            { wch: 8 },  // Dự trù
+            { wch: 8 },  // Gọi hàng
+        ];
+        ws['!cols'] = colWidths;
+
+        // Xuất file
+        const fileName = `bang_du_tru_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
         toast({
             title: "Xuất file thành công",
-            description: "File Excel đã được tải xuống",
+            description: `File "${fileName}" đã được tải xuống`,
         });
     };
 
