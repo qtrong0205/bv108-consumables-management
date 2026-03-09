@@ -36,6 +36,47 @@ export interface PaginationResponse<T> {
   totalPages: number;
 }
 
+export interface ApiCompareSupply {
+  stt: number;
+  tenCongTy: { String: string; Valid: boolean } | null;
+  maThuVien: { String: string; Valid: boolean } | null;
+  maThongTu04: { String: string; Valid: boolean } | null;
+  tenVatTu2025: { String: string; Valid: boolean } | null;
+  thongSoMoiThau2025: { String: string; Valid: boolean } | null;
+  thongSoHieuChinh2026: { String: string; Valid: boolean } | null;
+  thongSoKyThuat1: { String: string; Valid: boolean } | null;
+  thongSoKyThuat2: { String: string; Valid: boolean } | null;
+  thongSoKyThuat3: { String: string; Valid: boolean } | null;
+  thongSoKyThuat4: { String: string; Valid: boolean } | null;
+  thongSoKyThuat5: { String: string; Valid: boolean } | null;
+  thongSoKyThuat9: { String: string; Valid: boolean } | null;
+  maVtthTuongDuong: { String: string; Valid: boolean } | null;
+  congTyVtthTuongDuong: { String: string; Valid: boolean } | null;
+  dvt: { String: string; Valid: boolean } | null;
+  soLuongSuDung12Thang: { Float64: number; Valid: boolean } | null;
+  soLuongTrungThau2025BoSung: { Int32: number; Valid: boolean } | null;
+  donGiaTrungThau2025: { Float64: number; Valid: boolean } | null;
+  donGiaDeXuat2026: { Float64: number; Valid: boolean } | null;
+  ketQuaTrungThauThapNhat: { Float64: number; Valid: boolean } | null;
+  thoiGianDangTaiThapNhat: { String: string; Valid: boolean } | null;
+  ketQuaTrungThauCaoNhat: { Float64: number; Valid: boolean } | null;
+  thoiGianDangTaiCaoNhat: { String: string; Valid: boolean } | null;
+  congTyThamKhao: { String: string; Valid: boolean } | null;
+  maSoThue: { String: string; Valid: boolean } | null;
+  kyMaHieu: { String: string; Valid: boolean } | null;
+  hangSanXuat: { String: string; Valid: boolean } | null;
+  nuocSanXuat: { String: string; Valid: boolean } | null;
+  nhomNuoc: { String: string; Valid: boolean } | null;
+  chatLuong: { String: string; Valid: boolean } | null;
+  ma5086: { String: string; Valid: boolean } | null;
+  tenThuongMai: { String: string; Valid: boolean } | null;
+}
+
+export interface CompareSuppliesResponse {
+  data: ApiCompareSupply[];
+  total: number;
+}
+
 export interface ErrorResponse {
   error: string;
   message: string;
@@ -222,6 +263,17 @@ class ApiService {
 
   async getLowStockSupplies(threshold: number = 20, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
     return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
+  }
+
+  async getCompareCatalog(keyword: string = '', page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiCompareSupply>> {
+    return this.request<PaginationResponse<ApiCompareSupply>>(`/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`);
+  }
+
+  async compareSupplies(maThuVien: string[]): Promise<CompareSuppliesResponse> {
+    return this.request<CompareSuppliesResponse>('/supplies/compare', {
+      method: 'POST',
+      body: JSON.stringify({ maThuVien }),
+    });
   }
 }
 
