@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 import {
   Dialog,
   DialogContent,
@@ -17,8 +20,9 @@ import {
   getNullableNumber,
   getNullableString,
 } from '@/services/api';
-import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, Search, Send } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, Loader2, Maximize2, Minimize2, Search, Send, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 
 const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined): string => {
   if (!value?.Valid) return '';
@@ -38,6 +42,82 @@ const escapeHtml = (input: string): string =>
     .replace(/'/g, '&#039;');
 
 const formatHtmlMultiline = (input: string): string => escapeHtml(input).replace(/\r?\n/g, '<br/>');
+
+const markdownComponents: Components = {
+  h2: ({ children, ...props }) => (
+    <h2 className="mt-3 mb-1 text-sm font-semibold text-foreground" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3 className="mt-3 mb-1 text-sm font-medium text-foreground" {...props}>
+      {children}
+    </h3>
+  ),
+  p: ({ children, ...props }) => (
+    <p className="my-1 leading-6 text-foreground" {...props}>
+      {children}
+    </p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul className="my-1 list-disc space-y-1 pl-5" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol className="my-1 list-decimal space-y-1 pl-5" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }) => (
+    <li className="leading-6" {...props}>
+      {children}
+    </li>
+  ),
+  table: ({ children, ...props }) => (
+    <div className="my-2 overflow-x-auto rounded-md border border-border">
+      <table className="w-full min-w-[520px] border-collapse text-xs" {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }) => (
+    <thead className="bg-muted/40" {...props}>
+      {children}
+    </thead>
+  ),
+  th: ({ children, ...props }) => (
+    <th className="border border-border px-2 py-1.5 text-left font-semibold text-foreground" {...props}>
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }) => (
+    <td className="border border-border px-2 py-1.5 align-top text-foreground" {...props}>
+      {children}
+    </td>
+  ),
+  strong: ({ children, ...props }) => (
+    <strong className="font-semibold" {...props}>
+      {children}
+    </strong>
+  ),
+  code: ({ children, ...props }) => (
+    <code className="rounded bg-muted px-1 py-0.5 text-[12px]" {...props}>
+      {children}
+    </code>
+  ),
+  a: ({ children, href, ...props }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-primary underline underline-offset-2 hover:opacity-90"
+      {...props}
+    >
+      {children}
+    </a>
+  ),
+};
 
 const COMPARE_FIELDS: Array<{
   label: string;
@@ -96,6 +176,9 @@ export default function CompareSuppliesTab() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'bot'; content: string }>>([]);
   const [isSendingChat, setIsSendingChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [chatInitialized, setChatInitialized] = useState(false);
+  const [chatFullscreen, setChatFullscreen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -261,13 +344,35 @@ export default function CompareSuppliesTab() {
     }, 250);
   };
 
-  const requestChatbotAdvice = async (_question: string): Promise<string> => {
-    // TODO: Ket noi API chatbot that khi endpoint san sang.
-    throw new Error('CHATBOT_API_NOT_CONNECTED');
-  };
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isSendingChat]);
 
   const openChatbot = () => {
     setChatOpen(true);
+    if (!chatInitialized && comparedItems.length >= 2) {
+      setChatInitialized(true);
+      (async () => {
+        try {
+          setIsSendingChat(true);
+          const botReply = await askGeminiCompare(
+            comparedItems,
+            'Phân tích nhanh các sản phẩm trên theo mẫu: Kết luận nhanh, Bảng so sánh chính, Khuyến nghị đấu thầu 2026, Rủi ro cần kiểm tra. Nếu thiếu dữ liệu nội bộ thì tra cứu web để bổ sung và nêu nguồn.',
+          );
+          setChatMessages([{ role: 'bot', content: botReply }]);
+        } catch (err) {
+          setChatMessages([{ role: 'bot', content: `Lỗi kết nối Gemini: ${err instanceof Error ? err.message : 'Không xác định'}` }]);
+        } finally {
+          setIsSendingChat(false);
+        }
+      })();
+    }
+  };
+
+  const handleResetChat = () => {
+    resetGeminiChat();
+    setChatMessages([]);
+    setChatInitialized(false);
   };
 
   const handleSendChat = async () => {
@@ -279,12 +384,15 @@ export default function CompareSuppliesTab() {
 
     try {
       setIsSendingChat(true);
-      const botReply = await requestChatbotAdvice(message);
+      const botReply = await askGeminiCompare(comparedItems, message);
       if (botReply?.trim()) {
         setChatMessages((prev) => [...prev, { role: 'bot', content: botReply }]);
       }
-    } catch {
-      setError('Chatbot chưa kết nối API.');
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'bot', content: `Lỗi: ${err instanceof Error ? err.message : 'Không thể kết nối chatbot'}` },
+      ]);
     } finally {
       setIsSendingChat(false);
     }
@@ -487,39 +595,64 @@ export default function CompareSuppliesTab() {
       )}
 
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Tư vấn đấu thầu vật tư</DialogTitle>
-            <DialogDescription>
-              Chatbot nội bộ gợi ý nhanh dựa trên dữ liệu đang so sánh.
-            </DialogDescription>
+        <DialogContent className={`flex flex-col transition-all duration-300 ${chatFullscreen ? 'sm:max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh]' : 'sm:max-w-2xl'}`}>
+          <DialogHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Tư vấn đấu thầu vật tư</DialogTitle>
+                <DialogDescription>
+                  Chatbot ưu tiên dữ liệu đang so sánh và có thể tra cứu web để bổ sung thông tin.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setChatFullscreen((f) => !f)}
+                title={chatFullscreen ? 'Thu nhỏ' : 'Phóng to'}
+                className="ml-2 flex-shrink-0"
+              >
+                {chatFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="border border-border rounded-md p-3 h-[420px] overflow-y-auto space-y-3 bg-muted/20">
-            {chatMessages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có hội thoại. Hãy đặt câu hỏi, API chatbot sẽ được tích hợp sau.</p>
+          <div className={`border border-border rounded-md p-3 overflow-y-auto space-y-3 bg-muted/20 ${chatFullscreen ? 'flex-1 min-h-0' : 'h-[420px]'}`}>
+            {chatMessages.length === 0 && !isSendingChat ? (
+              <p className="text-sm text-muted-foreground">Bấm vào đây để bắt đầu phân tích. Chatbot sẽ tự động đánh giá các sản phẩm đang so sánh.</p>
             ) : (
               chatMessages.map((msg, idx) => (
                 <div
                   key={`${msg.role}-${idx}`}
-                  className={`max-w-[90%] rounded-md px-3 py-2 text-sm whitespace-pre-wrap ${msg.role === 'user'
-                    ? 'ml-auto bg-primary text-primary-foreground'
+                  className={`max-w-[92%] rounded-md px-3 py-2 text-sm ${msg.role === 'user'
+                    ? 'ml-auto bg-primary text-primary-foreground whitespace-pre-wrap'
                     : 'mr-auto bg-background border border-border text-foreground'
                     }`}
                 >
-                  {msg.content}
+                  {msg.role === 'user' ? (
+                    msg.content
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
               ))
             )}
             {isSendingChat && (
-              <div className="mr-auto bg-background border border-border text-foreground max-w-[90%] rounded-md px-3 py-2 text-sm">
-                Đang chờ phản hồi từ chatbot...
+              <div className="mr-auto bg-background border border-border text-foreground max-w-[90%] rounded-md px-3 py-2 text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Gemini đang phân tích...
               </div>
             )}
+            <div ref={chatEndRef} />
           </div>
 
           <DialogFooter className="sm:justify-between gap-2">
+            <Button variant="ghost" size="icon" onClick={handleResetChat} title="Làm mới hội thoại" disabled={isSendingChat}>
+              <RotateCcw className="w-4 h-4" />
+            </Button>
             <Input
+              className="flex-1"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Hỏi ví dụ: Nên đấu thầu loại nào để tối ưu giá và chất lượng?"
