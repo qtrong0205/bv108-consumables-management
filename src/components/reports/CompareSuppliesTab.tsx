@@ -1,24 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   apiService,
   ApiCompareSupply,
   getNullableNumber,
   getNullableString,
 } from '@/services/api';
-import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, GripVertical, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 import ChatBotDialog, { ChatMessage } from './dialog/ChatBotDialog';
+import ResultDialog from './dialog/ResultDialog';
 
 const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined): string => {
   if (!value?.Valid) return '';
@@ -99,12 +94,6 @@ export default function CompareSuppliesTab() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatInitialized, setChatInitialized] = useState(false);
   const [columnOrder, setColumnOrder] = useState<number[]>([]);
-  const [dragColIdx, setDragColIdx] = useState<number | null>(null);
-  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
-  const [attrColWidth, setAttrColWidth] = useState(200);
-  const resizingRef = useRef(false);
-  const resizeStartXRef = useRef(0);
-  const resizeStartWidthRef = useRef(0);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -331,75 +320,6 @@ export default function CompareSuppliesTab() {
     }
   };
 
-  const orderedItems = useMemo(() => {
-    if (columnOrder.length === 0) return comparedItems;
-    return columnOrder.map((i) => comparedItems[i]).filter(Boolean);
-  }, [comparedItems, columnOrder]);
-
-  const handleDragStart = useCallback((idx: number) => {
-    setDragColIdx(idx);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    setDragOverColIdx(idx);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    if (dragColIdx !== null && dragOverColIdx !== null && dragColIdx !== dragOverColIdx) {
-      setColumnOrder((prev) => {
-        const newOrder = [...prev];
-        const [moved] = newOrder.splice(dragColIdx, 1);
-        newOrder.splice(dragOverColIdx, 0, moved);
-        return newOrder;
-      });
-    }
-    setDragColIdx(null);
-    setDragOverColIdx(null);
-  }, [dragColIdx, dragOverColIdx]);
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    resizingRef.current = true;
-    resizeStartXRef.current = e.clientX;
-    resizeStartWidthRef.current = attrColWidth;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const delta = ev.clientX - resizeStartXRef.current;
-      const newWidth = Math.max(80, Math.min(600, resizeStartWidthRef.current + delta));
-      setAttrColWidth(newWidth);
-    };
-
-    const onMouseUp = () => {
-      resizingRef.current = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [attrColWidth]);
-
-  const isRowCollapsed = (label: string): boolean => collapsedRows.includes(label);
-
-  const toggleRowCollapse = (label: string) => {
-    setCollapsedRows((prev) => (prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]));
-  };
-
-  const collapseAllRows = () => {
-    setCollapsedRows(COMPARE_FIELDS.map((f) => f.label));
-  };
-
-  const expandAllRows = () => {
-    setCollapsedRows([]);
-  };
-
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
       <Card className="bg-neutral border-border">
@@ -505,132 +425,18 @@ export default function CompareSuppliesTab() {
       </Card>
 
       {/* Dialog kết quả so sánh */}
-      <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
-        <DialogContent className="flex flex-col sm:max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
-            <div>
-              <DialogTitle className="text-base font-semibold text-foreground">Kết quả so sánh vật tư</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                So sánh {comparedItems.length} vật tư đã chọn
-              </DialogDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={collapseAllRows} disabled={collapsedRows.length === COMPARE_FIELDS.length}>
-                Thu gọn tất cả
-              </Button>
-              <Button variant="outline" size="sm" onClick={expandAllRows} disabled={collapsedRows.length === 0}>
-                Mở rộng tất cả
-              </Button>
-              <Button variant="outline" size="sm" onClick={openChatbot}>
-                <Bot className="w-4 h-4 mr-2" />
-                Chatbot tư vấn
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportExcel}>
-                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Xuất Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPdf}>
-                <FileDown className="w-4 h-4 mr-2" />
-                Xuất PDF
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 overflow-auto bg-background">
-            <table className="w-full min-w-[1200px]">
-              <thead className="bg-primary text-primary-foreground sticky top-0 z-20">
-                <tr>
-                  <th
-                    className="px-3 py-3 text-left text-xs font-medium sticky left-0 z-30 bg-primary"
-                    style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
-                  >
-                    <span className="block truncate">Thuộc tính</span>
-                    <div
-                      className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary-foreground/30 active:bg-primary-foreground/50 z-30"
-                      onMouseDown={handleResizeMouseDown}
-                    />
-                  </th>
-                  {orderedItems.map((item, idx) => (
-                    <th
-                      key={`head-${getMaThuVien(item)}`}
-                      className={`px-3 py-3 text-left text-xs font-medium min-w-[240px] cursor-grab active:cursor-grabbing select-none transition-colors ${dragOverColIdx === idx && dragColIdx !== idx ? 'bg-primary/70 ring-2 ring-primary-foreground/40 ring-inset' : ''
-                        } ${dragColIdx === idx ? 'opacity-50' : ''}`}
-                      draggable
-                      onDragStart={() => handleDragStart(idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDragEnd={handleDragEnd}
-                      onDrop={handleDragEnd}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <GripVertical className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
-                        <div>
-                          <div>{getMaThuVien(item)}</div>
-                          <div className="font-normal opacity-90 mt-1">{getTenVatTu(item)}</div>
-                        </div>
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {COMPARE_FIELDS.map((field) => {
-                  const collapsed = isRowCollapsed(field.label);
-
-                  return (
-                    <tr key={field.label} className="group">
-                      <td
-                        className={`font-bold text-primary-foreground bg-primary sticky left-0 z-10 transition-all duration-300 overflow-hidden ${collapsed ? 'px-3 py-1.5 text-xs' : 'px-3 py-3 text-sm'}`}
-                        style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleRowCollapse(field.label)}
-                          className="w-full flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
-                          title={collapsed ? 'Mở rộng hàng' : 'Thu gọn hàng'}
-                        >
-                          <span className={`flex-shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-0' : 'rotate-90'}`}>
-                            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          </span>
-                          <span>{field.label}</span>
-                        </button>
-                      </td>
-
-                      <td
-                        colSpan={Math.max(orderedItems.length, 1)}
-                        className="p-0 overflow-hidden"
-                      >
-                        <div
-                          className={`transition-all duration-500 ease-in-out overflow-hidden flex ${collapsed
-                            ? 'max-h-0 opacity-0 py-0'
-                            : 'max-h-[500px] opacity-100 py-3'
-                            }`}
-                        >
-                          <div className="flex w-full">
-                            {orderedItems.map((item) => (
-                              <div
-                                key={`${field.label}-${getMaThuVien(item)}`}
-                                className="flex-1 px-3 text-sm text-foreground align-top whitespace-pre-wrap break-words leading-6 border-r border-border last:border-r-0"
-                                style={{ minWidth: '240px' }}
-                              >
-                                {field.value(item) || ''}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {collapsed && (
-                          <div className="flex h-6 items-center bg-muted/20 px-2">
-                            <div className="h-[2px] w-full rounded-full bg-border/80" />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ResultDialog
+        open={compareDialogOpen}
+        onOpenChange={setCompareDialogOpen}
+        comparedItems={comparedItems}
+        columnOrder={columnOrder}
+        onColumnOrderChange={setColumnOrder}
+        collapsedRows={collapsedRows}
+        onCollapsedRowsChange={setCollapsedRows}
+        onOpenChatbot={openChatbot}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
       {/* Dialog Chatbot */}
       <ChatBotDialog
