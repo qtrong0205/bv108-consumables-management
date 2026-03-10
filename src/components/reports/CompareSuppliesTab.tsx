@@ -342,6 +342,28 @@ export default function CompareSuppliesTab() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Đã chọn <span className="font-medium text-foreground">{selectedCount}</span>/10 vật tư
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleSelectAllOnPage} disabled={loadingCatalog || catalog.length === 0 || selectedCount >= 10}>
+                Chọn tất cả trang
+              </Button>
+              <Button variant="outline" onClick={handleClearAllSelection} disabled={selectedCount === 0}>
+                Bỏ chọn tất cả
+              </Button>
+              <Button onClick={handleCompare} disabled={selectedCount < 2 || loadingCompare}>
+                {loadingCompare ? 'ĐANG SO SÁNH...' : 'SO SÁNH'}
+              </Button>
+              {comparedItems.length > 0 && (
+                <Button variant="secondary" onClick={() => setCompareDialogOpen(true)}>
+                  Xem kết quả
+                </Button>
+              )}
+            </div>
+          </div>
+
           <div className="overflow-x-auto border border-border rounded-md">
             <table className="w-full min-w-[920px]">
               <thead className="bg-primary text-primary-foreground">
@@ -386,28 +408,6 @@ export default function CompareSuppliesTab() {
             {loadingCatalog && (
               <div className="py-8 text-center text-sm text-muted-foreground">Đang tải danh sách vật tư...</div>
             )}
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              Đã chọn <span className="font-medium text-foreground">{selectedCount}</span>/10 vật tư
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleSelectAllOnPage} disabled={loadingCatalog || catalog.length === 0 || selectedCount >= 10}>
-                Chọn tất cả trang
-              </Button>
-              <Button variant="outline" onClick={handleClearAllSelection} disabled={selectedCount === 0}>
-                Bỏ chọn tất cả
-              </Button>
-              <Button onClick={handleCompare} disabled={selectedCount < 2 || loadingCompare}>
-                {loadingCompare ? 'ĐANG SO SÁNH...' : 'SO SÁNH'}
-              </Button>
-              {comparedItems.length > 0 && (
-                <Button variant="secondary" onClick={() => setCompareDialogOpen(true)}>
-                  Xem kết quả
-                </Button>
-              )}
-            </div>
           </div>
 
           {/* Pagination */}
