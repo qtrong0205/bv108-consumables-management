@@ -4,16 +4,18 @@ import UsageChart from '@/components/dashboard/UsageChart';
 import TopItemsTable from '@/components/dashboard/TopItemsTable';
 import InventoryByGroupChart from '@/components/dashboard/InventoryByGroupChart';
 import { Package, AlertTriangle, ShoppingCart, CheckCircle } from 'lucide-react';
-import { MOCK_MEDICAL_SUPPLIES } from '@/data/mockData';
+import { useSupplies } from '@/hooks/use-supplies';
 
 export default function Dashboard() {
+    const { supplies, loading, total } = useSupplies(1, 1000); // Lấy tất cả vật tư
+
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
 
-    // Tính toán thống kê từ mock data
-    const totalItems = MOCK_MEDICAL_SUPPLIES.length;
-    const lowStockItems = MOCK_MEDICAL_SUPPLIES.filter(
+    // Tính toán thống kê từ dữ liệu API
+    const totalItems = total;
+    const lowStockItems = supplies.filter(
         item => item.soLuongTon < item.soLuongToiThieu
     ).length;
     const pendingOrders = 8; // Mock data cho đơn hàng chờ xử lý
@@ -65,11 +67,11 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <UsageChart />
-                <InventoryByGroupChart />
+                <InventoryByGroupChart supplies={supplies} loading={loading} />
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-                <TopItemsTable />
+                <TopItemsTable supplies={supplies} loading={loading} />
             </div>
         </div>
     );
