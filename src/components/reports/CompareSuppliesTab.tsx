@@ -121,40 +121,40 @@ const COMPARE_FIELDS: Array<{
   label: string;
   value: (item: ApiCompareSupply) => string;
 }> = [
-  { label: 'STT', value: (i) => String(i.stt || '') },
-  { label: 'Tên công ty', value: (i) => getNullableString(i.tenCongTy) },
-  { label: 'Mã thư viện', value: (i) => getNullableString(i.maThuVien) },
-  { label: 'Mã Thông tư 04', value: (i) => getNullableString(i.maThongTu04) },
-  { label: 'Tên vật tư (sử dụng năm 2025)', value: (i) => getNullableString(i.tenVatTu2025) },
-  { label: 'Thông số kỹ thuật của BV mời thầu (2025)', value: (i) => getNullableString(i.thongSoMoiThau2025) },
-  { label: 'Thông số kỹ thuật (hiệu chỉnh cho 2026)', value: (i) => getNullableString(i.thongSoHieuChinh2026) },
-  { label: 'Thông số kỹ thuật 1', value: (i) => getNullableString(i.thongSoKyThuat1) },
-  { label: 'Thông số kỹ thuật 2', value: (i) => getNullableString(i.thongSoKyThuat2) },
-  { label: 'Thông số kỹ thuật 3', value: (i) => getNullableString(i.thongSoKyThuat3) },
-  { label: 'Thông số kỹ thuật 4', value: (i) => getNullableString(i.thongSoKyThuat4) },
-  { label: 'Thông số kỹ thuật 5', value: (i) => getNullableString(i.thongSoKyThuat5) },
-  { label: 'Thông số kỹ thuật 9', value: (i) => getNullableString(i.thongSoKyThuat9) },
-  { label: 'Mã VTTH tương đương', value: (i) => getNullableString(i.maVtthTuongDuong) },
-  { label: 'Công ty có VTTH tương đương', value: (i) => getNullableString(i.congTyVtthTuongDuong) },
-  { label: 'ĐVT', value: (i) => getNullableString(i.dvt) },
-  { label: 'Số lượng sử dụng 12 tháng', value: (i) => formatNumber(i.soLuongSuDung12Thang) },
-  { label: 'Số lượng trúng thầu 2025 + bổ sung', value: (i) => formatNumber(i.soLuongTrungThau2025BoSung) },
-  { label: 'Đơn giá trúng thầu năm 2025', value: (i) => formatNumber(i.donGiaTrungThau2025) },
-  { label: 'Đơn giá đề xuất năm 2026', value: (i) => formatNumber(i.donGiaDeXuat2026) },
-  { label: 'KQ trúng thầu THẤP NHẤT', value: (i) => formatNumber(i.ketQuaTrungThauThapNhat) },
-  { label: 'TG/ĐV đăng tải giá THẤP NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiThapNhat) },
-  { label: 'KQ trúng thầu CAO NHẤT', value: (i) => formatNumber(i.ketQuaTrungThauCaoNhat) },
-  { label: 'TG/ĐV đăng tải giá CAO NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiCaoNhat) },
-  { label: 'Công ty tham khảo', value: (i) => getNullableString(i.congTyThamKhao) },
-  { label: 'Mã số thuế', value: (i) => getNullableString(i.maSoThue) },
-  { label: 'Ký mã hiệu', value: (i) => getNullableString(i.kyMaHieu) },
-  { label: 'Hãng sản xuất', value: (i) => getNullableString(i.hangSanXuat) },
-  { label: 'Nước sản xuất', value: (i) => getNullableString(i.nuocSanXuat) },
-  { label: 'Nhóm nước', value: (i) => getNullableString(i.nhomNuoc) },
-  { label: 'Chất lượng', value: (i) => getNullableString(i.chatLuong) },
-  { label: 'Mã 5086', value: (i) => getNullableString(i.ma5086) },
-  { label: 'Tên thương mại', value: (i) => getNullableString(i.tenThuongMai) },
-];
+    { label: 'STT', value: (i) => String(i.stt || '') },
+    { label: 'Tên công ty', value: (i) => getNullableString(i.tenCongTy) },
+    { label: 'Mã thư viện', value: (i) => getNullableString(i.maThuVien) },
+    { label: 'Mã Thông tư 04', value: (i) => getNullableString(i.maThongTu04) },
+    { label: 'Tên vật tư (sử dụng năm 2025)', value: (i) => getNullableString(i.tenVatTu2025) },
+    { label: 'Thông số kỹ thuật của BV mời thầu (2025)', value: (i) => getNullableString(i.thongSoMoiThau2025) },
+    { label: 'Thông số kỹ thuật (hiệu chỉnh cho 2026)', value: (i) => getNullableString(i.thongSoHieuChinh2026) },
+    { label: 'Thông số kỹ thuật 1', value: (i) => getNullableString(i.thongSoKyThuat1) },
+    { label: 'Thông số kỹ thuật 2', value: (i) => getNullableString(i.thongSoKyThuat2) },
+    { label: 'Thông số kỹ thuật 3', value: (i) => getNullableString(i.thongSoKyThuat3) },
+    { label: 'Thông số kỹ thuật 4', value: (i) => getNullableString(i.thongSoKyThuat4) },
+    { label: 'Thông số kỹ thuật 5', value: (i) => getNullableString(i.thongSoKyThuat5) },
+    { label: 'Thông số kỹ thuật 9', value: (i) => getNullableString(i.thongSoKyThuat9) },
+    { label: 'Mã VTTH tương đương', value: (i) => getNullableString(i.maVtthTuongDuong) },
+    { label: 'Công ty có VTTH tương đương', value: (i) => getNullableString(i.congTyVtthTuongDuong) },
+    { label: 'ĐVT', value: (i) => getNullableString(i.dvt) },
+    { label: 'Số lượng sử dụng 12 tháng', value: (i) => formatNumber(i.soLuongSuDung12Thang) },
+    { label: 'Số lượng trúng thầu 2025 + bổ sung', value: (i) => formatNumber(i.soLuongTrungThau2025BoSung) },
+    { label: 'Đơn giá trúng thầu năm 2025', value: (i) => formatNumber(i.donGiaTrungThau2025) },
+    { label: 'Đơn giá đề xuất năm 2026', value: (i) => formatNumber(i.donGiaDeXuat2026) },
+    { label: 'KQ trúng thầu THẤP NHẤT', value: (i) => formatNumber(i.ketQuaTrungThauThapNhat) },
+    { label: 'TG/ĐV đăng tải giá THẤP NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiThapNhat) },
+    { label: 'KQ trúng thầu CAO NHẤT', value: (i) => formatNumber(i.ketQuaTrungThauCaoNhat) },
+    { label: 'TG/ĐV đăng tải giá CAO NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiCaoNhat) },
+    { label: 'Công ty tham khảo', value: (i) => getNullableString(i.congTyThamKhao) },
+    { label: 'Mã số thuế', value: (i) => getNullableString(i.maSoThue) },
+    { label: 'Ký mã hiệu', value: (i) => getNullableString(i.kyMaHieu) },
+    { label: 'Hãng sản xuất', value: (i) => getNullableString(i.hangSanXuat) },
+    { label: 'Nước sản xuất', value: (i) => getNullableString(i.nuocSanXuat) },
+    { label: 'Nhóm nước', value: (i) => getNullableString(i.nhomNuoc) },
+    { label: 'Chất lượng', value: (i) => getNullableString(i.chatLuong) },
+    { label: 'Mã 5086', value: (i) => getNullableString(i.ma5086) },
+    { label: 'Tên thương mại', value: (i) => getNullableString(i.tenThuongMai) },
+  ];
 
 export default function CompareSuppliesTab() {
   const [keyword, setKeyword] = useState('');
@@ -170,6 +170,7 @@ export default function CompareSuppliesTab() {
   const [loadingCompare, setLoadingCompare] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collapsedRows, setCollapsedRows] = useState<string[]>([]);
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'bot'; content: string }>>([]);
@@ -255,6 +256,11 @@ export default function CompareSuppliesTab() {
         .filter((field) => items.every((item: ApiCompareSupply) => !field.value(item)))
         .map((field) => field.label);
       setCollapsedRows(emptyRows);
+
+      // Mở dialog kết quả so sánh
+      if (items.length > 0) {
+        setCompareDialogOpen(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lấy được kết quả so sánh');
       setComparedItems([]);
@@ -563,6 +569,11 @@ export default function CompareSuppliesTab() {
               <Button onClick={handleCompare} disabled={selectedCount < 2 || loadingCompare}>
                 {loadingCompare ? 'ĐANG SO SÁNH...' : 'SO SÁNH'}
               </Button>
+              {comparedItems.length > 0 && (
+                <Button variant="secondary" onClick={() => setCompareDialogOpen(true)}>
+                  Xem kết quả
+                </Button>
+              )}
             </div>
           </div>
 
@@ -576,131 +587,135 @@ export default function CompareSuppliesTab() {
         </CardContent>
       </Card>
 
-      {comparedItems.length > 0 && (
-        <Card className="bg-neutral border-border overflow-hidden">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="text-foreground">Kết quả so sánh</CardTitle>
+      {/* Dialog kết quả so sánh */}
+      <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+        <DialogContent className="flex flex-col sm:max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
+            <div>
+              <DialogTitle className="text-base font-semibold text-foreground">Kết quả so sánh vật tư</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                So sánh {comparedItems.length} vật tư đã chọn
+              </DialogDescription>
+            </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={collapseAllRows} disabled={collapsedRows.length === COMPARE_FIELDS.length}>
+              <Button variant="outline" size="sm" onClick={collapseAllRows} disabled={collapsedRows.length === COMPARE_FIELDS.length}>
                 Thu gọn tất cả
               </Button>
-              <Button variant="outline" onClick={expandAllRows} disabled={collapsedRows.length === 0}>
+              <Button variant="outline" size="sm" onClick={expandAllRows} disabled={collapsedRows.length === 0}>
                 Mở rộng tất cả
               </Button>
-              <Button variant="outline" onClick={openChatbot}>
+              <Button variant="outline" size="sm" onClick={openChatbot}>
                 <Bot className="w-4 h-4 mr-2" />
                 Chatbot tư vấn
               </Button>
-              <Button variant="outline" onClick={handleExportExcel}>
+              <Button variant="outline" size="sm" onClick={handleExportExcel}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" />
                 Xuất Excel
               </Button>
-              <Button variant="outline" onClick={handleExportPdf}>
+              <Button variant="outline" size="sm" onClick={handleExportPdf}>
                 <FileDown className="w-4 h-4 mr-2" />
                 Xuất PDF
               </Button>
             </div>
-          </CardHeader>
-          <CardContent className="overflow-hidden">
-            <div className="overflow-x-auto border border-border rounded-md">
-              <table className="w-full min-w-[1200px]">
-                <thead className="bg-primary text-primary-foreground">
-                  <tr>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-auto bg-background">
+            <table className="w-full min-w-[1200px]">
+              <thead className="bg-primary text-primary-foreground sticky top-0 z-20">
+                <tr>
+                  <th
+                    className="px-3 py-3 text-left text-xs font-medium sticky left-0 z-30 bg-primary"
+                    style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
+                  >
+                    <span className="block truncate">Thuộc tính</span>
+                    <div
+                      className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary-foreground/30 active:bg-primary-foreground/50 z-30"
+                      onMouseDown={handleResizeMouseDown}
+                    />
+                  </th>
+                  {orderedItems.map((item, idx) => (
                     <th
-                      className="px-3 py-3 text-left text-xs font-medium sticky left-0 z-20 bg-primary relative"
-                      style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
-                    >
-                      <span className="block truncate">Thuộc tính</span>
-                      <div
-                        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary-foreground/30 active:bg-primary-foreground/50 z-30"
-                        onMouseDown={handleResizeMouseDown}
-                      />
-                    </th>
-                    {orderedItems.map((item, idx) => (
-                      <th
-                        key={`head-${getMaThuVien(item)}`}
-                        className={`px-3 py-3 text-left text-xs font-medium min-w-[240px] cursor-grab active:cursor-grabbing select-none transition-colors ${
-                          dragOverColIdx === idx && dragColIdx !== idx ? 'bg-primary/70 ring-2 ring-primary-foreground/40 ring-inset' : ''
+                      key={`head-${getMaThuVien(item)}`}
+                      className={`px-3 py-3 text-left text-xs font-medium min-w-[240px] cursor-grab active:cursor-grabbing select-none transition-colors ${dragOverColIdx === idx && dragColIdx !== idx ? 'bg-primary/70 ring-2 ring-primary-foreground/40 ring-inset' : ''
                         } ${dragColIdx === idx ? 'opacity-50' : ''}`}
-                        draggable
-                        onDragStart={() => handleDragStart(idx)}
-                        onDragOver={(e) => handleDragOver(e, idx)}
-                        onDragEnd={handleDragEnd}
-                        onDrop={handleDragEnd}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragEnd={handleDragEnd}
+                      onDrop={handleDragEnd}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <GripVertical className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+                        <div>
+                          <div>{getMaThuVien(item)}</div>
+                          <div className="font-normal opacity-90 mt-1">{getTenVatTu(item)}</div>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {COMPARE_FIELDS.map((field) => {
+                  const collapsed = isRowCollapsed(field.label);
+
+                  return (
+                    <tr key={field.label} className="group">
+                      <td
+                        className={`font-bold text-primary-foreground bg-primary sticky left-0 z-10 transition-all duration-300 overflow-hidden ${collapsed ? 'px-3 py-1.5 text-xs' : 'px-3 py-3 text-sm'}`}
+                        style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <GripVertical className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
-                          <div>
-                            <div>{getMaThuVien(item)}</div>
-                            <div className="font-normal opacity-90 mt-1">{getTenVatTu(item)}</div>
+                        <button
+                          type="button"
+                          onClick={() => toggleRowCollapse(field.label)}
+                          className="w-full flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
+                          title={collapsed ? 'Mở rộng hàng' : 'Thu gọn hàng'}
+                        >
+                          <span className={`flex-shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-0' : 'rotate-90'}`}>
+                            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </span>
+                          <span>{field.label}</span>
+                        </button>
+                      </td>
+
+                      <td
+                        colSpan={Math.max(orderedItems.length, 1)}
+                        className="p-0 overflow-hidden"
+                      >
+                        <div
+                          className={`transition-all duration-500 ease-in-out overflow-hidden flex ${collapsed
+                            ? 'max-h-0 opacity-0 py-0'
+                            : 'max-h-[500px] opacity-100 py-3'
+                            }`}
+                        >
+                          <div className="flex w-full">
+                            {orderedItems.map((item) => (
+                              <div
+                                key={`${field.label}-${getMaThuVien(item)}`}
+                                className="flex-1 px-3 text-sm text-foreground align-top whitespace-pre-wrap break-words leading-6 border-r border-border last:border-r-0"
+                                style={{ minWidth: '240px' }}
+                              >
+                                {field.value(item) || ''}
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {COMPARE_FIELDS.map((field) => {
-                    const collapsed = isRowCollapsed(field.label);
-
-                    return (
-                      <tr key={field.label} className="group">
-                        <td
-                          className={`font-bold text-primary-foreground bg-primary sticky left-0 z-10 transition-all duration-300 overflow-hidden ${collapsed ? 'px-3 py-1.5 text-xs' : 'px-3 py-3 text-sm'}`}
-                          style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => toggleRowCollapse(field.label)}
-                            className="w-full flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
-                            title={collapsed ? 'Mở rộng hàng' : 'Thu gọn hàng'}
-                          >
-                            <span className={`flex-shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-0' : 'rotate-90'}`}>
-                              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </span>
-                            <span>{field.label}</span>
-                          </button>
-                        </td>
-
-                        <td
-                          colSpan={Math.max(orderedItems.length, 1)}
-                          className="p-0 overflow-hidden"
-                        >
-                          <div
-                            className={`transition-all duration-500 ease-in-out overflow-hidden flex ${
-                              collapsed
-                                ? 'max-h-0 opacity-0 py-0'
-                                : 'max-h-[500px] opacity-100 py-3'
-                            }`}
-                          >
-                            <div className="flex w-full">
-                              {orderedItems.map((item) => (
-                                <div
-                                  key={`${field.label}-${getMaThuVien(item)}`}
-                                  className="flex-1 px-3 text-sm text-foreground align-top whitespace-pre-wrap break-words leading-6 border-r border-border last:border-r-0"
-                                  style={{ minWidth: '240px' }}
-                                >
-                                  {field.value(item) || ''}
-                                </div>
-                              ))}
-                            </div>
+                        {collapsed && (
+                          <div className="flex h-6 items-center bg-muted/20 px-2">
+                            <div className="h-[2px] w-full rounded-full bg-border/80" />
                           </div>
-                          {collapsed && (
-                            <div className="flex h-6 items-center bg-muted/20 px-2">
-                              <div className="h-[2px] w-full rounded-full bg-border/80" />
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
+      {/* Dialog Chatbot */}
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
         <DialogContent className="flex flex-col sm:max-w-[85vw] w-[85vw] h-[85vh] max-h-[85vh] p-0 gap-0 rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
