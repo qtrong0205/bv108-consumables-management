@@ -97,10 +97,36 @@ module.exports = {
                     from: { height: "var(--radix-accordion-content-height)" },
                     to: { height: "0" },
                 },
+                "row-collapse": {
+                    from: {
+                        maxHeight: "500px",
+                        opacity: "1",
+                        visibility: "visible",
+                    },
+                    to: {
+                        maxHeight: "0px",
+                        opacity: "0",
+                        visibility: "hidden",
+                    },
+                },
+                "row-expand": {
+                    from: {
+                        maxHeight: "0px",
+                        opacity: "0",
+                        visibility: "hidden",
+                    },
+                    to: {
+                        maxHeight: "500px",
+                        opacity: "1",
+                        visibility: "visible",
+                    },
+                },
             },
             animation: {
                 "accordion-down": "accordion-down 0.2s ease-out",
                 "accordion-up": "accordion-up 0.2s ease-out",
+                "row-collapse": "row-collapse 0.3s ease-in-out",
+                "row-expand": "row-expand 0.3s ease-in-out",
             },
         },
     },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,8 +10,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -20,7 +18,7 @@ import {
   getNullableNumber,
   getNullableString,
 } from '@/services/api';
-import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, Loader2, Maximize2, Minimize2, Search, Send, RotateCcw } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, GripVertical, Loader2, Search, Send, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 
@@ -178,7 +176,13 @@ export default function CompareSuppliesTab() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [chatInitialized, setChatInitialized] = useState(false);
-  const [chatFullscreen, setChatFullscreen] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<number[]>([]);
+  const [dragColIdx, setDragColIdx] = useState<number | null>(null);
+  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
+  const [attrColWidth, setAttrColWidth] = useState(200);
+  const resizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -243,8 +247,14 @@ export default function CompareSuppliesTab() {
       setLoadingCompare(true);
       setError(null);
       const res = await apiService.compareSupplies(selectedCodes);
-      setComparedItems(res.data || []);
-      setCollapsedRows([]);
+      const items = res.data || [];
+      setComparedItems(items);
+      setColumnOrder(items.map((_: ApiCompareSupply, i: number) => i));
+
+      const emptyRows = COMPARE_FIELDS
+        .filter((field) => items.every((item: ApiCompareSupply) => !field.value(item)))
+        .map((field) => field.label);
+      setCollapsedRows(emptyRows);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lấy được kết quả so sánh');
       setComparedItems([]);
@@ -398,6 +408,61 @@ export default function CompareSuppliesTab() {
     }
   };
 
+  const orderedItems = useMemo(() => {
+    if (columnOrder.length === 0) return comparedItems;
+    return columnOrder.map((i) => comparedItems[i]).filter(Boolean);
+  }, [comparedItems, columnOrder]);
+
+  const handleDragStart = useCallback((idx: number) => {
+    setDragColIdx(idx);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverColIdx(idx);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (dragColIdx !== null && dragOverColIdx !== null && dragColIdx !== dragOverColIdx) {
+      setColumnOrder((prev) => {
+        const newOrder = [...prev];
+        const [moved] = newOrder.splice(dragColIdx, 1);
+        newOrder.splice(dragOverColIdx, 0, moved);
+        return newOrder;
+      });
+    }
+    setDragColIdx(null);
+    setDragOverColIdx(null);
+  }, [dragColIdx, dragOverColIdx]);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = true;
+    resizeStartXRef.current = e.clientX;
+    resizeStartWidthRef.current = attrColWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = ev.clientX - resizeStartXRef.current;
+      const newWidth = Math.max(80, Math.min(600, resizeStartWidthRef.current + delta));
+      setAttrColWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      resizingRef.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [attrColWidth]);
+
   const isRowCollapsed = (label: string): boolean => collapsedRows.includes(label);
 
   const toggleRowCollapse = (label: string) => {
@@ -413,7 +478,7 @@ export default function CompareSuppliesTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       <Card className="bg-neutral border-border">
         <CardHeader className="space-y-3">
           <CardTitle className="text-foreground">Chọn vật tư để so sánh</CardTitle>
@@ -512,7 +577,7 @@ export default function CompareSuppliesTab() {
       </Card>
 
       {comparedItems.length > 0 && (
-        <Card className="bg-neutral border-border">
+        <Card className="bg-neutral border-border overflow-hidden">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="text-foreground">Kết quả so sánh</CardTitle>
             <div className="flex items-center gap-2">
@@ -536,16 +601,40 @@ export default function CompareSuppliesTab() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-hidden">
             <div className="overflow-x-auto border border-border rounded-md">
               <table className="w-full min-w-[1200px]">
                 <thead className="bg-primary text-primary-foreground">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium min-w-[320px] sticky left-0 z-20 bg-primary">Thuộc tính</th>
-                    {comparedItems.map((item) => (
-                      <th key={`head-${getMaThuVien(item)}`} className="px-3 py-3 text-left text-xs font-medium min-w-[240px]">
-                        <div>{getMaThuVien(item)}</div>
-                        <div className="font-normal opacity-90 mt-1">{getTenVatTu(item)}</div>
+                    <th
+                      className="px-3 py-3 text-left text-xs font-medium sticky left-0 z-20 bg-primary relative"
+                      style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
+                    >
+                      <span className="block truncate">Thuộc tính</span>
+                      <div
+                        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary-foreground/30 active:bg-primary-foreground/50 z-30"
+                        onMouseDown={handleResizeMouseDown}
+                      />
+                    </th>
+                    {orderedItems.map((item, idx) => (
+                      <th
+                        key={`head-${getMaThuVien(item)}`}
+                        className={`px-3 py-3 text-left text-xs font-medium min-w-[240px] cursor-grab active:cursor-grabbing select-none transition-colors ${
+                          dragOverColIdx === idx && dragColIdx !== idx ? 'bg-primary/70 ring-2 ring-primary-foreground/40 ring-inset' : ''
+                        } ${dragColIdx === idx ? 'opacity-50' : ''}`}
+                        draggable
+                        onDragStart={() => handleDragStart(idx)}
+                        onDragOver={(e) => handleDragOver(e, idx)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={handleDragEnd}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <GripVertical className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
+                          <div>
+                            <div>{getMaThuVien(item)}</div>
+                            <div className="font-normal opacity-90 mt-1">{getTenVatTu(item)}</div>
+                          </div>
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -555,35 +644,53 @@ export default function CompareSuppliesTab() {
                     const collapsed = isRowCollapsed(field.label);
 
                     return (
-                      <tr key={field.label}>
+                      <tr key={field.label} className="group">
                         <td
-                          className={`font-bold text-primary-foreground bg-primary sticky left-0 z-10 ${collapsed ? 'px-3 py-1.5 text-xs' : 'px-3 py-3 text-sm'}`}
+                          className={`font-bold text-primary-foreground bg-primary sticky left-0 z-10 transition-all duration-300 overflow-hidden ${collapsed ? 'px-3 py-1.5 text-xs' : 'px-3 py-3 text-sm'}`}
+                          style={{ width: attrColWidth, minWidth: attrColWidth, maxWidth: attrColWidth }}
                         >
                           <button
                             type="button"
                             onClick={() => toggleRowCollapse(field.label)}
-                            className="w-full flex items-center gap-2 text-left"
+                            className="w-full flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
                             title={collapsed ? 'Mở rộng hàng' : 'Thu gọn hàng'}
                           >
-                            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            <span className={`flex-shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-0' : 'rotate-90'}`}>
+                              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </span>
                             <span>{field.label}</span>
                           </button>
                         </td>
 
-                        {collapsed ? (
-                          <td colSpan={Math.max(comparedItems.length, 1)} className="px-2 py-1 bg-muted/20 align-middle">
-                            <div className="h-[2px] w-full rounded-full bg-border/80" />
-                          </td>
-                        ) : (
-                          comparedItems.map((item) => (
-                            <td
-                              key={`${field.label}-${getMaThuVien(item)}`}
-                              className="px-3 py-3 text-sm text-foreground align-top whitespace-pre-wrap break-words leading-6"
-                            >
-                              {field.value(item) || ''}
-                            </td>
-                          ))
-                        )}
+                        <td
+                          colSpan={Math.max(orderedItems.length, 1)}
+                          className="p-0 overflow-hidden"
+                        >
+                          <div
+                            className={`transition-all duration-500 ease-in-out overflow-hidden flex ${
+                              collapsed
+                                ? 'max-h-0 opacity-0 py-0'
+                                : 'max-h-[500px] opacity-100 py-3'
+                            }`}
+                          >
+                            <div className="flex w-full">
+                              {orderedItems.map((item) => (
+                                <div
+                                  key={`${field.label}-${getMaThuVien(item)}`}
+                                  className="flex-1 px-3 text-sm text-foreground align-top whitespace-pre-wrap break-words leading-6 border-r border-border last:border-r-0"
+                                  style={{ minWidth: '240px' }}
+                                >
+                                  {field.value(item) || ''}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {collapsed && (
+                            <div className="flex h-6 items-center bg-muted/20 px-2">
+                              <div className="h-[2px] w-full rounded-full bg-border/80" />
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -595,80 +702,79 @@ export default function CompareSuppliesTab() {
       )}
 
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className={`flex flex-col transition-all duration-300 ${chatFullscreen ? 'sm:max-w-[95vw] w-[95vw] h-[95vh] max-h-[95vh]' : 'sm:max-w-2xl'}`}>
-          <DialogHeader className="flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle>Tư vấn đấu thầu vật tư</DialogTitle>
-                <DialogDescription>
-                  Chatbot ưu tiên dữ liệu đang so sánh và có thể tra cứu web để bổ sung thông tin.
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setChatFullscreen((f) => !f)}
-                title={chatFullscreen ? 'Thu nhỏ' : 'Phóng to'}
-                className="ml-2 flex-shrink-0"
-              >
-                {chatFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
+        <DialogContent className="flex flex-col sm:max-w-[85vw] w-[85vw] h-[85vh] max-h-[85vh] p-0 gap-0 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
+            <div>
+              <DialogTitle className="text-base font-semibold text-foreground">Tư vấn đấu thầu vật tư</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Phân tích dữ liệu so sánh &middot; Tra cứu web bổ sung
+              </DialogDescription>
             </div>
-          </DialogHeader>
+          </div>
 
-          <div className={`border border-border rounded-md p-3 overflow-y-auto space-y-3 bg-muted/20 ${chatFullscreen ? 'flex-1 min-h-0' : 'h-[420px]'}`}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4 bg-background">
             {chatMessages.length === 0 && !isSendingChat ? (
-              <p className="text-sm text-muted-foreground">Bấm vào đây để bắt đầu phân tích. Chatbot sẽ tự động đánh giá các sản phẩm đang so sánh.</p>
+              <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                <Bot className="w-10 h-10 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground max-w-sm">Chatbot sẽ tự động phân tích các sản phẩm đang so sánh. Bạn có thể hỏi thêm để được tư vấn chi tiết.</p>
+              </div>
             ) : (
               chatMessages.map((msg, idx) => (
                 <div
                   key={`${msg.role}-${idx}`}
-                  className={`max-w-[92%] rounded-md px-3 py-2 text-sm ${msg.role === 'user'
-                    ? 'ml-auto bg-primary text-primary-foreground whitespace-pre-wrap'
-                    : 'mr-auto bg-background border border-border text-foreground'
-                    }`}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {msg.role === 'user' ? (
-                    msg.content
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {msg.content}
-                    </ReactMarkdown>
-                  )}
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground whitespace-pre-wrap rounded-br-md'
+                      : 'bg-muted/50 border border-border text-foreground rounded-bl-md'
+                      }`}
+                  >
+                    {msg.role === 'user' ? (
+                      msg.content
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    )}
+                  </div>
                 </div>
               ))
             )}
             {isSendingChat && (
-              <div className="mr-auto bg-background border border-border text-foreground max-w-[90%] rounded-md px-3 py-2 text-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Gemini đang phân tích...
+              <div className="flex justify-start">
+                <div className="bg-muted/50 border border-border text-foreground max-w-[80%] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-muted-foreground">Gemini đang phân tích...</span>
+                </div>
               </div>
             )}
             <div ref={chatEndRef} />
           </div>
 
-          <DialogFooter className="sm:justify-between gap-2">
-            <Button variant="ghost" size="icon" onClick={handleResetChat} title="Làm mới hội thoại" disabled={isSendingChat}>
-              <RotateCcw className="w-4 h-4" />
-            </Button>
-            <Input
-              className="flex-1"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Hỏi ví dụ: Nên đấu thầu loại nào để tối ưu giá và chất lượng?"
-              disabled={isSendingChat}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSendChat();
-                }
-              }}
-            />
-            <Button onClick={handleSendChat} disabled={isSendingChat || !chatInput.trim()}>
-              <Send className="w-4 h-4 mr-2" />
-              Gửi
-            </Button>
-          </DialogFooter>
+          <div className="px-5 py-3 border-t border-border bg-background">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={handleResetChat} title="Làm mới hội thoại" disabled={isSendingChat} className="rounded-full h-9 w-9 flex-shrink-0">
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+              <Input
+                className="flex-1 rounded-full bg-muted/30 border-border px-4"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Hỏi ví dụ: Nên đấu thầu loại nào để tối ưu giá?"
+                disabled={isSendingChat}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSendChat();
+                  }
+                }}
+              />
+              <Button onClick={handleSendChat} disabled={isSendingChat || !chatInput.trim()} size="icon" className="rounded-full h-9 w-9 flex-shrink-0">
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
