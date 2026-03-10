@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 import ChatBotDialog, { ChatMessage } from './dialog/ChatBotDialog';
 import ResultDialog from './dialog/ResultDialog';
+import Pagination from '@/components/ui/pagination';
 
 const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined): string => {
   if (!value?.Valid) return '';
@@ -78,6 +79,7 @@ export default function CompareSuppliesTab() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const [catalog, setCatalog] = useState<ApiCompareSupply[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -103,6 +105,7 @@ export default function CompareSuppliesTab() {
         const res = await apiService.getCompareCatalog(keyword, page, pageSize);
         setCatalog(res.data);
         setTotalPages(res.totalPages || 1);
+        setTotalItems(res.total || 0);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được danh sách vật tư so sánh');
       } finally {
@@ -396,13 +399,6 @@ export default function CompareSuppliesTab() {
               <Button variant="outline" onClick={handleClearAllSelection} disabled={selectedCount === 0}>
                 Bỏ chọn tất cả
               </Button>
-              <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loadingCatalog}>
-                Trang trước
-              </Button>
-              <span className="text-sm text-muted-foreground">{page}/{Math.max(totalPages, 1)}</span>
-              <Button variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loadingCatalog}>
-                Trang sau
-              </Button>
               <Button onClick={handleCompare} disabled={selectedCount < 2 || loadingCompare}>
                 {loadingCompare ? 'ĐANG SO SÁNH...' : 'SO SÁNH'}
               </Button>
@@ -413,6 +409,17 @@ export default function CompareSuppliesTab() {
               )}
             </div>
           </div>
+
+          {/* Pagination */}
+          {!loadingCatalog && totalItems > 0 && (
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          )}
 
           {selectedFromCatalog.length > 0 && (
             <div className="text-xs text-muted-foreground">
