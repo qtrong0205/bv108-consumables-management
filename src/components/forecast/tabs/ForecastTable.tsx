@@ -1,9 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Pagination from "@/components/ui/pagination"
 import { IVatTuDuTru } from "@/data/mockData";
 import { TabsContent } from "@radix-ui/react-tabs"
-import { Calculator, CheckCircle2, Search } from "lucide-react"
+import { Calculator, CheckCircle2, Search, ChevronDown, X, Loader2, AlertTriangle } from "lucide-react"
 import React from "react"
 
 interface IForecastTableProps {
@@ -15,8 +20,25 @@ interface IForecastTableProps {
     };
     tableData: {
         filteredData: IVatTuDuTru[];
+        totalOnPage: number;
         searchTerm: string;
+        isSearching: boolean;
+        categories: string[];
+        selectedCategories: string[];
+        categoryPopoverOpen: boolean;
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+        error: string | null;
+        loading: boolean;
         onSearchChange: (value: string) => void;
+        onCategoryPopoverOpenChange: (open: boolean) => void;
+        onCategoryToggle: (category: string) => void;
+        onSelectAllCategories: () => void;
+        onClearCategories: () => void;
+        onPageChange: (page: number) => void;
+        onPageSizeChange: (size: number) => void;
     };
     handlers: {
         onRowClick: (item: IVatTuDuTru) => void;
@@ -33,7 +55,28 @@ const ForecastTable = ({
     handlers,
 }: IForecastTableProps) => {
     const { totalForecast, totalOrder, totalValue, approvedCount } = statistics;
-    const { filteredData, searchTerm, onSearchChange } = tableData;
+    const {
+        filteredData,
+        totalOnPage,
+        searchTerm,
+        isSearching,
+        categories,
+        selectedCategories,
+        categoryPopoverOpen,
+        page,
+        pageSize,
+        total,
+        totalPages,
+        error,
+        loading,
+        onSearchChange,
+        onCategoryPopoverOpenChange,
+        onCategoryToggle,
+        onSelectAllCategories,
+        onClearCategories,
+        onPageChange,
+        onPageSizeChange,
+    } = tableData;
     const { onRowClick, getStatusBadge, onForecastChange, onForecastFocus, onForecastBlur } = handlers;
 
     return (
@@ -97,27 +140,152 @@ const ForecastTable = ({
             {/* Bộ lọc */}
             <Card className="bg-neutral border-border">
                 <CardHeader>
-                    <CardTitle className="text-foreground">Tìm kiếm</CardTitle>
+                    <CardTitle className="text-foreground">Lọc & Tìm kiếm</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="relative max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={2} />
-                        <Input
-                            type="search"
-                            placeholder="Tìm theo tên, mã vật tư hoặc nhà thầu..."
-                            value={searchTerm}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            className="pl-10 bg-neutral text-foreground border-border"
-                        />
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={2} />
+                            <Input
+                                type="search"
+                                placeholder="Tìm theo tên, mã vật tư hoặc nhà thầu..."
+                                value={searchTerm}
+                                onChange={(e) => onSearchChange(e.target.value)}
+                                className="pl-10 bg-neutral text-foreground border-border"
+                            />
+                        </div>
+
+                        <Popover open={categoryPopoverOpen} onOpenChange={onCategoryPopoverOpenChange}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full md:w-72 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">
+                                        {selectedCategories.length === 0
+                                            ? 'Tất cả danh mục'
+                                            : selectedCategories.length === 1
+                                                ? selectedCategories[0]
+                                                : `${selectedCategories.length} danh mục đã chọn`}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn danh mục</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={onSelectAllCategories}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {selectedCategories.length === categories.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {categories.map((category) => (
+                                        <div
+                                            key={category}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => onCategoryToggle(category)}
+                                        >
+                                            <Checkbox
+                                                id={category}
+                                                checked={selectedCategories.includes(category)}
+                                                onCheckedChange={() => onCategoryToggle(category)}
+                                            />
+                                            <label
+                                                htmlFor={category}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {category}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                                {selectedCategories.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onClearCategories}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
+                        <Select value={pageSize.toString()} onValueChange={(v) => onPageSizeChange(Number(v))}>
+                            <SelectTrigger className="w-full md:w-40 bg-neutral text-foreground border-border">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="50">50 / trang</SelectItem>
+                                <SelectItem value="100">100 / trang</SelectItem>
+                                <SelectItem value="200">200 / trang</SelectItem>
+                                <SelectItem value="500">500 / trang</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
+
+                    {selectedCategories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
+                            <span className="text-sm text-muted-foreground">Đang lọc:</span>
+                            {selectedCategories.map((category) => (
+                                <Badge
+                                    key={category}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => onCategoryToggle(category)}
+                                >
+                                    {category}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
+                            <button
+                                onClick={onClearCategories}
+                                className="text-xs text-muted-foreground hover:text-foreground underline"
+                            >
+                                Xóa tất cả
+                            </button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
+            {loading && (
+                <Card className="bg-neutral border-border">
+                    <CardContent className="p-8 flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                        <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {error && !loading && (
+                <Card className="bg-neutral border-border">
+                    <CardContent className="p-8 flex flex-col items-center justify-center">
+                        <AlertTriangle className="w-8 h-8 text-warning mb-4" />
+                        <p className="text-foreground font-medium mb-2">Không thể tải dữ liệu</p>
+                        <p className="text-muted-foreground text-sm">{error}</p>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Bảng dữ liệu */}
-            <Card className="bg-neutral border-border">
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1200px]">
+            {!loading && !error && (
+                <>
+                    <Card className="bg-neutral border-border">
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[1200px]">
                             <thead className="bg-primary text-primary-foreground">
                                 <tr>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">STT</th>
@@ -144,10 +312,12 @@ const ForecastTable = ({
                                     >
                                         <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
                                         <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
-                                        <td className="px-3 py-3 text-sm text-foreground">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <p className="font-medium truncate flex-1 min-w-0" title={item.tenVtytBv}>{item.tenVtytBv}</p>
-                                                {getStatusBadge(item.stt)}
+                                        <td className="px-3 py-3 text-xs text-foreground">
+                                            <div className="max-w-[200px]">
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                    <p className="font-semibold truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
+                                                    {getStatusBadge(item.stt)}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">{item.maHieu}</td>
@@ -206,16 +376,34 @@ const ForecastTable = ({
                                     </td>
                                 </tr>
                             </tfoot>
-                        </table>
-                    </div>
+                                </table>
+                            </div>
 
-                    {filteredData.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                            Không tìm thấy vật tư nào
+                            {filteredData.length === 0 && (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    Không tìm thấy vật tư nào
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {!isSearching && selectedCategories.length === 0 && (
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            totalItems={total}
+                            pageSize={pageSize}
+                            onPageChange={onPageChange}
+                        />
+                    )}
+
+                    {(isSearching || selectedCategories.length > 0) && (
+                        <div className="text-center text-sm text-muted-foreground">
+                            Đang hiển thị {filteredData.length} / {totalOnPage} vật tư (đã filter)
                         </div>
                     )}
-                </CardContent>
-            </Card>
+                </>
+            )}
         </TabsContent>
     )
 }

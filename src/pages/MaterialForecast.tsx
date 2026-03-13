@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, AlertTriangle, History, Clock, Calendar } from 'lucide-react';
-import { DATA_DU_TRU_MAU, IVatTuDuTru } from '@/data/mockData';
+import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Clock, Calendar } from 'lucide-react';
+import { IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,8 @@ import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
 import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
 import { useOrder } from '@/context/OrderContext';
+import { apiService, ApiSupply, getNullableNumber, getNullableString } from '@/services/api';
+import { useSupplyGroups } from '@/hooks/use-supplies';
 import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
@@ -34,11 +36,73 @@ const CURRENT_DATE = new Date();
 const CURRENT_MONTH = CURRENT_DATE.getMonth() + 1; // 1-12
 const CURRENT_YEAR = CURRENT_DATE.getFullYear();
 
+const extractPackQuantity = (quyCach: string): number => {
+    const matched = quyCach.match(/\d+/);
+    if (!matched) return 1;
+    const parsed = parseInt(matched[0], 10);
+    return Number.isNaN(parsed) || parsed <= 0 ? 1 : parsed;
+};
+
+const shouldShowInForecast = (item: ApiSupply): boolean => {
+    const tonDauKy = getNullableNumber(item.tonDauKy);
+    const nhapTrongKy = getNullableNumber(item.nhapTrongKy);
+    const xuatTrongKy = getNullableNumber(item.xuatTrongKy);
+    const tongNhap = getNullableNumber(item.tongNhap);
+
+    return !(tonDauKy === 0 && nhapTrongKy === 0 && xuatTrongKy === 0 && tongNhap === 0);
+};
+
+const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru => {
+    const quyCach = getNullableString(item.quyCach);
+    const slTrongQuyCach = extractPackQuantity(quyCach);
+    const slXuat = getNullableNumber(item.xuatTrongKy);
+    const slTon = item.tonCuoiKy;
+    const diff = slXuat - slTon;
+    const duTru = diff <= 0 ? slXuat : diff;
+
+    return {
+        stt: index + 1,
+        maQuanLy: getNullableString(item.id),
+        maVtytCu: getNullableString(item.id),
+        tenNhom: getNullableString(item.groupName),
+        tenVtytBv: getNullableString(item.name),
+        maHieu: getNullableString(item.maHieu),
+        hangSx: getNullableString(item.hangSx),
+        donViTinh: getNullableString(item.unit),
+        quyCach,
+        slTrongQuyCach,
+        donGia: getNullableNumber(item.price),
+        slXuat: getNullableNumber(item.xuatTrongKy),
+        slNhap: getNullableNumber(item.nhapTrongKy),
+        slTon: item.tonCuoiKy,
+        nhaThau: getNullableString(item.nhaCungCap),
+        duTru,
+        goiHang: Math.ceil(duTru / slTrongQuyCach),
+    };
+};
+
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [data, setData] = useState<IVatTuDuTru[]>(DATA_DU_TRU_MAU);
-    const [filteredData, setFilteredData] = useState<IVatTuDuTru[]>(DATA_DU_TRU_MAU);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(100);
+    const [total, setTotal] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
+    const [error, setError] = useState<string | null>(null);
+    const [data, setData] = useState<IVatTuDuTru[]>([]);
+    const filteredData = useMemo(() => {
+        let filtered = data;
+
+        if (selectedCategories.length > 0) {
+            filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom || ''));
+        }
+
+        return filtered;
+    }, [data, selectedCategories]);
+    const [loadingSupplies, setLoadingSupplies] = useState(false);
     const { toast } = useToast();
+    const { groups: categories } = useSupplyGroups();
     const [activeTab, setActiveTab] = useState('forecast');
 
     // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
@@ -75,19 +139,73 @@ export default function MaterialForecast() {
     }, []);
 
     useEffect(() => {
-        let filtered = data;
+        const fetchSupplies = async () => {
+            try {
+                setLoadingSupplies(true);
+                setError(null);
 
-        if (searchTerm) {
-            filtered = filtered.filter(
-                (item) =>
-                    item.tenVtytBv.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.maVtytCu.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.nhaThau.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+                const keyword = searchTerm.trim();
+                const response = keyword
+                    ? await apiService.searchSupplies(keyword, page, pageSize)
+                    : await apiService.getSupplies(page, pageSize);
+
+                const baseIndex = (response.page - 1) * response.pageSize;
+                const forecastRows = response.data
+                    .filter(shouldShowInForecast)
+                    .map((item, index) => mapSupplyToForecastItem(item, baseIndex + index));
+
+                setData(forecastRows);
+                setTotal(response.total);
+                setTotalPages(response.totalPages || 1);
+            } catch (fetchError) {
+                const message = fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu vật tư';
+                setError(message);
+                setData([]);
+                setTotal(0);
+                setTotalPages(1);
+            } finally {
+                setLoadingSupplies(false);
+            }
+        };
+
+        const timeoutId = setTimeout(fetchSupplies, 300);
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm, page, pageSize]);
+
+    useEffect(() => {
+        if (!error) return;
+        toast({
+            title: 'Lỗi tải dữ liệu',
+            description: error,
+            variant: 'destructive',
+        });
+    }, [error, toast]);
+
+    const handleSearchChange = (value: string) => {
+        setSearchTerm(value);
+        setPage(1);
+    };
+
+    const handleCategoryToggle = (category: string) => {
+        setSelectedCategories((prev) => {
+            if (prev.includes(category)) {
+                return prev.filter((c) => c !== category);
+            }
+            return [...prev, category];
+        });
+    };
+
+    const handleSelectAllCategories = () => {
+        if (selectedCategories.length === categories.length) {
+            setSelectedCategories([]);
+            return;
         }
+        setSelectedCategories([...categories]);
+    };
 
-        setFilteredData(filtered);
-    }, [searchTerm, data]);
+    const handleClearCategories = () => {
+        setSelectedCategories([]);
+    };
 
     // Hàm thêm entry vào lịch sử
     const addHistoryEntry = (entry: Omit<HistoryEntry, 'id'>) => {
@@ -709,7 +827,27 @@ export default function MaterialForecast() {
                     tableData={{
                         filteredData,
                         searchTerm,
-                        onSearchChange: setSearchTerm,
+                        isSearching: searchTerm.trim().length > 0,
+                        categories,
+                        selectedCategories,
+                        categoryPopoverOpen,
+                        page,
+                        pageSize,
+                        total,
+                        totalPages,
+                        error,
+                        totalOnPage: data.length,
+                        loading: loadingSupplies,
+                        onSearchChange: handleSearchChange,
+                        onCategoryPopoverOpenChange: setCategoryPopoverOpen,
+                        onCategoryToggle: handleCategoryToggle,
+                        onSelectAllCategories: handleSelectAllCategories,
+                        onClearCategories: handleClearCategories,
+                        onPageChange: setPage,
+                        onPageSizeChange: (size: number) => {
+                            setPageSize(size);
+                            setPage(1);
+                        },
                     }}
                     handlers={{
                         onRowClick: handleRowClick,

@@ -54,7 +54,7 @@ const ApproveDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         Phê duyệt dự trù vật tư
@@ -67,23 +67,57 @@ const ApproveDialog = ({
 
                 {selectedItem && (
                     <div className="space-y-4 py-4">
-                        {/* Thông tin vật tư */}
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div className="bg-tertiary p-3 rounded-lg">
-                                <p className="text-muted-foreground text-xs">Mã vật tư</p>
-                                <p className="font-medium">{selectedItem.maVtytCu}</p>
+                        {/* Thông tin vật tư - compact key-value */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs p-3 bg-tertiary rounded-lg">
+                            <div className="flex gap-1.5">
+                                <span className="text-muted-foreground w-16 shrink-0">Mã VT</span>
+                                <span className="font-medium font-mono">{selectedItem.maVtytCu}</span>
                             </div>
-                            <div className="bg-tertiary p-3 rounded-lg">
-                                <p className="text-muted-foreground text-xs">Quy cách</p>
-                                <p className="font-medium">{selectedItem.quyCach}</p>
+                            <div className="flex gap-1.5">
+                                <span className="text-muted-foreground w-16 shrink-0">Hãng SX</span>
+                                <span className="font-medium">{selectedItem.hangSx || '—'}</span>
                             </div>
-                            <div className="bg-tertiary p-3 rounded-lg">
-                                <p className="text-muted-foreground text-xs">SL Tồn kho</p>
-                                <p className="font-medium">{selectedItem.slTon}</p>
+                            <div className="flex gap-1.5">
+                                <span className="text-muted-foreground w-16 shrink-0">Mã hiệu</span>
+                                <span className="font-medium">{selectedItem.maHieu || '—'}</span>
                             </div>
-                            <div className="bg-tertiary p-3 rounded-lg">
-                                <p className="text-muted-foreground text-xs">Đơn giá</p>
-                                <p className="font-medium">{selectedItem.donGia.toLocaleString('vi-VN')}đ</p>
+                            <div className="flex gap-1.5">
+                                <span className="text-muted-foreground w-16 shrink-0">Đơn vị</span>
+                                <span className="font-medium">{selectedItem.donViTinh || '—'}</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                                <span className="text-muted-foreground w-16 shrink-0">Quy cách</span>
+                                <span className="font-medium">{selectedItem.quyCach} ({selectedItem.slTrongQuyCach} {selectedItem.donViTinh})</span>
+                            </div>
+                            <div className="flex gap-1.5 min-w-0">
+                                <span className="text-muted-foreground w-16 shrink-0">Nhà thầu</span>
+                                <span className="font-medium break-words">{selectedItem.nhaThau || '—'}</span>
+                            </div>
+                            {selectedItem.tenNhom && (
+                                <div className="flex gap-1.5 col-span-2">
+                                    <span className="text-muted-foreground w-16 shrink-0">Danh mục</span>
+                                    <span className="font-medium">{selectedItem.tenNhom}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Số liệu trong kỳ */}
+                        <div className="grid grid-cols-4 gap-2">
+                            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
+                                <p className="text-[10px] text-muted-foreground">SL Xuất</p>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slXuat.toLocaleString('vi-VN')}</p>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
+                                <p className="text-[10px] text-muted-foreground">SL Nhập</p>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slNhap.toLocaleString('vi-VN')}</p>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
+                                <p className="text-[10px] text-muted-foreground">SL Tồn</p>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slTon.toLocaleString('vi-VN')}</p>
+                            </div>
+                            <div className="bg-tertiary border border-border rounded-lg p-2.5 text-center">
+                                <p className="text-[10px] text-muted-foreground">Đơn giá</p>
+                                <p className="text-sm font-semibold">{selectedItem.donGia.toLocaleString('vi-VN')}đ</p>
                             </div>
                         </div>
 
@@ -114,11 +148,17 @@ const ApproveDialog = ({
                                     </p>
                                 </div>
                             </div>
-                            {isEditMode && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    Giá trị: {(Math.ceil(editDuTru / selectedItem.slTrongQuyCach) * selectedItem.donGia * selectedItem.slTrongQuyCach).toLocaleString('vi-VN')}đ
-                                </p>
-                            )}
+                            <p className="text-xs text-muted-foreground mt-2">
+                                Giá trị ước tính:{' '}
+                                <span className="font-semibold text-green-700">
+                                    {(
+                                        (isEditMode
+                                            ? Math.ceil(editDuTru / selectedItem.slTrongQuyCach)
+                                            : selectedItem.goiHang
+                                        ) * selectedItem.donGia * selectedItem.slTrongQuyCach
+                                    ).toLocaleString('vi-VN')}đ
+                                </span>
+                            </p>
                         </div>
 
                         {/* Hiển thị trạng thái đã phê duyệt */}

@@ -82,10 +82,9 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                     <td className="px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap">
                                         {displayValue(item.maVtyt)}
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-foreground">
+                                    <td className="px-4 py-3 text-xs text-foreground">
                                         <div className="max-w-[200px]">
                                             <p className="font-medium truncate" title={displayValue(item.tenVtyt)}>{displayValue(item.tenVtyt)}</p>
-                                            <p className="text-xs text-muted-foreground truncate" title={displayValue(item.tenThuongMai)}>{displayValue(item.tenThuongMai)}</p>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{displayValue(item.maHieu) || 'N/A'}</td>

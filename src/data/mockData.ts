@@ -251,6 +251,7 @@ export interface IVatTuDuTru {
     stt: number; // STT
     maQuanLy: string; // MA_QUAN_LY (K EDIT)
     maVtytCu: string; // MA_VTYT_CU (K EDIT)
+    tenNhom?: string; // TEN_NHOM (dùng cho lọc danh mục)
     tenVtytBv: string; // TEN_VTYT_BV (K EDIT)
     maHieu: string; // MA_HIEU (K EDIT)
     hangSx: string; // HANG_SX (K EDIT)
