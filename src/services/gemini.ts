@@ -13,6 +13,7 @@ type GeminiApiResponse = {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string }> };
     groundingMetadata?: { groundingChunks?: GroundingChunk[] };
+    finishReason?: string;
   }>;
   error?: { message?: string };
 };
@@ -144,6 +145,11 @@ const extractAnswerText = (data: GeminiApiResponse): string => {
     .trim();
 };
 
+const shouldContinueResponse = (data: GeminiApiResponse): boolean => {
+  const reason = (data.candidates?.[0]?.finishReason || '').toUpperCase();
+  return reason === 'MAX_TOKENS' || reason === 'LENGTH';
+};
+
 const buildSourcesMarkdown = (data: GeminiApiResponse): string => {
   const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
   const dedup = new Map<string, string>();
@@ -168,7 +174,7 @@ const callGemini = async (contents: GeminiContent[]): Promise<GeminiApiResponse>
     contents,
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 1200,
+      maxOutputTokens: 2200,
     },
   };
 
@@ -213,13 +219,38 @@ export async function askGeminiCompare(
   chatHistory.push(userTurn);
 
   try {
-    const data = await callGemini(chatHistory);
-    const answer = extractAnswerText(data);
-    if (!answer) {
+    const firstData = await callGemini(chatHistory);
+    const firstAnswer = extractAnswerText(firstData);
+    if (!firstAnswer) {
       throw new Error('Gemini không trả về nội dung phản hồi.');
     }
 
-    const finalAnswer = ENABLE_WEB_SEARCH ? `${answer}${buildSourcesMarkdown(data)}` : answer;
+    let combinedAnswer = firstAnswer;
+    let combinedSources = buildSourcesMarkdown(firstData);
+
+    if (shouldContinueResponse(firstData)) {
+      const continueData = await callGemini([
+        ...chatHistory,
+        { role: 'model', parts: [{ text: firstAnswer }] },
+        {
+          role: 'user',
+          parts: [{
+            text: 'Phần trả lời trước đang bị dở. Hãy tiếp tục đúng chỗ đang dở, không lặp lại nội dung cũ, hoàn thiện đầy đủ các mục còn thiếu và giữ định dạng Markdown.',
+          }],
+        },
+      ]);
+
+      const continuedAnswer = extractAnswerText(continueData);
+      if (continuedAnswer) {
+        combinedAnswer = `${combinedAnswer}\n${continuedAnswer}`;
+      }
+
+      if (!combinedSources) {
+        combinedSources = buildSourcesMarkdown(continueData);
+      }
+    }
+
+    const finalAnswer = ENABLE_WEB_SEARCH ? `${combinedAnswer}${combinedSources}` : combinedAnswer;
     chatHistory.push({ role: 'model', parts: [{ text: finalAnswer }] });
     trimHistory();
     return finalAnswer;
