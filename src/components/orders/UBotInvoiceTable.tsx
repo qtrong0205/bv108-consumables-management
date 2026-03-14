@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Pagination from '@/components/ui/pagination';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
 interface UBotInvoiceTableProps {
     hoaDons: HoaDonUBot[];
     loading?: boolean;
@@ -21,7 +23,7 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
         if (!onRefresh) return;
         setRefreshing(true);
         try {
-            const res = await fetch('http://localhost:8080/api/hoa-don/refresh', { method: 'POST' });
+            const res = await fetch(`${API_BASE_URL}/hoa-don/refresh`, { method: 'POST' });
             const text = await res.text();
             
             try {

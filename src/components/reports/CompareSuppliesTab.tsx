@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   apiService,
   ApiCompareSupply,
@@ -39,7 +40,6 @@ const COMPARE_FIELDS: Array<{
   label: string;
   value: (item: ApiCompareSupply) => string;
 }> = [
-    { label: 'STT', value: (i) => String(i.stt || '') },
     { label: 'Tên công ty', value: (i) => getNullableString(i.tenCongTy) },
     { label: 'Mã thư viện', value: (i) => getNullableString(i.maThuVien) },
     { label: 'Mã Thông tư 04', value: (i) => getNullableString(i.maThongTu04) },
@@ -76,6 +76,8 @@ const COMPARE_FIELDS: Array<{
 
 export default function CompareSuppliesTab() {
   const [keyword, setKeyword] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('all');
+  const [compareGroups, setCompareGroups] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
@@ -87,7 +89,9 @@ export default function CompareSuppliesTab() {
 
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingCompare, setLoadingCompare] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [collapsedRows, setCollapsedRows] = useState<string[]>([]);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -98,11 +102,28 @@ export default function CompareSuppliesTab() {
   const [columnOrder, setColumnOrder] = useState<number[]>([]);
 
   useEffect(() => {
+    const loadCompareGroups = async () => {
+      try {
+        setLoadingGroups(true);
+        setGroupError(null);
+        const res = await apiService.getCompareGroups();
+        setCompareGroups(res.groups || []);
+      } catch (err) {
+        setGroupError(err instanceof Error ? err.message : 'Không tải được danh sách nhóm Thông tư 04');
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+
+    void loadCompareGroups();
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setLoadingCatalog(true);
         setError(null);
-        const res = await apiService.getCompareCatalog(keyword, page, pageSize);
+        const res = await apiService.getCompareCatalog(keyword, page, pageSize, selectedGroup === 'all' ? '' : selectedGroup);
         setCatalog(res.data);
         setTotalPages(res.totalPages || 1);
         setTotalItems(res.total || 0);
@@ -114,7 +135,7 @@ export default function CompareSuppliesTab() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [keyword, page, pageSize]);
+  }, [keyword, page, pageSize, selectedGroup]);
 
   const selectedCount = selectedCodes.length;
 
@@ -328,18 +349,41 @@ export default function CompareSuppliesTab() {
       <Card className="bg-neutral border-border">
         <CardHeader className="space-y-3">
           <CardTitle className="text-foreground">Chọn vật tư để so sánh</CardTitle>
-          <div className="relative max-w-xl">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={keyword}
-              onChange={(e) => {
+          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <div className="relative max-w-xl flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={keyword}
+                onChange={(e) => {
+                  setPage(1);
+                  setKeyword(e.target.value);
+                }}
+                placeholder="Tìm theo mã thư viện, tên vật tư, công ty, mã TT04..."
+                className="pl-10"
+              />
+            </div>
+            <Select
+              value={selectedGroup}
+              onValueChange={(value) => {
                 setPage(1);
-                setKeyword(e.target.value);
+                setSelectedGroup(value);
               }}
-              placeholder="Tìm theo mã thư viện, tên vật tư, công ty..."
-              className="pl-10"
-            />
+              disabled={loadingGroups}
+            >
+              <SelectTrigger className="w-full md:w-72 bg-neutral text-foreground border-border">
+                <SelectValue placeholder="Lọc nhóm TT04" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả nhóm TT04</SelectItem>
+                {compareGroups.map((group) => (
+                  <SelectItem key={group} value={group}>
+                    {group}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          {groupError && <p className="text-sm text-red-600">{groupError}</p>}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

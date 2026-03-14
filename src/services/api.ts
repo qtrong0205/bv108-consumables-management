@@ -265,8 +265,14 @@ class ApiService {
     return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
   }
 
-  async getCompareCatalog(keyword: string = '', page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiCompareSupply>> {
-    return this.request<PaginationResponse<ApiCompareSupply>>(`/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`);
+  async getCompareGroups(): Promise<{ groups: string[]; total: number }> {
+    return this.request<{ groups: string[]; total: number }>('/supplies/compare-groups');
+  }
+
+  async getCompareCatalog(keyword: string = '', page: number = 1, pageSize: number = 20, groupFilter: string = ''): Promise<PaginationResponse<ApiCompareSupply>> {
+    return this.request<PaginationResponse<ApiCompareSupply>>(
+      `/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}&groupFilter=${encodeURIComponent(groupFilter)}`,
+    );
   }
 
   async compareSupplies(maThuVien: string[]): Promise<CompareSuppliesResponse> {
