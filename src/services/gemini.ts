@@ -1,7 +1,7 @@
 import type { ApiCompareSupply } from './api';
 import { getNullableString } from './api';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string || "AIzaSyCDQfP_2VwOOVAACASXks9O8Cf__oPogNE";
 const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || 'gemini-2.5-flash-lite';
 const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'true').toLowerCase() !== 'false';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;

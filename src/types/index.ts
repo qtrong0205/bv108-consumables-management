@@ -33,6 +33,7 @@ export interface OrderRequest {
     quyCach: string;           // QUY_CACH
     dotGoiHang: number;        // Đợt gọi hàng
     email?: string;            // Email của nhà thầu
+    source?: 'forecast' | 'manual';  // Nguồn gốc: từ dự trù (forecast) hay form thủ công (manual)
 }
 
 export interface OrderHistory extends OrderRequest {
