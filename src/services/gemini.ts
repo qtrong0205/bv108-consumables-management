@@ -1,7 +1,7 @@
 import type { ApiCompareSupply } from './api';
 import { getNullableString } from './api';
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string || "AIzaSyCDQfP_2VwOOVAACASXks9O8Cf__oPogNE";
+const GEMINI_API_KEY = ((import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '').trim();
 const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || 'gemini-2.5-flash-lite';
 const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'true').toLowerCase() !== 'false';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -16,6 +16,30 @@ type GeminiApiResponse = {
     finishReason?: string;
   }>;
   error?: { message?: string };
+};
+
+const normalizeGeminiError = (message: string, status: number): string => {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('reported as leaked')) {
+    return 'Gemini API key đã bị Google khóa do bị lộ. Hãy tạo key mới và redeploy frontend với VITE_GEMINI_API_KEY mới.';
+  }
+
+  if (
+    normalized.includes('api key not valid') ||
+    normalized.includes('invalid api key') ||
+    normalized.includes('permission denied') ||
+    status === 401 ||
+    status === 403
+  ) {
+    return 'Gemini API key không hợp lệ hoặc không có quyền. Hãy kiểm tra lại key và quyền Generative Language API.';
+  }
+
+  if (status === 429 || normalized.includes('quota')) {
+    return 'Gemini API đã vượt quota/tốc độ giới hạn. Vui lòng thử lại sau.';
+  }
+
+  return message || `Gemini API lỗi (${status})`;
 };
 
 const formatNullableNumber = (
@@ -193,7 +217,7 @@ const callGemini = async (contents: GeminiContent[]): Promise<GeminiApiResponse>
 
   const data = (await response.json()) as GeminiApiResponse;
   if (!response.ok) {
-    throw new Error(data.error?.message || `Gemini API lỗi (${response.status})`);
+    throw new Error(normalizeGeminiError(data.error?.message || '', response.status));
   }
   return data;
 };
@@ -203,7 +227,7 @@ export async function askGeminiCompare(
   question: string,
 ): Promise<string> {
   if (!GEMINI_API_KEY) {
-    throw new Error('Chưa cấu hình VITE_GEMINI_API_KEY trong file .env');
+    throw new Error('Chưa cấu hình Gemini API key (VITE_GEMINI_API_KEY) khi build frontend.');
   }
 
   const itemsKey = comparedItems.map((i) => getNullableString(i.maThuVien)).join(',');

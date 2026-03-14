@@ -22,7 +22,6 @@ const COMPARE_FIELDS: Array<{
     label: string;
     value: (item: ApiCompareSupply) => string;
 }> = [
-        { label: 'STT', value: (i) => String(i.stt || '') },
         { label: 'Tên công ty', value: (i) => getNullableString(i.tenCongTy) },
         { label: 'Mã thư viện', value: (i) => getNullableString(i.maThuVien) },
         { label: 'Mã Thông tư 04', value: (i) => getNullableString(i.maThongTu04) },
