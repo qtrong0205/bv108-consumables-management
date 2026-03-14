@@ -3,20 +3,22 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Mail } from 'lucide-react';
+import { Mail, Plus } from 'lucide-react';
 
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
+import CreateOrderDialog from '@/components/orders/CreateOrderDialog';
 
-import { OrderHistory } from '@/types';
+import { OrderHistory, OrderRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
 
 export default function SupplierOrder() {
     const { toast } = useToast();
-    const { approvedOrders, removeOrders, orderHistory, addToOrderHistory } = useOrder();
+    const { approvedOrders, removeOrders, orderHistory, addToOrderHistory, addManualOrder } = useOrder();
 
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
     const activeOrders = approvedOrders;
 
@@ -52,13 +54,32 @@ export default function SupplierOrder() {
         });
     };
 
+    const handleCreateOrder = (order: OrderRequest) => {
+        addManualOrder(order);
+        setIsCreateDialogOpen(false);
+
+        toast({
+            title: 'Tạo đơn hàng thành công',
+            description: `Đơn hàng "${order.tenVtytBv}" đã được thêm vào danh sách gọi hàng`,
+        });
+    };
+
     return (
         <div className="p-6 lg:p-8 space-y-6">
-            <div>
-                <h1 className="text-2xl font-semibold mb-2">Gọi hàng</h1>
-                <p className="text-muted-foreground">
-                    Danh sách vật tư chờ gọi (từ dự trù đã duyệt)
-                </p>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-semibold mb-2">Gọi hàng</h1>
+                    <p className="text-muted-foreground">
+                        Danh sách vật tư chờ gọi (từ dự trù đã duyệt)
+                    </p>
+                </div>
+                <Button
+                    onClick={() => setIsCreateDialogOpen(true)}
+                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                >
+                    <Plus className="w-4 h-4" />
+                    Tạo đơn hàng mới
+                </Button>
             </div>
 
             <Card>
@@ -110,6 +131,13 @@ export default function SupplierOrder() {
                     </Tabs>
                 </CardContent>
             </Card>
+
+            {/* Dialog tạo đơn hàng mới */}
+            <CreateOrderDialog
+                open={isCreateDialogOpen}
+                onOpenChange={setIsCreateDialogOpen}
+                onSubmit={handleCreateOrder}
+            />
         </div>
     );
 }

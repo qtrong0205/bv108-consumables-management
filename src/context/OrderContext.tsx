@@ -11,6 +11,8 @@ interface OrderContextType {
     addApprovedOrdersBulk: (items: IVatTuDuTru[]) => void;
     // Xóa vật tư khỏi danh sách (khi đã gọi hàng xong)
     removeOrders: (ids: number[]) => void;
+    // Thêm đơn hàng tạo thủ công
+    addManualOrder: (order: OrderRequest) => void;
     // Danh sách hóa đơn từ uBot
     invoices: Invoice[];
     addInvoices: (invoices: Invoice[]) => void;
@@ -42,6 +44,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             donViTinh: item.donViTinh,
             quyCach: item.quyCach,
             dotGoiHang: goiHang,
+            source: 'forecast',
         };
     };
 
@@ -96,6 +99,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         setApprovedOrders(prev => prev.filter(order => !ids.includes(order.id)));
     };
 
+    // Thêm đơn hàng tạo thủ công
+    const addManualOrder = (order: OrderRequest) => {
+        setApprovedOrders(prev => [order, ...prev]);
+    };
+
     // Thêm hóa đơn từ uBot
     const addInvoices = (newInvoices: Invoice[]) => {
         setInvoices(prev => {
@@ -121,6 +129,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 addApprovedOrder,
                 addApprovedOrdersBulk,
                 removeOrders,
+                addManualOrder,
                 invoices,
                 addInvoices,
                 orderHistory,

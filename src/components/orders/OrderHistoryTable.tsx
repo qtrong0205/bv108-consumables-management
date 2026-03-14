@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { OrderHistory } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Building2, Package, Calendar, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Building2, Package, Calendar, CheckCircle2, CheckCircle, Plus } from 'lucide-react';
 
 interface OrderHistoryTableProps {
     orders: OrderHistory[];
@@ -64,6 +64,24 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
         });
     };
 
+    // Lấy badge nguồn gốc đơn hàng
+    const getSourceBadge = (source?: string) => {
+        if (source === 'manual') {
+            return (
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200 border text-[10px] px-2 py-0.5 flex items-center gap-0.5 whitespace-nowrap w-fit">
+                    <Plus className="w-2.5 h-2.5" />
+                    Thủ công
+                </Badge>
+            );
+        }
+        return (
+            <Badge className="bg-green-50 text-green-700 border-green-200 border text-[10px] px-2 py-0.5 flex items-center gap-0.5 whitespace-nowrap w-fit">
+                <CheckCircle className="w-2.5 h-2.5" />
+                Dự trù
+            </Badge>
+        );
+    };
+
     return (
         <div className="space-y-4">
             <div className="rounded-md border border-border overflow-hidden">
@@ -75,6 +93,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Số vật tư đã gọi</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Lần gọi gần nhất</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Nguồn gốc</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
                             </tr>
                         </thead>
@@ -117,6 +136,10 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3 text-center">
+                                                {/* Hiển thị nguồn gốc từ đơn hàng đầu tiên của nhóm */}
+                                                {getSourceBadge(group.orders[0]?.source)}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
                                                 <Badge
                                                     variant="outline"
                                                     className="bg-green-50 text-green-700 border-green-200"
@@ -130,7 +153,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                         {/* Bảng con - Danh sách vật tư đã gọi */}
                                         {isExpanded && (
                                             <tr key={`${group.nhaThau}-items`}>
-                                                <td colSpan={5} className="p-0">
+                                                <td colSpan={6} className="p-0">
                                                     <div className="bg-background border-l-4 border-green-300">
                                                         <table className="w-full">
                                                             <thead className="bg-tertiary/50">
@@ -141,6 +164,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Hãng SX</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">ĐVT</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Quy cách</th>
+                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Nguồn</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Ngày gọi</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Trạng thái</th>
                                                                 </tr>
@@ -175,6 +199,9 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {order.quyCach}
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-center">
+                                                                            {getSourceBadge(order.source)}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {formatDate(order.ngayDatHang)}

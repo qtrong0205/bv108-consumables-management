@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { OrderRequest } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Building2, Package } from 'lucide-react';
+import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus } from 'lucide-react';
 
 interface OrderRequestTableProps {
     orders: OrderRequest[];
@@ -113,6 +113,33 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
         return { label: 'Chưa chọn', variant: 'secondary' as const };
     };
 
+    // Lấy badge nguồn gốc đơn hàng
+    const getSourceBadge = (source?: string) => {
+        if (source === 'manual') {
+            return (
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200 border text-[10px] px-2 py-0.5 flex items-center gap-0.5 whitespace-nowrap w-fit">
+                    <Plus className="w-2.5 h-2.5" />
+                    Thủ công
+                </Badge>
+            );
+        }
+        return (
+            <Badge className="bg-green-50 text-green-700 border-green-200 border text-[10px] px-2 py-0.5 flex items-center gap-0.5 whitespace-nowrap w-fit">
+                <CheckCircle className="w-2.5 h-2.5" />
+                Dự trù
+            </Badge>
+        );
+    };
+
+    // Lấy nguồn gốc của nhóm (nếu tất cả đều từ 1 nguồn)
+    const getGroupSource = (group: SupplierGroup) => {
+        const sources = new Set(group.orders.map(o => o.source));
+        if (sources.size === 1) {
+            return Array.from(sources)[0];
+        }
+        return 'mixed';
+    };
+
     // Update indeterminate state cho checkbox
     useEffect(() => {
         supplierGroups.forEach(group => {
@@ -146,6 +173,7 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Số vật tư</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Tổng đợt gọi</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Nguồn gốc</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
                             </tr>
                         </thead>
@@ -198,6 +226,9 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3 text-center">
+                                                {getSourceBadge(getGroupSource(group) === 'mixed' ? undefined : getGroupSource(group))}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
                                                 <Badge
                                                     variant="outline"
                                                     className={`
@@ -226,6 +257,7 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Hãng SX</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">ĐVT</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Quy cách</th>
+                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Nguồn</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Đợt gọi</th>
                                                                 </tr>
                                                             </thead>
@@ -267,6 +299,9 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {order.quyCach}
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-center">
+                                                                            {getSourceBadge(order.source)}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-center">
                                                                             <Badge
