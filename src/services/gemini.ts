@@ -5,6 +5,8 @@ const GEMINI_API_KEY = ((import.meta.env.VITE_GEMINI_API_KEY as string | undefin
 const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || 'gemini-2.5-flash-lite';
 const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'true').toLowerCase() !== 'false';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_MAX_OUTPUT_TOKENS = Number((import.meta.env.VITE_GEMINI_MAX_OUTPUT_TOKENS as string | undefined) || 4096);
+const GEMINI_MAX_CONTINUATIONS = Number((import.meta.env.VITE_GEMINI_MAX_CONTINUATIONS as string | undefined) || 4);
 
 type GeminiRole = 'user' | 'model';
 type GeminiContent = { role: GeminiRole; parts: Array<{ text: string }> };
@@ -53,22 +55,23 @@ const formatNullableNumber = (
 function buildProductSummary(items: ApiCompareSupply[]): string {
   return items
     .map((item, idx) => {
-      const name = getNullableString(item.tenVatTu2025) || 'Không rõ';
+      const name = getNullableString(item.tenVatTu) || 'Không rõ';
       const code = getNullableString(item.maThuVien) || '';
       const company = getNullableString(item.tenCongTy) || 'N/A';
       const unit = getNullableString(item.dvt) || '';
-      const brand = getNullableString(item.hangSanXuat) || 'N/A';
-      const country = getNullableString(item.nuocSanXuat) || 'N/A';
+      const brand = getNullableString(item.hangSx) || 'N/A';
+      const country = getNullableString(item.nuocSx) || 'N/A';
       const countryGroup = getNullableString(item.nhomNuoc) || 'N/A';
       const quality = getNullableString(item.chatLuong) || 'N/A';
       const tradeName = getNullableString(item.tenThuongMai) || 'N/A';
-      const spec1 = getNullableString(item.thongSoKyThuat1) || '';
-      const spec2 = getNullableString(item.thongSoKyThuat2) || '';
-      const spec3 = getNullableString(item.thongSoKyThuat3) || '';
-      const spec4 = getNullableString(item.thongSoKyThuat4) || '';
-      const spec5 = getNullableString(item.thongSoKyThuat5) || '';
-      const specBid2025 = getNullableString(item.thongSoMoiThau2025) || '';
-      const specAdj2026 = getNullableString(item.thongSoHieuChinh2026) || '';
+      const specMaterial = getNullableString(item.chatLieuVatLieu) || '';
+      const specStructure = getNullableString(item.dacTinhCauTao) || '';
+      const specSize = getNullableString(item.kichThuoc) || '';
+      const specLength = getNullableString(item.chieuDai) || '';
+      const specUsage = getNullableString(item.tinhNangSuDung) || '';
+      const specBid2025 = getNullableString(item.tskt2025) || '';
+      const specAdj2026 = getNullableString(item.tskt2026) || '';
+      const specOther = getNullableString(item.tsktKhac) || '';
       const price2025 = formatNullableNumber(item.donGiaTrungThau2025);
       const price2026 = formatNullableNumber(item.donGiaDeXuat2026);
       const lowestBid = formatNullableNumber(item.ketQuaTrungThauThapNhat);
@@ -90,11 +93,12 @@ Nhóm nước: ${countryGroup}
 Chất lượng: ${quality}
 Thông số mời thầu 2025: ${specBid2025}
 Thông số hiệu chỉnh 2026: ${specAdj2026}
-TSKТ 1: ${spec1}
-TSKТ 2: ${spec2}
-TSKТ 3: ${spec3}
-TSKТ 4: ${spec4}
-TSKТ 5: ${spec5}
+Chất liệu/Vật liệu: ${specMaterial}
+Đặc tính/Cấu tạo: ${specStructure}
+Kích thước: ${specSize}
+Chiều dài: ${specLength}
+Tính năng sử dụng: ${specUsage}
+TSKT khác: ${specOther}
 SL sử dụng 12 tháng: ${qty12m}
 SL trúng thầu 2025 + bổ sung: ${qtyBid2025}
 Đơn giá trúng thầu 2025: ${price2025}
@@ -198,7 +202,7 @@ const callGemini = async (contents: GeminiContent[]): Promise<GeminiApiResponse>
     contents,
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 2200,
+      maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
     },
   };
 
@@ -222,6 +226,46 @@ const callGemini = async (contents: GeminiContent[]): Promise<GeminiApiResponse>
   return data;
 };
 
+const CONTINUE_PROMPT =
+  'Phần trả lời trước đang bị dở do giới hạn độ dài. Hãy tiếp tục đúng chỗ đang dở, không lặp lại nội dung cũ. Nếu đang viết bảng Markdown thì hoàn thiện bảng rồi mới sang mục tiếp theo.';
+
+const getCompleteGeminiAnswer = async (baseContents: GeminiContent[]): Promise<{ answer: string; sources: string; stillTruncated: boolean }> => {
+  let data = await callGemini(baseContents);
+  let answer = extractAnswerText(data);
+  if (!answer) {
+    throw new Error('Gemini không trả về nội dung phản hồi.');
+  }
+
+  let sources = buildSourcesMarkdown(data);
+  let continueCount = 0;
+
+  while (shouldContinueResponse(data) && continueCount < GEMINI_MAX_CONTINUATIONS) {
+    continueCount += 1;
+
+    data = await callGemini([
+      ...baseContents,
+      { role: 'model', parts: [{ text: answer }] },
+      { role: 'user', parts: [{ text: CONTINUE_PROMPT }] },
+    ]);
+
+    const continuedAnswer = extractAnswerText(data);
+    if (!continuedAnswer) {
+      break;
+    }
+
+    answer = `${answer}\n${continuedAnswer}`;
+    if (!sources) {
+      sources = buildSourcesMarkdown(data);
+    }
+  }
+
+  return {
+    answer,
+    sources,
+    stillTruncated: shouldContinueResponse(data),
+  };
+};
+
 export async function askGeminiCompare(
   comparedItems: ApiCompareSupply[],
   question: string,
@@ -243,38 +287,11 @@ export async function askGeminiCompare(
   chatHistory.push(userTurn);
 
   try {
-    const firstData = await callGemini(chatHistory);
-    const firstAnswer = extractAnswerText(firstData);
-    if (!firstAnswer) {
-      throw new Error('Gemini không trả về nội dung phản hồi.');
-    }
-
-    let combinedAnswer = firstAnswer;
-    let combinedSources = buildSourcesMarkdown(firstData);
-
-    if (shouldContinueResponse(firstData)) {
-      const continueData = await callGemini([
-        ...chatHistory,
-        { role: 'model', parts: [{ text: firstAnswer }] },
-        {
-          role: 'user',
-          parts: [{
-            text: 'Phần trả lời trước đang bị dở. Hãy tiếp tục đúng chỗ đang dở, không lặp lại nội dung cũ, hoàn thiện đầy đủ các mục còn thiếu và giữ định dạng Markdown.',
-          }],
-        },
-      ]);
-
-      const continuedAnswer = extractAnswerText(continueData);
-      if (continuedAnswer) {
-        combinedAnswer = `${combinedAnswer}\n${continuedAnswer}`;
-      }
-
-      if (!combinedSources) {
-        combinedSources = buildSourcesMarkdown(continueData);
-      }
-    }
-
-    const finalAnswer = ENABLE_WEB_SEARCH ? `${combinedAnswer}${combinedSources}` : combinedAnswer;
+    const { answer, sources, stillTruncated } = await getCompleteGeminiAnswer(chatHistory);
+    const truncationNotice = stillTruncated
+      ? '\n\n> Lưu ý: Nội dung dài, Gemini vẫn còn có thể bị cắt. Bạn có thể nhắn: \"tiếp tục phần còn lại\".'
+      : '';
+    const finalAnswer = ENABLE_WEB_SEARCH ? `${answer}${sources}${truncationNotice}` : `${answer}${truncationNotice}`;
     chatHistory.push({ role: 'model', parts: [{ text: finalAnswer }] });
     trimHistory();
     return finalAnswer;

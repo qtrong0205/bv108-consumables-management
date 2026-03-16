@@ -33,7 +33,10 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
                     onRefresh();
                 } else {
                     console.error('Error details:', data);
-                    alert(`❌ ${data.error}\n\n${data.details || ''}\n\n${data.output?.substring(0, 500) || ''}`);
+                    const tried = Array.isArray(data.tried) && data.tried.length > 0
+                        ? `\n\nTried runtimes:\n${data.tried.join('\n')}`
+                        : '';
+                    alert(`❌ ${data.error}\n\n${data.details || ''}${tried}\n\n${data.output?.substring(0, 500) || ''}`);
                 }
             } catch (parseErr) {
                 console.error('Response:', text);

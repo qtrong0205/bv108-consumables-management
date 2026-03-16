@@ -24,7 +24,7 @@ const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: numb
 };
 
 const getMaThuVien = (item: ApiCompareSupply): string => getNullableString(item.maThuVien);
-const getTenVatTu = (item: ApiCompareSupply): string => getNullableString(item.tenVatTu2025);
+const getTenVatTu = (item: ApiCompareSupply): string => getNullableString(item.tenVatTu);
 
 const escapeHtml = (input: string): string =>
   input
@@ -43,17 +43,16 @@ const COMPARE_FIELDS: Array<{
     { label: 'Tên công ty', value: (i) => getNullableString(i.tenCongTy) },
     { label: 'Mã thư viện', value: (i) => getNullableString(i.maThuVien) },
     { label: 'Mã Thông tư 04', value: (i) => getNullableString(i.maThongTu04) },
-    { label: 'Tên vật tư (sử dụng năm 2025)', value: (i) => getNullableString(i.tenVatTu2025) },
-    { label: 'Thông số kỹ thuật của BV mời thầu (2025)', value: (i) => getNullableString(i.thongSoMoiThau2025) },
-    { label: 'Thông số kỹ thuật (hiệu chỉnh cho 2026)', value: (i) => getNullableString(i.thongSoHieuChinh2026) },
-    { label: 'Thông số kỹ thuật 1', value: (i) => getNullableString(i.thongSoKyThuat1) },
-    { label: 'Thông số kỹ thuật 2', value: (i) => getNullableString(i.thongSoKyThuat2) },
-    { label: 'Thông số kỹ thuật 3', value: (i) => getNullableString(i.thongSoKyThuat3) },
-    { label: 'Thông số kỹ thuật 4', value: (i) => getNullableString(i.thongSoKyThuat4) },
-    { label: 'Thông số kỹ thuật 5', value: (i) => getNullableString(i.thongSoKyThuat5) },
-    { label: 'Thông số kỹ thuật 9', value: (i) => getNullableString(i.thongSoKyThuat9) },
-    { label: 'Mã VTTH tương đương', value: (i) => getNullableString(i.maVtthTuongDuong) },
-    { label: 'Công ty có VTTH tương đương', value: (i) => getNullableString(i.congTyVtthTuongDuong) },
+    { label: 'Tên vật tư', value: (i) => getNullableString(i.tenVatTu) },
+    { label: 'Tên thương mại', value: (i) => getNullableString(i.tenThuongMai) },
+    { label: 'TSKT 2025', value: (i) => getNullableString(i.tskt2025) },
+    { label: 'TSKT 2026', value: (i) => getNullableString(i.tskt2026) },
+    { label: 'Chất liệu/ Vật liệu', value: (i) => getNullableString(i.chatLieuVatLieu) },
+    { label: 'Đặc tính/Cấu tạo', value: (i) => getNullableString(i.dacTinhCauTao) },
+    { label: 'Kích thước', value: (i) => getNullableString(i.kichThuoc) },
+    { label: 'Chiều dài', value: (i) => getNullableString(i.chieuDai) },
+    { label: 'Tính năng sử dụng', value: (i) => getNullableString(i.tinhNangSuDung) },
+    { label: 'TSKT khác', value: (i) => getNullableString(i.tsktKhac) },
     { label: 'ĐVT', value: (i) => getNullableString(i.dvt) },
     { label: 'Số lượng sử dụng 12 tháng', value: (i) => formatNumber(i.soLuongSuDung12Thang) },
     { label: 'Số lượng trúng thầu 2025 + bổ sung', value: (i) => formatNumber(i.soLuongTrungThau2025BoSung) },
@@ -63,15 +62,13 @@ const COMPARE_FIELDS: Array<{
     { label: 'TG/ĐV đăng tải giá THẤP NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiThapNhat) },
     { label: 'KQ trúng thầu CAO NHẤT', value: (i) => formatNumber(i.ketQuaTrungThauCaoNhat) },
     { label: 'TG/ĐV đăng tải giá CAO NHẤT', value: (i) => getNullableString(i.thoiGianDangTaiCaoNhat) },
-    { label: 'Công ty tham khảo', value: (i) => getNullableString(i.congTyThamKhao) },
     { label: 'Mã số thuế', value: (i) => getNullableString(i.maSoThue) },
-    { label: 'Ký mã hiệu', value: (i) => getNullableString(i.kyMaHieu) },
-    { label: 'Hãng sản xuất', value: (i) => getNullableString(i.hangSanXuat) },
-    { label: 'Nước sản xuất', value: (i) => getNullableString(i.nuocSanXuat) },
+    { label: 'Mã hiệu', value: (i) => getNullableString(i.maHieu) },
+    { label: 'Hãng sản xuất', value: (i) => getNullableString(i.hangSx) },
+    { label: 'Nước sản xuất', value: (i) => getNullableString(i.nuocSx) },
     { label: 'Nhóm nước', value: (i) => getNullableString(i.nhomNuoc) },
     { label: 'Chất lượng', value: (i) => getNullableString(i.chatLuong) },
     { label: 'Mã 5086', value: (i) => getNullableString(i.ma5086) },
-    { label: 'Tên thương mại', value: (i) => getNullableString(i.tenThuongMai) },
   ];
 
 export default function CompareSuppliesTab() {
@@ -437,8 +434,8 @@ export default function CompareSuppliesTab() {
                       <td className="px-3 py-3 text-sm font-mono text-foreground">{code}</td>
                       <td className="px-3 py-3 text-sm text-foreground">{getTenVatTu(item)}</td>
                       <td className="px-3 py-3 text-sm text-foreground">{getNullableString(item.dvt)}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">{getNullableString(item.hangSanXuat)}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">{getNullableString(item.nuocSanXuat)}</td>
+                      <td className="px-3 py-3 text-sm text-foreground">{getNullableString(item.hangSx)}</td>
+                      <td className="px-3 py-3 text-sm text-foreground">{getNullableString(item.nuocSx)}</td>
                       <td className="px-3 py-3 text-sm text-right text-foreground">{getNullableNumber(item.donGiaDeXuat2026).toLocaleString('vi-VN')}</td>
                     </tr>
                   );
