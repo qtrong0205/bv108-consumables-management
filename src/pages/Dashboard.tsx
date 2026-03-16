@@ -66,7 +66,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <UsageChart />
+                <UsageChart supplies={supplies} />
                 <InventoryByGroupChart supplies={supplies} loading={loading} />
             </div>
 

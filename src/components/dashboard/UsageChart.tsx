@@ -1,7 +1,11 @@
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Funnel } from 'lucide-react';
+import { MedicalSupply } from '@/types';
 
-const data = [
+const BASE_MONTHLY_USAGE = [
     { month: 'T1', usage: 420 },
     { month: 'T2', usage: 380 },
     { month: 'T3', usage: 450 },
@@ -16,15 +20,61 @@ const data = [
     { month: 'T12', usage: 590 },
 ];
 
-export default function UsageChart() {
+interface UsageChartProps {
+    supplies: MedicalSupply[];
+}
+
+export default function UsageChart({ supplies }: UsageChartProps) {
+    const [selectedGroup, setSelectedGroup] = useState('all');
+
+    const groupNames = useMemo(() => {
+        return Array.from(new Set(supplies.map(item => item.tenNhom || 'Chưa phân loại'))).sort((a, b) => a.localeCompare(b));
+    }, [supplies]);
+
+    const data = useMemo(() => {
+        if (selectedGroup === 'all' || supplies.length === 0) {
+            return BASE_MONTHLY_USAGE;
+        }
+
+        const totalUsage = supplies.reduce((sum, item) => sum + (item.soLuongTieuHao || 0), 0);
+        const selectedUsage = supplies
+            .filter(item => (item.tenNhom || 'Chưa phân loại') === selectedGroup)
+            .reduce((sum, item) => sum + (item.soLuongTieuHao || 0), 0);
+
+        const ratio = totalUsage > 0 ? selectedUsage / totalUsage : 0;
+
+        return BASE_MONTHLY_USAGE.map(point => ({
+            ...point,
+            usage: Math.round(point.usage * ratio),
+        }));
+    }, [selectedGroup, supplies]);
+
+    const lineName = selectedGroup === 'all' ? 'Vật tư đã sử dụng' : `Vật tư đã sử dụng - ${selectedGroup}`;
+
     return (
         <Card className="bg-neutral border-border">
-            <CardHeader>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-foreground">Xu hướng sử dụng theo tháng</CardTitle>
+                <div className="flex items-center gap-2">
+                    <Funnel className="w-4 h-4 text-muted-foreground" />
+                    <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                        <SelectTrigger className="w-[240px] bg-neutral text-foreground border-border h-9">
+                            <SelectValue placeholder="Lọc theo nhóm vật tư" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả nhóm vật tư</SelectItem>
+                            {groupNames.map((group) => (
+                                <SelectItem key={group} value={group}>
+                                    {group}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </CardHeader>
             <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={data}>
+                    <BarChart data={data}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 14%, 90%)" />
                         <XAxis
                             dataKey="month"
@@ -44,16 +94,13 @@ export default function UsageChart() {
                             }}
                         />
                         <Legend />
-                        <Line
-                            type="monotone"
+                        <Bar
                             dataKey="usage"
-                            stroke="hsl(218, 100%, 40%)"
-                            strokeWidth={2}
-                            dot={{ fill: 'hsl(218, 100%, 40%)', r: 4 }}
-                            activeDot={{ r: 6 }}
-                            name="Vật tư đã sử dụng"
+                            fill="hsl(218, 100%, 40%)"
+                            radius={[4, 4, 0, 0]}
+                            name={lineName}
                         />
-                    </LineChart>
+                    </BarChart>
                 </ResponsiveContainer>
             </CardContent>
         </Card>

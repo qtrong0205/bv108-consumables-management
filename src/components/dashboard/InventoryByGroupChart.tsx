@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { MedicalSupply } from '@/types';
 
 const COLORS = ['#0066CC', '#00A86B', '#FFB020', '#E53935', '#7B61FF', '#00BCD4', '#FF9800', '#9C27B0'];
+const MAX_GROUPS = 6;
 
 interface InventoryByGroupChartProps {
     supplies: MedicalSupply[];
@@ -10,7 +11,6 @@ interface InventoryByGroupChartProps {
 }
 
 export default function InventoryByGroupChart({ supplies, loading }: InventoryByGroupChartProps) {
-    console.log(supplies)
     // Tính tổng số lượng tồn theo nhóm (sử dụng trường tenNhom)
     const groupData = supplies.reduce((acc, item) => {
         const groupName = item.tenNhom || 'Chưa phân loại';
@@ -25,6 +25,19 @@ export default function InventoryByGroupChart({ supplies, loading }: InventoryBy
 
     // Sắp xếp theo số lượng giảm dần
     groupData.sort((a, b) => b.value - a.value);
+
+    const chartData = (() => {
+        if (groupData.length <= MAX_GROUPS) {
+            return groupData;
+        }
+
+        const topGroups = groupData.slice(0, MAX_GROUPS - 1);
+        const otherTotal = groupData.slice(MAX_GROUPS - 1).reduce((sum, g) => sum + g.value, 0);
+
+        return [...topGroups, { name: 'Nhóm khác', value: otherTotal }];
+    })();
+
+    const totalValue = chartData.reduce((sum, g) => sum + g.value, 0);
 
     return (
         <Card className="bg-neutral border-border">
@@ -41,44 +54,56 @@ export default function InventoryByGroupChart({ supplies, loading }: InventoryBy
                         Không có dữ liệu
                     </div>
                 ) : (
-                    <ResponsiveContainer width="100%" height={280}>
-                        <PieChart>
-                            <Pie
-                                data={groupData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={50}
-                                outerRadius={90}
-                                paddingAngle={2}
-                                dataKey="value"
-                                label={({ name, percent }) =>
-                                    percent > 0.05
-                                        ? `${name.length > 10 ? name.substring(0, 10) + '...' : name} (${(percent * 100).toFixed(0)}%)`
-                                        : ''
-                                }
-                                labelLine={({ percent }) => percent > 0.05}
-                            >
-                                {groupData.map((_, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: 'hsl(0, 0%, 100%)',
-                                    border: '1px solid hsl(210, 14%, 90%)',
-                                    borderRadius: '8px',
-                                    color: 'hsl(210, 10%, 18%)',
-                                }}
-                                formatter={(value: number) => [`${value.toLocaleString('vi-VN')} đơn vị`, 'Số lượng tồn']}
-                            />
-                            <Legend
-                                layout="horizontal"
-                                verticalAlign="bottom"
-                                align="center"
-                                wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <div className="space-y-3">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <PieChart>
+                                <Pie
+                                    data={chartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={52}
+                                    outerRadius={88}
+                                    paddingAngle={2}
+                                    dataKey="value"
+                                    label={false}
+                                    labelLine={false}
+                                >
+                                    {chartData.map((_, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: 'hsl(0, 0%, 100%)',
+                                        border: '1px solid hsl(210, 14%, 90%)',
+                                        borderRadius: '8px',
+                                        color: 'hsl(210, 10%, 18%)',
+                                    }}
+                                    formatter={(value: number) => [`${value.toLocaleString('vi-VN')} đơn vị`, 'Số lượng tồn']}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+
+                        <div className="text-xs text-muted-foreground text-center">
+                            Tổng tồn: <span className="font-medium text-foreground">{totalValue.toLocaleString('vi-VN')}</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                            {chartData.map((item, index) => {
+                                const percent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+                                return (
+                                    <div key={item.name} className="flex items-center gap-2 min-w-0" title={item.name}>
+                                        <span
+                                            className="w-2.5 h-2.5 rounded-sm shrink-0"
+                                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                                        />
+                                        <span className="truncate text-foreground">{item.name}</span>
+                                        <span className="text-muted-foreground shrink-0">{percent.toFixed(0)}%</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
             </CardContent>
         </Card>

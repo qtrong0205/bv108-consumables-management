@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { OrderRequest } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus, Funnel } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface OrderRequestTableProps {
     orders: OrderRequest[];
@@ -14,12 +15,12 @@ interface OrderRequestTableProps {
 interface SupplierGroup {
     nhaThau: string;
     orders: OrderRequest[];
-    totalDotGoiHang: number;
 }
 
 export default function OrderRequestTable({ orders, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     // State để track các nhà thầu đang mở rộng
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
+    const [selectedCompany, setSelectedCompany] = useState('all');
 
     // Refs cho checkbox indeterminate state
     const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
@@ -38,9 +39,21 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
         return Object.entries(groups).map(([nhaThau, groupOrders]): SupplierGroup => ({
             nhaThau,
             orders: groupOrders,
-            totalDotGoiHang: groupOrders.reduce((sum, o) => sum + o.dotGoiHang, 0)
         })).sort((a, b) => a.nhaThau.localeCompare(b.nhaThau));
     }, [orders]);
+
+    const companyOptions = useMemo(() => supplierGroups.map((group) => group.nhaThau), [supplierGroups]);
+
+    const visibleSupplierGroups = useMemo(() => {
+        if (selectedCompany === 'all') {
+            return supplierGroups;
+        }
+        return supplierGroups.filter((group) => group.nhaThau === selectedCompany);
+    }, [supplierGroups, selectedCompany]);
+
+    const visibleOrderIds = useMemo(() => {
+        return visibleSupplierGroups.flatMap((group) => group.orders.map((order) => order.id));
+    }, [visibleSupplierGroups]);
 
     // Toggle mở rộng nhà thầu
     const toggleExpand = (nhaThau: string) => {
@@ -91,15 +104,17 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
     // Xử lý chọn tất cả
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedOrders(orders.map(order => order.id));
+            const newSelected = [...new Set([...selectedOrders, ...visibleOrderIds])];
+            setSelectedOrders(newSelected);
         } else {
-            setSelectedOrders([]);
+            setSelectedOrders(selectedOrders.filter((id) => !visibleOrderIds.includes(id)));
         }
     };
 
     // Trạng thái checkbox "Chọn tất cả"
-    const allSelected = orders.length > 0 && selectedOrders.length === orders.length;
-    const someSelected = selectedOrders.length > 0 && selectedOrders.length < orders.length;
+    const selectedVisibleCount = visibleOrderIds.filter((id) => selectedOrders.includes(id)).length;
+    const allSelected = visibleOrderIds.length > 0 && selectedVisibleCount === visibleOrderIds.length;
+    const someSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleOrderIds.length;
 
     // Lấy trạng thái của nhà thầu
     const getSupplierStatus = (group: SupplierGroup) => {
@@ -156,6 +171,23 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
 
     return (
         <div className="space-y-4">
+            <div className="flex items-center justify-end gap-2">
+                <Funnel className="w-4 h-4 text-muted-foreground" />
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                    <SelectTrigger className="w-full max-w-sm bg-neutral text-foreground border-border h-9">
+                        <SelectValue placeholder="Lọc theo công ty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Tất cả công ty</SelectItem>
+                        {companyOptions.map((company) => (
+                            <SelectItem key={company} value={company}>
+                                {company}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             <div className="rounded-md border border-border overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -172,13 +204,12 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-12"></th>
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Số vật tư</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Tổng đợt gọi</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Nguồn gốc</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {supplierGroups.map((group) => {
+                            {visibleSupplierGroups.map((group) => {
                                 const isExpanded = expandedSuppliers.has(group.nhaThau);
                                 const checkState = getSupplierCheckState(group);
                                 const status = getSupplierStatus(group);
@@ -220,25 +251,24 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                     {group.orders.length}
                                                 </Badge>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                                                    {group.totalDotGoiHang}
-                                                </Badge>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-center">
+                                                    {getSourceBadge(getGroupSource(group) === 'mixed' ? undefined : getGroupSource(group))}
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
-                                                {getSourceBadge(getGroupSource(group) === 'mixed' ? undefined : getGroupSource(group))}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <Badge
-                                                    variant="outline"
-                                                    className={`
-                                                        ${status.variant === 'success' ? 'bg-green-50 text-green-700 border-green-200' : ''}
-                                                        ${status.variant === 'warning' ? 'bg-orange-50 text-orange-700 border-orange-200' : ''}
-                                                        ${status.variant === 'secondary' ? 'bg-gray-50 text-gray-600 border-gray-200' : ''}
-                                                    `}
-                                                >
-                                                    {status.label}
-                                                </Badge>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-center">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`
+                                                            ${status.variant === 'success' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                                                            ${status.variant === 'warning' ? 'bg-orange-50 text-orange-700 border-orange-200' : ''}
+                                                            ${status.variant === 'secondary' ? 'bg-gray-50 text-gray-600 border-gray-200' : ''}
+                                                        `}
+                                                    >
+                                                        {status.label}
+                                                    </Badge>
+                                                </div>
                                             </td>
                                         </tr>
 
@@ -300,8 +330,10 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {order.quyCach}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-center">
-                                                                            {getSourceBadge(order.source)}
+                                                                        <td className="px-4 py-2">
+                                                                            <div className="flex items-center justify-center">
+                                                                                {getSourceBadge(order.source)}
+                                                                            </div>
                                                                         </td>
                                                                         <td className="px-4 py-2 text-center">
                                                                             <Badge
@@ -331,14 +363,14 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
             <div className="flex items-center justify-between text-sm text-muted-foreground px-2">
                 <div className="flex items-center gap-4">
                     <span>
-                        <strong className="text-foreground">{supplierGroups.length}</strong> nhà thầu
+                        <strong className="text-foreground">{visibleSupplierGroups.length}</strong> nhà thầu
                     </span>
                     <span>
-                        <strong className="text-foreground">{orders.length}</strong> vật tư
+                        <strong className="text-foreground">{visibleOrderIds.length}</strong> vật tư
                     </span>
                 </div>
                 <div>
-                    Đã chọn: <strong className="text-primary">{selectedOrders.length}</strong> vật tư
+                    Đã chọn: <strong className="text-primary">{selectedVisibleCount}</strong> vật tư
                 </div>
             </div>
         </div>

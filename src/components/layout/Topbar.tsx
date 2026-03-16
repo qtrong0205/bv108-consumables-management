@@ -1,6 +1,5 @@
-import { Bell, User, Search } from 'lucide-react';
+import { Bell, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import {
     DropdownMenu,
@@ -14,27 +13,15 @@ import {
 interface TopbarProps {
     userRole: string;
     onLogout: () => void;
-    currentPath: string;
 }
 
-export default function Topbar({ userRole, onLogout, currentPath }: TopbarProps) {
-    const showSearch = currentPath === '/catalog';
+export default function Topbar({ userRole, onLogout }: TopbarProps) {
     const navigate = useNavigate();
 
     return (
         <header className="h-16 bg-neutral border-b border-border flex items-center justify-between px-6 lg:px-8">
             <div className="flex items-center gap-6 flex-1">
                 <h2 className="text-lg font-semibold text-foreground hidden sm:block">Bệnh Viện TWQĐ 108</h2>
-                {showSearch && (
-                    <div className="relative max-w-md w-full hidden md:block">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={2} />
-                        <Input
-                            type="search"
-                            placeholder="Tìm kiếm vật tư..."
-                            className="pl-10 bg-neutral text-foreground border-border"
-                        />
-                    </div>
-                )}
             </div>
 
             <div className="flex items-center gap-3">
