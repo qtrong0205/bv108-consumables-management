@@ -291,7 +291,6 @@ const ForecastTable = ({
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">STT</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium">Tên vật tư</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã hiệu</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Quy cách</th>
                                     <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap">Đơn giá</th>
@@ -315,15 +314,23 @@ const ForecastTable = ({
                                         <td className="px-3 py-3 text-xs text-foreground">
                                             <div className="max-w-[200px]">
                                                 <div className="flex items-center gap-1 min-w-0">
-                                                    <p className="font-semibold truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
+                                                    <p className="font-semibold text-sm truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
                                                     {getStatusBadge(item.stt)}
                                                 </div>
+                                                <p className="text-[11px] text-muted-foreground truncate" title={item.maHieu || ''}>
+                                                    {item.maHieu || 'N/A'}
+                                                </p>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">{item.maHieu}</td>
-                                        <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">{item.hangSx}</td>
-                                        <td className="px-3 py-3 text-xs text-foreground whitespace-nowrap">
-                                            {item.quyCach} ({item.slTrongQuyCach} {item.donViTinh})
+                                        <td className="px-3 py-3 text-xs text-foreground">
+                                            <div className="max-w-[184px] truncate" title={item.hangSx}>
+                                                {item.hangSx}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-3 text-xs text-foreground">
+                                            <div className="max-w-[80px] truncate" title={`${item.quyCach} (${item.slTrongQuyCach} ${item.donViTinh})`}>
+                                                {item.quyCach} ({item.slTrongQuyCach} {item.donViTinh})
+                                            </div>
                                         </td>
                                         <td className="px-3 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
                                             {item.donGia.toLocaleString('vi-VN')}
@@ -365,7 +372,7 @@ const ForecastTable = ({
                             </tbody>
                             <tfoot className="bg-tertiary border-t-2 border-border">
                                 <tr>
-                                    <td colSpan={11} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
+                                    <td colSpan={10} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
                                         Tổng cộng:
                                     </td>
                                     <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">

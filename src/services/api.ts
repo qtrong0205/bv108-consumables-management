@@ -10,7 +10,6 @@ export interface ApiSupply {
   id: { String: string; Valid: boolean } | null;
   idx2: { String: string; Valid: boolean } | null;
   maHieu: { String: string; Valid: boolean } | null;
-  soLuongThau: { Int32: number; Valid: boolean } | null;
   typeName: { String: string; Valid: boolean } | null;
   name: { String: string; Valid: boolean } | null;
   unit: { String: string; Valid: boolean } | null;

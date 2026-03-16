@@ -12,7 +12,7 @@ export interface MedicalSupply {
     donViTinh: string;         // DON_VI_TINH
     donGia: number;            // DON_GIA
     soLuongKeHoach: number;    // D_LUONG_KH
-    soLuongThau: number;       // SO_LUONG_THAU
+    tongThau: string;          // TONGTHAU
     nhaThau: string;           // NHA_THAU
     quyetDinh: string;         // QUYET_DINH
     soLuongTon: number;        // Số lượng tồn kho hiện tại

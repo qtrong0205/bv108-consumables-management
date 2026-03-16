@@ -20,7 +20,7 @@ const convertApiSupplyToMedicalSupply = (apiSupply: ApiSupply, index: number): M
     donViTinh: getNullableString(apiSupply.unit),
     donGia: getNullableNumber(apiSupply.price),
     soLuongKeHoach: getNullableNumber(apiSupply.tongNhap),
-    soLuongThau: getNullableNumber(apiSupply.soLuongThau),
+    tongThau: getNullableString(apiSupply.tongThau),
     nhaThau: getNullableString(apiSupply.nhaCungCap),
     quyetDinh: getNullableString(apiSupply.thongTinThau),
     soLuongTon: apiSupply.tonCuoiKy,

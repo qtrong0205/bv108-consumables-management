@@ -38,15 +38,15 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                                 </Badge>
                                             )}
                                         </div>
-                                        <p className="font-medium text-sm text-foreground truncate">{displayValue(item.tenVtyt)}</p>
+                                        <p className="font-semibold text-[15px] text-foreground truncate">{displayValue(item.tenVtyt)}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{displayValue(item.maHieu) || 'N/A'}</p>
                                         <p className="text-xs text-muted-foreground truncate">{displayValue(item.hangSanXuat)} - {displayValue(item.nuocSanXuat)}</p>
                                     </div>
                                     <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                                 </div>
                                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
                                     <div className="flex items-center gap-3 text-xs">
-                                        <span className="text-muted-foreground">Mã hiệu: <span className="text-foreground font-medium">{displayValue(item.maHieu) || 'N/A'}</span></span>
-                                        <span className="text-muted-foreground">SL Thầu: <span className="text-foreground font-medium">{item.soLuongThau || 0}</span></span>
+                                        <span className="text-muted-foreground">Tổng thầu: <span className="text-foreground font-medium">{item.tongThau || ''}</span></span>
                                     </div>
                                     <span className="text-sm font-semibold text-primary">{(item.donGia || 0).toLocaleString('vi-VN')}đ</span>
                                 </div>
@@ -62,12 +62,11 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium">Tên vật tư</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Mã hiệu</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Quy cách</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">SL Thầu</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Tổng thầu</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium whitespace-nowrap">Đơn giá</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">SL KH</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Tổng nhập</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
                             </tr>
@@ -84,18 +83,24 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground">
                                         <div className="max-w-[200px]">
-                                            <p className="font-medium truncate" title={displayValue(item.tenVtyt)}>{displayValue(item.tenVtyt)}</p>
+                                            <p className="font-semibold text-sm truncate" title={displayValue(item.tenVtyt)}>{displayValue(item.tenVtyt)}</p>
+                                            <p className="text-[11px] text-muted-foreground truncate" title={displayValue(item.maHieu)}>
+                                                {displayValue(item.maHieu) || 'N/A'}
+                                            </p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{displayValue(item.maHieu) || 'N/A'}</td>
-                                    <td className="px-4 py-3 text-xs text-foreground whitespace-nowrap">{displayValue(item.quyCach)}</td>
                                     <td className="px-4 py-3 text-xs text-foreground">
-                                        <div className="max-w-[100px]">
+                                        <div className="max-w-[72px] truncate" title={displayValue(item.quyCach)}>
+                                            {displayValue(item.quyCach)}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-foreground">
+                                        <div className="max-w-[184px]">
                                             <p className="truncate" title={displayValue(item.hangSanXuat)}>{displayValue(item.hangSanXuat)}</p>
                                             <p className="text-muted-foreground truncate" title={displayValue(item.nuocSanXuat)}>{displayValue(item.nuocSanXuat)}</p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-foreground text-center font-medium">{item.soLuongThau || 0}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground text-center font-medium">{item.tongThau || ''}</td>
                                     <td className="px-4 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
                                         {(item.donGia || 0).toLocaleString('vi-VN')}
                                     </td>
