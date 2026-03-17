@@ -1,125 +1,134 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { IVatTuDuTru } from '@/data/mockData';
 import { OrderRequest, Invoice, OrderHistory } from '@/types';
+import { apiService, CreateOrderItemRequest, getStoredAuth } from '@/services/api';
 
 interface OrderContextType {
-    // Danh sách vật tư đã duyệt chờ gọi hàng (dưới dạng OrderRequest)
     approvedOrders: OrderRequest[];
-    // Thêm một vật tư đã duyệt
-    addApprovedOrder: (item: IVatTuDuTru, duTruValue?: number) => void;
-    // Thêm nhiều vật tư đã duyệt (duyệt tất cả)
-    addApprovedOrdersBulk: (items: IVatTuDuTru[]) => void;
-    // Xóa vật tư khỏi danh sách (khi đã gọi hàng xong)
-    removeOrders: (ids: number[]) => void;
-    // Thêm đơn hàng tạo thủ công
-    addManualOrder: (order: OrderRequest) => void;
-    // Danh sách hóa đơn từ uBot
+    addApprovedOrder: (item: IVatTuDuTru, duTruValue?: number) => Promise<void>;
+    addApprovedOrdersBulk: (items: IVatTuDuTru[]) => Promise<void>;
+    addManualOrder: (order: OrderRequest) => Promise<void>;
+    placeOrders: (ids: number[]) => Promise<number>;
     invoices: Invoice[];
     addInvoices: (invoices: Invoice[]) => void;
-    // Lịch sử đơn hàng
     orderHistory: OrderHistory[];
-    addToOrderHistory: (orders: OrderHistory[]) => void;
+    loadingOrders: boolean;
+    refreshOrders: () => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
+
+const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderItemRequest => {
+    const finalDuTru = duTruValue ?? item.duTru;
+    const goiHang = Math.ceil(finalDuTru / item.slTrongQuyCach);
+
+    return {
+        nhaThau: item.nhaThau,
+        maQuanLy: item.maQuanLy || '',
+        maVtytCu: item.maVtytCu,
+        tenVtytBv: item.tenVtytBv,
+        maHieu: item.maHieu,
+        hangSx: item.hangSx,
+        donViTinh: item.donViTinh,
+        quyCach: item.quyCach,
+        dotGoiHang: goiHang,
+        email: '',
+    };
+};
+
+const toManualPayload = (order: OrderRequest): CreateOrderItemRequest => ({
+    nhaThau: order.nhaThau,
+    maQuanLy: order.maQuanLy,
+    maVtytCu: order.maVtytCu,
+    tenVtytBv: order.tenVtytBv,
+    maHieu: order.maHieu,
+    hangSx: order.hangSx,
+    donViTinh: order.donViTinh,
+    quyCach: order.quyCach,
+    dotGoiHang: order.dotGoiHang,
+    email: order.email,
+});
 
 export function OrderProvider({ children }: { children: ReactNode }) {
     const [approvedOrders, setApprovedOrders] = useState<OrderRequest[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
-    // Chuyển đổi IVatTuDuTru sang OrderRequest
-    const convertToOrderRequest = (item: IVatTuDuTru, duTruValue?: number): OrderRequest => {
-        const finalDuTru = duTruValue ?? item.duTru;
-        const goiHang = Math.ceil(finalDuTru / item.slTrongQuyCach);
+    const refreshOrders = async () => {
+        const storedAuth = getStoredAuth();
+        if (!storedAuth) {
+            setApprovedOrders([]);
+            setOrderHistory([]);
+            return;
+        }
 
-        return {
-            id: Date.now() + item.stt, // Unique ID
-            nhaThau: item.nhaThau,
-            maQuanLy: item.maQuanLy || '',
-            maVtytCu: item.maVtytCu,
-            tenVtytBv: item.tenVtytBv,
-            maHieu: item.maHieu,
-            hangSx: item.hangSx,
-            donViTinh: item.donViTinh,
-            quyCach: item.quyCach,
-            dotGoiHang: goiHang,
-            source: 'forecast',
-        };
+        setLoadingOrders(true);
+        try {
+            const [pendingResponse, historyResponse] = await Promise.all([
+                apiService.getPendingOrders(),
+                apiService.getOrderHistory(),
+            ]);
+
+            setApprovedOrders(pendingResponse.data);
+            setOrderHistory(historyResponse.data);
+        } finally {
+            setLoadingOrders(false);
+        }
     };
 
-    // Thêm một vật tư đã duyệt
-    const addApprovedOrder = (item: IVatTuDuTru, duTruValue?: number) => {
-        const newOrder = convertToOrderRequest(item, duTruValue);
+    useEffect(() => {
+        if (!getStoredAuth()) {
+            return;
+        }
 
-        setApprovedOrders(prev => {
-            // Kiểm tra xem vật tư đã có trong danh sách chưa (theo maVtytCu)
-            const existingIndex = prev.findIndex(order => order.maVtytCu === item.maVtytCu);
-            if (existingIndex >= 0) {
-                // Cập nhật số lượng gọi hàng
-                const updated = [...prev];
-                updated[existingIndex] = {
-                    ...updated[existingIndex],
-                    dotGoiHang: updated[existingIndex].dotGoiHang + newOrder.dotGoiHang
-                };
-                return updated;
-            }
-            // Thêm mới
-            return [newOrder, ...prev];
+        void refreshOrders().catch(() => undefined);
+    }, []);
+
+    const addApprovedOrder = async (item: IVatTuDuTru, duTruValue?: number) => {
+        await apiService.createForecastOrders({
+            items: [toForecastPayload(item, duTruValue)],
         });
+
+        await refreshOrders();
     };
 
-    // Thêm nhiều vật tư đã duyệt (duyệt tất cả)
-    const addApprovedOrdersBulk = (items: IVatTuDuTru[]) => {
-        const newOrders = items.map((item, index) => ({
-            ...convertToOrderRequest(item),
-            id: Date.now() + index + item.stt,
-        }));
+    const addApprovedOrdersBulk = async (items: IVatTuDuTru[]) => {
+        if (items.length === 0) {
+            return;
+        }
 
-        setApprovedOrders(prev => {
+        await apiService.createForecastOrders({
+            items: items.map((item) => toForecastPayload(item)),
+        });
+
+        await refreshOrders();
+    };
+
+    const addManualOrder = async (order: OrderRequest) => {
+        await apiService.createManualOrder(toManualPayload(order));
+        await refreshOrders();
+    };
+
+    const placeOrders = async (ids: number[]) => {
+        const response = await apiService.placeOrders({ orderIds: ids });
+        await refreshOrders();
+        return response.placedCount;
+    };
+
+    const addInvoices = (newInvoices: Invoice[]) => {
+        setInvoices((prev) => {
             const updated = [...prev];
-            newOrders.forEach(newOrder => {
-                const existingIndex = updated.findIndex(order => order.maVtytCu === newOrder.maVtytCu);
+            newInvoices.forEach((invoice) => {
+                const existingIndex = updated.findIndex((item) => item.id === invoice.id);
                 if (existingIndex >= 0) {
-                    // Cộng dồn số lượng
-                    updated[existingIndex] = {
-                        ...updated[existingIndex],
-                        dotGoiHang: updated[existingIndex].dotGoiHang + newOrder.dotGoiHang
-                    };
+                    updated[existingIndex] = invoice;
                 } else {
-                    updated.unshift(newOrder);
+                    updated.push(invoice);
                 }
             });
             return updated;
         });
-    };
-
-    // Xóa vật tư khỏi danh sách (khi đã gọi hàng xong)
-    const removeOrders = (ids: number[]) => {
-        setApprovedOrders(prev => prev.filter(order => !ids.includes(order.id)));
-    };
-
-    // Thêm đơn hàng tạo thủ công
-    const addManualOrder = (order: OrderRequest) => {
-        setApprovedOrders(prev => [order, ...prev]);
-    };
-
-    // Thêm hóa đơn từ uBot
-    const addInvoices = (newInvoices: Invoice[]) => {
-        setInvoices(prev => {
-            const updated = [...prev];
-            newInvoices.forEach(inv => {
-                const idx = updated.findIndex(i => i.id === inv.id);
-                if (idx >= 0) updated[idx] = inv;
-                else updated.push(inv);
-            });
-            return updated;
-        });
-    };
-
-    // Thêm vào lịch sử đơn hàng
-    const addToOrderHistory = (orders: OrderHistory[]) => {
-        setOrderHistory(prev => [...orders, ...prev]);
     };
 
     return (
@@ -128,12 +137,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 approvedOrders,
                 addApprovedOrder,
                 addApprovedOrdersBulk,
-                removeOrders,
                 addManualOrder,
+                placeOrders,
                 invoices,
                 addInvoices,
                 orderHistory,
-                addToOrderHistory,
+                loadingOrders,
+                refreshOrders,
             }}
         >
             {children}

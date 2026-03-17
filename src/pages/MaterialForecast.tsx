@@ -24,7 +24,7 @@ import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
 import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
 import { useOrder } from '@/context/OrderContext';
-import { apiService, ApiSupply, getNullableNumber, getNullableString } from '@/services/api';
+import { apiService, ApiForecastApproval, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
 import * as XLSX from 'xlsx';
 
@@ -81,6 +81,22 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
     };
 };
 
+const mapApprovalRecordToState = (record: ApiForecastApproval): {
+    status: ApprovalStatus;
+    lyDo?: string;
+    duTruGoc?: number;
+    duTruSua?: number;
+    nguoiDuyet?: string;
+    thoiGian?: Date;
+} => ({
+    status: record.status,
+    lyDo: record.lyDo,
+    duTruGoc: record.duTruGoc,
+    duTruSua: record.duTruSua,
+    nguoiDuyet: record.nguoiDuyet,
+    thoiGian: record.thoiGianDuyet ? new Date(record.thoiGianDuyet) : undefined,
+});
+
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -116,11 +132,11 @@ export default function MaterialForecast() {
     const [lyDoTuChoi, setLyDoTuChoi] = useState('');
     const [isRejectMode, setIsRejectMode] = useState(false);
     const [approvalStates, setApprovalStates] = useState<ApprovalState>({});
+    const [approvalRecords, setApprovalRecords] = useState<ApiForecastApproval[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
 
     // State cho lịch sử thay đổi
     const [historyLog, setHistoryLog] = useState<HistoryEntry[]>([]);
-    const [historyIdCounter, setHistoryIdCounter] = useState(1);
 
     // State cho dialog chi tiết lịch sử
     const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null);
@@ -131,12 +147,26 @@ export default function MaterialForecast() {
         ...MOCK_MONTHLY_FORECAST_HISTORY
     ]);
 
-    // Người dùng hiện tại (giả lập)
-    const CURRENT_USER = 'TS. Phạm Văn Dũng';
+    const currentUser = useMemo(() => getStoredAuth()?.user.username || 'Người dùng hệ thống', []);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
+
+    const refreshApprovalRecords = async () => {
+        const response = await apiService.getForecastApprovals(CURRENT_MONTH, CURRENT_YEAR);
+        setApprovalRecords(response.data);
+    };
+
+    useEffect(() => {
+        void refreshApprovalRecords().catch((fetchError) => {
+            toast({
+                title: 'Lỗi tải phê duyệt',
+                description: fetchError instanceof Error ? fetchError.message : 'Không tải được trạng thái phê duyệt',
+                variant: 'destructive',
+            });
+        });
+    }, [toast]);
 
     useEffect(() => {
         const fetchSupplies = async () => {
@@ -181,6 +211,22 @@ export default function MaterialForecast() {
         });
     }, [error, toast]);
 
+    useEffect(() => {
+        const nextApprovalStates: ApprovalState = {};
+        const approvalRecordMap = new Map(approvalRecords.map((record) => [record.maVtytCu, record]));
+
+        data.forEach((item) => {
+            const savedRecord = approvalRecordMap.get(item.maVtytCu);
+            if (!savedRecord) {
+                return;
+            }
+
+            nextApprovalStates[item.stt] = mapApprovalRecordToState(savedRecord);
+        });
+
+        setApprovalStates(nextApprovalStates);
+    }, [approvalRecords, data]);
+
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setPage(1);
@@ -207,13 +253,32 @@ export default function MaterialForecast() {
         setSelectedCategories([]);
     };
 
+    const buildForecastApprovalPayload = (
+        item: IVatTuDuTru,
+        status: 'approved' | 'rejected' | 'edited',
+        options?: {
+            lyDo?: string;
+            duTruGoc?: number;
+            duTruSua?: number;
+        }
+    ): SaveForecastApprovalRequest => ({
+        forecastMonth: CURRENT_MONTH,
+        forecastYear: CURRENT_YEAR,
+        maQuanLy: item.maQuanLy,
+        maVtytCu: item.maVtytCu,
+        tenVtytBv: item.tenVtytBv,
+        status,
+        lyDo: options?.lyDo,
+        duTruGoc: options?.duTruGoc,
+        duTruSua: options?.duTruSua,
+    });
+
     // Hàm thêm entry vào lịch sử
     const addHistoryEntry = (entry: Omit<HistoryEntry, 'id'>) => {
         setHistoryLog(prev => [{
             ...entry,
-            id: historyIdCounter,
+            id: Date.now() + prev.length,
         }, ...prev]);
-        setHistoryIdCounter(prev => prev + 1);
     };
 
     // Lưu giá trị gốc khi focus vào input
@@ -249,7 +314,7 @@ export default function MaterialForecast() {
                     maVtyt: item.maVtytCu,
                     tenVtyt: item.tenVtytBv,
                     actionType: 'edit_quantity',
-                    nguoiThucHien: CURRENT_USER,
+                    nguoiThucHien: currentUser,
                     thoiGian: new Date(),
                     chiTiet: {
                         duTruGoc: originalDuTru.value,
@@ -301,7 +366,7 @@ export default function MaterialForecast() {
                     nam: CURRENT_YEAR,
                     ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
                     ngayDuyet: now,
-                    nguoiTao: 'BS. Nguyễn Văn An',
+                    nguoiTao: currentUser,
                     nguoiDuyet: nguoiDuyet,
                     tongSoVatTu: 1,
                     tongGiaTri: thanhTien,
@@ -391,7 +456,7 @@ export default function MaterialForecast() {
                     nam: CURRENT_YEAR,
                     ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
                     ngayDuyet: now,
-                    nguoiTao: 'BS. Nguyễn Văn An',
+                    nguoiTao: currentUser,
                     nguoiDuyet: nguoiDuyet,
                     tongSoVatTu: newItems.length,
                     tongGiaTri: tongGiaTri,
@@ -528,25 +593,46 @@ export default function MaterialForecast() {
     };
 
     // Phê duyệt
-    const handleApprove = () => {
+    const handleApprove = async () => {
         if (!selectedItem) return;
 
         const now = new Date();
+
+        try {
+            await apiService.saveForecastApproval(
+                buildForecastApprovalPayload(selectedItem, 'approved')
+            );
+            await refreshApprovalRecords();
+        } catch (error) {
+            toast({
+                title: "Phê duyệt thất bại",
+                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            await addApprovedOrder(selectedItem);
+        } catch (error) {
+            toast({
+                title: "Đã lưu phê duyệt",
+                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
+                variant: "destructive",
+            });
+        }
 
         setApprovalStates(prev => ({
             ...prev,
             [selectedItem.stt]: {
                 status: 'approved',
-                nguoiDuyet: CURRENT_USER,
+                nguoiDuyet: currentUser,
                 thoiGian: now,
             }
         }));
 
         // Cập nhật vào bản ghi tháng hiện tại
-        updateCurrentMonthRecord(selectedItem, 'approved', CURRENT_USER);
-
-        // Thêm vào danh sách gọi hàng
-        addApprovedOrder(selectedItem);
+        updateCurrentMonthRecord(selectedItem, 'approved', currentUser);
 
         // Ghi lịch sử
         addHistoryEntry({
@@ -554,7 +640,7 @@ export default function MaterialForecast() {
             maVtyt: selectedItem.maVtytCu,
             tenVtyt: selectedItem.tenVtytBv,
             actionType: 'approve',
-            nguoiThucHien: CURRENT_USER,
+            nguoiThucHien: currentUser,
             thoiGian: now,
         });
 
@@ -567,7 +653,7 @@ export default function MaterialForecast() {
     };
 
     // Từ chối
-    const handleReject = () => {
+    const handleReject = async () => {
         if (!selectedItem) return;
 
         if (!lyDoTuChoi.trim()) {
@@ -581,18 +667,34 @@ export default function MaterialForecast() {
 
         const now = new Date();
 
+        try {
+            await apiService.saveForecastApproval(
+                buildForecastApprovalPayload(selectedItem, 'rejected', {
+                    lyDo: lyDoTuChoi,
+                })
+            );
+            await refreshApprovalRecords();
+        } catch (error) {
+            toast({
+                title: "Từ chối thất bại",
+                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái từ chối',
+                variant: "destructive",
+            });
+            return;
+        }
+
         setApprovalStates(prev => ({
             ...prev,
             [selectedItem.stt]: {
                 status: 'rejected',
                 lyDo: lyDoTuChoi,
-                nguoiDuyet: CURRENT_USER,
+                nguoiDuyet: currentUser,
                 thoiGian: now,
             }
         }));
 
         // Cập nhật vào bản ghi tháng hiện tại
-        updateCurrentMonthRecord(selectedItem, 'rejected', CURRENT_USER);
+        updateCurrentMonthRecord(selectedItem, 'rejected', currentUser);
 
         // Ghi lịch sử
         addHistoryEntry({
@@ -600,7 +702,7 @@ export default function MaterialForecast() {
             maVtyt: selectedItem.maVtytCu,
             tenVtyt: selectedItem.tenVtytBv,
             actionType: 'reject',
-            nguoiThucHien: CURRENT_USER,
+            nguoiThucHien: currentUser,
             thoiGian: now,
             chiTiet: {
                 lyDo: lyDoTuChoi,
@@ -619,11 +721,38 @@ export default function MaterialForecast() {
     };
 
     // Sửa và duyệt
-    const handleEditAndApprove = () => {
+    const handleEditAndApprove = async () => {
         if (!selectedItem) return;
 
         const goiHang = Math.ceil(editDuTru / selectedItem.slTrongQuyCach);
         const now = new Date();
+
+        try {
+            await apiService.saveForecastApproval(
+                buildForecastApprovalPayload(selectedItem, 'edited', {
+                    duTruGoc: selectedItem.duTru,
+                    duTruSua: editDuTru,
+                })
+            );
+            await refreshApprovalRecords();
+        } catch (error) {
+            toast({
+                title: "Sửa và duyệt thất bại",
+                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            await addApprovedOrder(selectedItem, editDuTru);
+        } catch (error) {
+            toast({
+                title: "Đã lưu trạng thái sửa và duyệt",
+                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
+                variant: "destructive",
+            });
+        }
 
         // Cập nhật data
         setData(prevData =>
@@ -642,16 +771,13 @@ export default function MaterialForecast() {
                 status: 'edited',
                 duTruGoc: selectedItem.duTru,
                 duTruSua: editDuTru,
-                nguoiDuyet: CURRENT_USER,
+                nguoiDuyet: currentUser,
                 thoiGian: now,
             }
         }));
 
         // Cập nhật vào bản ghi tháng hiện tại (với số lượng đã sửa)
-        updateCurrentMonthRecord(selectedItem, 'edited', CURRENT_USER, editDuTru);
-
-        // Thêm vào danh sách gọi hàng (với số lượng đã sửa)
-        addApprovedOrder(selectedItem, editDuTru);
+        updateCurrentMonthRecord(selectedItem, 'edited', currentUser, editDuTru);
 
         // Ghi lịch sử
         addHistoryEntry({
@@ -659,7 +785,7 @@ export default function MaterialForecast() {
             maVtyt: selectedItem.maVtytCu,
             tenVtyt: selectedItem.tenVtytBv,
             actionType: 'edit',
-            nguoiThucHien: CURRENT_USER,
+            nguoiThucHien: currentUser,
             thoiGian: now,
             chiTiet: {
                 duTruGoc: selectedItem.duTru,
@@ -700,15 +826,39 @@ export default function MaterialForecast() {
     const approvedCount = filteredData.filter(item => approvalStates[item.stt]?.status === 'approved' || approvalStates[item.stt]?.status === 'edited').length;
 
     // Duyệt tất cả
-    const handleApproveAll = () => {
+    const handleApproveAll = async () => {
         const newApprovalStates: ApprovalState = { ...approvalStates };
         const now = new Date();
         const pendingItems = filteredData.filter(item => !approvalStates[item.stt]);
 
+        try {
+            await apiService.saveForecastApprovalsBulk({
+                items: pendingItems.map((item) => buildForecastApprovalPayload(item, 'approved')),
+            });
+            await refreshApprovalRecords();
+        } catch (error) {
+            toast({
+                title: "Duyệt tất cả thất bại",
+                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
+                variant: "destructive",
+            });
+            return;
+        }
+
+        try {
+            await addApprovedOrdersBulk(pendingItems);
+        } catch (error) {
+            toast({
+                title: "Đã lưu trạng thái duyệt",
+                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
+                variant: "destructive",
+            });
+        }
+
         pendingItems.forEach(item => {
             newApprovalStates[item.stt] = {
                 status: 'approved',
-                nguoiDuyet: CURRENT_USER,
+                nguoiDuyet: currentUser,
                 thoiGian: now,
             };
         });
@@ -717,10 +867,7 @@ export default function MaterialForecast() {
         setIsApproveAllDialogOpen(false);
 
         // Cập nhật hàng loạt vào bản ghi tháng hiện tại
-        updateCurrentMonthRecordBulk(pendingItems, CURRENT_USER);
-
-        // Thêm hàng loạt vào danh sách gọi hàng
-        addApprovedOrdersBulk(pendingItems);
+        updateCurrentMonthRecordBulk(pendingItems, currentUser);
 
         // Ghi lịch sử duyệt tất cả
         addHistoryEntry({
@@ -728,7 +875,7 @@ export default function MaterialForecast() {
             maVtyt: '',
             tenVtyt: `Duyệt hàng loạt ${pendingItems.length} vật tư`,
             actionType: 'approve_all',
-            nguoiThucHien: CURRENT_USER,
+            nguoiThucHien: currentUser,
             thoiGian: now,
             chiTiet: {
                 soLuongDuyet: pendingItems.length,

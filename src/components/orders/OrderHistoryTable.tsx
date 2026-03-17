@@ -54,7 +54,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
     };
 
     // Format ngày
-    const formatDate = (date: Date) => {
+    const formatDate = (date: string | Date) => {
         return new Date(date).toLocaleDateString('vi-VN', {
             day: '2-digit',
             month: '2-digit',
@@ -80,6 +80,13 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                 Dự trù
             </Badge>
         );
+    };
+
+    const getApproverLabel = (order: OrderHistory) => {
+        if (order.source === 'manual' && !order.nguoiPheDuyet) {
+            return 'Không qua duyệt';
+        }
+        return order.nguoiPheDuyet || 'Chưa xác định';
     };
 
     return (
@@ -166,6 +173,8 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Quy cách</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Nguồn</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Ngày gọi</th>
+                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Người duyệt</th>
+                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Người gọi</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Trạng thái</th>
                                                                 </tr>
                                                             </thead>
@@ -205,6 +214,12 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {formatDate(order.ngayDatHang)}
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                            {getApproverLabel(order)}
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                            {order.nguoiDatHang || 'Chưa xác định'}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-center">
                                                                             <Badge

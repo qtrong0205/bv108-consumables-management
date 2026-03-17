@@ -1,3 +1,5 @@
+import { OrderHistory, OrderRequest } from '@/types';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 const AUTH_TOKEN_KEY = 'bv108_auth_token';
@@ -33,6 +35,73 @@ export interface PaginationResponse<T> {
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+export interface OrderListResponse<T> {
+  data: T[];
+}
+
+export interface CreateForecastOrdersRequest {
+  items: CreateOrderItemRequest[];
+}
+
+export interface CreateOrderItemRequest {
+  nhaThau: string;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  maHieu: string;
+  hangSx: string;
+  donViTinh: string;
+  quyCach: string;
+  dotGoiHang: number;
+  email?: string;
+}
+
+export interface MutationMessageResponse {
+  message: string;
+  count?: number;
+}
+
+export interface PlaceOrdersRequest {
+  orderIds: number[];
+}
+
+export interface PlaceOrdersResponse {
+  message: string;
+  placedCount: number;
+}
+
+export interface ApiForecastApproval {
+  id: number;
+  forecastMonth: number;
+  forecastYear: number;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  status: 'approved' | 'rejected' | 'edited';
+  lyDo?: string;
+  duTruGoc?: number;
+  duTruSua?: number;
+  nguoiDuyet: string;
+  nguoiDuyetEmail?: string;
+  thoiGianDuyet: string;
+}
+
+export interface SaveForecastApprovalRequest {
+  forecastMonth: number;
+  forecastYear: number;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  status: 'approved' | 'rejected' | 'edited';
+  lyDo?: string;
+  duTruGoc?: number;
+  duTruSua?: number;
+}
+
+export interface SaveForecastApprovalsBulkRequest {
+  items: SaveForecastApprovalRequest[];
 }
 
 export interface ApiCompareSupply {
@@ -276,6 +345,59 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ maThuVien }),
     });
+  }
+
+  async getPendingOrders(): Promise<OrderListResponse<OrderRequest>> {
+    return this.request<OrderListResponse<OrderRequest>>('/orders/pending', {
+      method: 'GET',
+    }, true);
+  }
+
+  async getOrderHistory(): Promise<OrderListResponse<OrderHistory>> {
+    return this.request<OrderListResponse<OrderHistory>>('/orders/history', {
+      method: 'GET',
+    }, true);
+  }
+
+  async createForecastOrders(payload: CreateForecastOrdersRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/pending/forecast', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async createManualOrder(payload: CreateOrderItemRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/pending/manual', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async placeOrders(payload: PlaceOrdersRequest): Promise<PlaceOrdersResponse> {
+    return this.request<PlaceOrdersResponse>('/orders/place', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async getForecastApprovals(month: number, year: number): Promise<OrderListResponse<ApiForecastApproval>> {
+    return this.request<OrderListResponse<ApiForecastApproval>>(`/forecast-approvals?month=${month}&year=${year}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async saveForecastApproval(payload: SaveForecastApprovalRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/forecast-approvals', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async saveForecastApprovalsBulk(payload: SaveForecastApprovalsBulkRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/forecast-approvals/bulk', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
   }
 }
 

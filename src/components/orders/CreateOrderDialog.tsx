@@ -10,7 +10,7 @@ import { OrderRequest } from '@/types';
 interface CreateOrderDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (order: OrderRequest) => void;
+    onSubmit: (order: OrderRequest) => void | Promise<void>;
 }
 
 export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: CreateOrderDialogProps) {
@@ -28,6 +28,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleInputChange = (field: keyof OrderRequest, value: any) => {
         setFormData(prev => ({
@@ -58,7 +59,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!validateForm()) return;
 
         const newOrder: OrderRequest = {
@@ -76,23 +77,28 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
             source: 'manual',
         };
 
-        onSubmit(newOrder);
+        setIsSubmitting(true);
+        try {
+            await onSubmit(newOrder);
 
-        // Reset form
-        setFormData({
-            nhaThau: '',
-            maQuanLy: '',
-            maVtytCu: '',
-            tenVtytBv: '',
-            maHieu: '',
-            hangSx: '',
-            donViTinh: '',
-            quyCach: '',
-            dotGoiHang: 1,
-            email: '',
-        });
-        setErrors({});
-        onOpenChange(false);
+            // Reset form
+            setFormData({
+                nhaThau: '',
+                maQuanLy: '',
+                maVtytCu: '',
+                tenVtytBv: '',
+                maHieu: '',
+                hangSx: '',
+                donViTinh: '',
+                quyCach: '',
+                dotGoiHang: 1,
+                email: '',
+            });
+            setErrors({});
+            onOpenChange(false);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -288,14 +294,16 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
+                        disabled={isSubmitting}
                     >
                         Hủy
                     </Button>
                     <Button
                         onClick={handleSubmit}
+                        disabled={isSubmitting}
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                        Tạo đơn hàng
+                        {isSubmitting ? 'Đang tạo...' : 'Tạo đơn hàng'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

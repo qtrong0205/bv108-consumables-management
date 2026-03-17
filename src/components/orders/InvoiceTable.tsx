@@ -106,7 +106,7 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
         });
     };
 
-    const formatDate = (date: Date) => {
+    const formatDate = (date: string | Date) => {
         return new Date(date).toLocaleDateString('vi-VN', {
             day: '2-digit',
             month: '2-digit',
