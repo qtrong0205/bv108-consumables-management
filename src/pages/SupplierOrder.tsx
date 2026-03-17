@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,20 +9,25 @@ import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
 import CreateOrderDialog from '@/components/orders/CreateOrderDialog';
 
-import { OrderHistory, OrderRequest } from '@/types';
+import { OrderRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
 
 export default function SupplierOrder() {
     const { toast } = useToast();
-    const { approvedOrders, removeOrders, orderHistory, addToOrderHistory, addManualOrder } = useOrder();
+    const { approvedOrders, orderHistory, addManualOrder, placeOrders, loadingOrders, refreshOrders } = useOrder();
 
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const activeOrders = approvedOrders;
 
-    const handlePlaceOrder = () => {
+    useEffect(() => {
+        void refreshOrders().catch(() => undefined);
+    }, []);
+
+    const handlePlaceOrder = async () => {
         if (selectedOrders.length === 0) {
             toast({
                 title: 'Chưa chọn đơn hàng',
@@ -32,36 +37,45 @@ export default function SupplierOrder() {
             return;
         }
 
-        const now = new Date();
+        setIsSubmitting(true);
+        try {
+            const placedCount = await placeOrders(selectedOrders);
+            setSelectedOrders([]);
 
-        const newHistory: OrderHistory[] = activeOrders
-            .filter(order => selectedOrders.includes(order.id))
-            .map(order => ({
-                ...order,
-                ngayDatHang: now,
-                trangThai: 'Đã gửi email',
-                emailSent: true,
-            }));
-
-        removeOrders(selectedOrders);
-
-        addToOrderHistory(newHistory);
-        setSelectedOrders([]);
-
-        toast({
-            title: 'Đặt hàng thành công',
-            description: `Đã gửi ${newHistory.length} vật tư`,
-        });
+            toast({
+                title: 'Đặt hàng thành công',
+                description: `Đã gửi ${placedCount} vật tư`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Đặt hàng thất bại',
+                description: error instanceof Error ? error.message : 'Không thể lưu lịch sử đơn hàng',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleCreateOrder = (order: OrderRequest) => {
-        addManualOrder(order);
-        setIsCreateDialogOpen(false);
+    const handleCreateOrder = async (order: OrderRequest) => {
+        setIsSubmitting(true);
+        try {
+            await addManualOrder(order);
+            setIsCreateDialogOpen(false);
 
-        toast({
-            title: 'Tạo đơn hàng thành công',
-            description: `Đơn hàng "${order.tenVtytBv}" đã được thêm vào danh sách gọi hàng`,
-        });
+            toast({
+                title: 'Tạo đơn hàng thành công',
+                description: `Đơn hàng "${order.tenVtytBv}" đã được thêm vào danh sách gọi hàng`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Tạo đơn hàng thất bại',
+                description: error instanceof Error ? error.message : 'Không thể lưu đơn hàng mới',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -97,16 +111,20 @@ export default function SupplierOrder() {
 
                             <Button
                                 onClick={handlePlaceOrder}
-                                disabled={selectedOrders.length === 0}
+                                disabled={selectedOrders.length === 0 || isSubmitting}
                                 className="gap-2"
                             >
                                 <Mail className="w-4 h-4" />
-                                ĐẶT HÀNG ({selectedOrders.length})
+                                {isSubmitting ? 'ĐANG XỬ LÝ...' : `ĐẶT HÀNG (${selectedOrders.length})`}
                             </Button>
                         </div>
 
                         <TabsContent value="active">
-                            {activeOrders.length > 0 ? (
+                            {loadingOrders ? (
+                                <p className="text-center text-muted-foreground py-12">
+                                    Đang tải danh sách gọi hàng...
+                                </p>
+                            ) : activeOrders.length > 0 ? (
                                 <OrderRequestTable
                                     orders={activeOrders}
                                     selectedOrders={selectedOrders}
@@ -120,7 +138,11 @@ export default function SupplierOrder() {
                         </TabsContent>
 
                         <TabsContent value="history">
-                            {orderHistory.length > 0 ? (
+                            {loadingOrders ? (
+                                <p className="text-center text-muted-foreground py-12">
+                                    Đang tải lịch sử gọi hàng...
+                                </p>
+                            ) : orderHistory.length > 0 ? (
                                 <OrderHistoryTable orders={orderHistory} />
                             ) : (
                                 <p className="text-center text-muted-foreground py-12">

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import InvoiceTable from '@/components/orders/InvoiceTable';
@@ -10,8 +11,12 @@ export default function InvoiceManagement() {
     // Load invoice data từ uBot
     useInvoiceData();
     
-    const { invoices, orderHistory } = useOrder();
+    const { invoices, orderHistory, refreshOrders, loadingOrders } = useOrder();
     const { hoaDons, loading, error, refetch } = useHoaDonUBot();
+
+    useEffect(() => {
+        void refreshOrders().catch(() => undefined);
+    }, []);
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -31,10 +36,16 @@ export default function InvoiceManagement() {
                 <TabsContent value="reconcile" className="mt-6">
                     <Card>
                         <CardContent className="pt-6">
-                            <InvoiceTable 
-                                orders={orderHistory}
-                                invoices={invoices}
-                            />
+                            {loadingOrders ? (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    Đang tải lịch sử đơn hàng...
+                                </div>
+                            ) : (
+                                <InvoiceTable 
+                                    orders={orderHistory}
+                                    invoices={invoices}
+                                />
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

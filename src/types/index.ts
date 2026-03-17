@@ -1,3 +1,5 @@
+export type OrderSource = 'forecast' | 'manual';
+
 export interface MedicalSupply {
     id: number;                // MA_QUAN_LY
     maVtyt: string;            // MA_VTYT_C
@@ -33,13 +35,21 @@ export interface OrderRequest {
     quyCach: string;           // QUY_CACH
     dotGoiHang: number;        // Đợt gọi hàng
     email?: string;            // Email của nhà thầu
-    source?: 'forecast' | 'manual';  // Nguồn gốc: từ dự trù (forecast) hay form thủ công (manual)
+    source?: OrderSource;      // Nguồn gốc: từ dự trù (forecast) hay form thủ công (manual)
+    nguoiPheDuyet?: string;    // Người phê duyệt dự trù
+    nguoiPheDuyetEmail?: string;
+    thoiGianPheDuyet?: string | Date;
+    nguoiTaoDon?: string;      // Người tạo đơn vào danh sách chờ gọi
+    nguoiTaoDonEmail?: string;
+    ngayTao?: string | Date;
 }
 
 export interface OrderHistory extends OrderRequest {
-    ngayDatHang: Date;         // Ngày đặt hàng
+    ngayDatHang: string | Date; // Ngày đặt hàng
     trangThai: string;         // Trạng thái đơn hàng
     emailSent?: boolean;       // Đã gửi email chưa
+    nguoiDatHang: string;      // Người trực tiếp bấm gọi hàng
+    nguoiDatHangEmail?: string;
 }
 
 // Hóa đơn từ uBot
