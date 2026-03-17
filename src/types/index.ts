@@ -36,6 +36,7 @@ export interface OrderRequest {
     dotGoiHang: number;        // Số lượng đặt hàng
     email?: string;            // Email của nhà thầu
     source?: OrderSource;      // Nguồn gốc: từ dự trù (forecast) hay form thủ công (manual)
+    groupKey?: string;         // Nhóm đơn hàng theo từng đợt duyệt
     nguoiPheDuyet?: string;    // Người phê duyệt dự trù
     nguoiPheDuyetEmail?: string;
     thoiGianPheDuyet?: string | Date;

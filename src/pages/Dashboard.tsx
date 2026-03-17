@@ -5,9 +5,11 @@ import TopItemsTable from '@/components/dashboard/TopItemsTable';
 import InventoryByGroupChart from '@/components/dashboard/InventoryByGroupChart';
 import { Package, AlertTriangle, ShoppingCart, CheckCircle } from 'lucide-react';
 import { useSupplies } from '@/hooks/use-supplies';
+import { useOrder } from '@/context/OrderContext';
 
 export default function Dashboard() {
     const { supplies, loading, total } = useSupplies(1, 1000); // Lấy tất cả vật tư
+    const { orderHistory } = useOrder();
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -66,7 +68,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <UsageChart supplies={supplies} />
+                <UsageChart supplies={supplies} orderHistory={orderHistory} />
                 <InventoryByGroupChart supplies={supplies} loading={loading} />
             </div>
 

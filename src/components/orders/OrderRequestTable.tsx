@@ -15,8 +15,8 @@ const getOrderTime = (order: OrderRequest): number => {
 
 interface OrderRequestTableProps {
     orders: OrderRequest[];
-    unreadOrderIds: number[];
-    onMarkOrdersRead: (ids: number[]) => void;
+    unreadGroupKeys: string[];
+    onMarkGroupsRead: (groupKeys: string[]) => void;
     selectedOrders: number[];
     setSelectedOrders: (ids: number[]) => void;
 }
@@ -31,6 +31,10 @@ interface SupplierGroup {
 }
 
 const getApprovalGroupKey = (order: OrderRequest): string => {
+    if (order.groupKey && order.groupKey.trim().length > 0) {
+        return order.groupKey;
+    }
+
     const t = order.thoiGianPheDuyet ?? order.ngayTao;
     if (!t) return `${order.nhaThau}__id_${order.id}`;
 
@@ -53,7 +57,7 @@ const formatDateTime = (value?: string | Date) => {
     });
 };
 
-export default function OrderRequestTable({ orders, unreadOrderIds, onMarkOrdersRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
+export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroupsRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     // State để track các nhà thầu đang mở rộng
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
     const [selectedCompany, setSelectedCompany] = useState('all');
@@ -119,10 +123,7 @@ export default function OrderRequestTable({ orders, unreadOrderIds, onMarkOrders
             const newSet = new Set(prev);
             const isExpanding = !newSet.has(groupKey);
             if (isExpanding) {
-                const targetGroup = supplierGroups.find((group) => group.groupKey === groupKey);
-                if (targetGroup) {
-                    onMarkOrdersRead(targetGroup.orders.map((order) => order.id));
-                }
+                    onMarkGroupsRead([groupKey]);
             }
             if (newSet.has(groupKey)) {
                 newSet.delete(groupKey);
@@ -220,7 +221,7 @@ export default function OrderRequestTable({ orders, unreadOrderIds, onMarkOrders
         return 'mixed';
     };
 
-    const isUnreadOrder = (orderId: number) => unreadOrderIds.includes(orderId);
+    const unreadGroupKeySet = useMemo(() => new Set(unreadGroupKeys), [unreadGroupKeys]);
 
     // Update indeterminate state cho checkbox
     useEffect(() => {
@@ -359,7 +360,7 @@ export default function OrderRequestTable({ orders, unreadOrderIds, onMarkOrders
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {group.orders.some((order) => isUnreadOrder(order.id)) && (
+                                                {unreadGroupKeySet.has(group.groupKey) && (
                                                     <span
                                                         className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"
                                                         title="Nhóm công ty vừa có đơn mới"

@@ -19,10 +19,10 @@ export default function SupplierOrder() {
     const { toast } = useToast();
     const {
         approvedOrders,
-        unreadOrderIds,
+        unreadGroupKeys,
         hasSupplierNotification,
         clearSupplierNotification,
-        markOrdersAsRead,
+        markGroupsAsRead,
         orderHistory,
         addManualOrder,
         placeOrders,
@@ -155,8 +155,8 @@ export default function SupplierOrder() {
                             ) : activeOrders.length > 0 ? (
                                 <OrderRequestTable
                                     orders={activeOrders}
-                                    unreadOrderIds={unreadOrderIds}
-                                    onMarkOrdersRead={markOrdersAsRead}
+                                    unreadGroupKeys={unreadGroupKeys}
+                                    onMarkGroupsRead={markGroupsAsRead}
                                     selectedOrders={selectedOrders}
                                     setSelectedOrders={setSelectedOrders}
                                 />

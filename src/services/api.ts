@@ -72,6 +72,15 @@ export interface PlaceOrdersResponse {
   placedCount: number;
 }
 
+export interface OrderUnreadSnapshot {
+  hasSupplierRedDot: boolean;
+  unreadGroupKeys: string[];
+}
+
+export interface MarkGroupsSeenRequest {
+  groupKeys: string[];
+}
+
 export interface ApiForecastApproval {
   id: number;
   forecastMonth: number;
@@ -375,6 +384,25 @@ class ApiService {
 
   async placeOrders(payload: PlaceOrdersRequest): Promise<PlaceOrdersResponse> {
     return this.request<PlaceOrdersResponse>('/orders/place', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async getOrderUnreadSnapshot(): Promise<{ data: OrderUnreadSnapshot }> {
+    return this.request<{ data: OrderUnreadSnapshot }>('/orders/unread-snapshot', {
+      method: 'GET',
+    }, true);
+  }
+
+  async markSupplierAlertSeen(): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/alerts/suppliers/seen', {
+      method: 'POST',
+    }, true);
+  }
+
+  async markOrderGroupsSeen(payload: MarkGroupsSeenRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/groups/seen', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, true);
