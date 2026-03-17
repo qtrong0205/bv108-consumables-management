@@ -168,7 +168,7 @@ export default function InventoryCatalog() {
             {/* Debug Component */}
             {error && <ApiDebug />}
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-3 bg-tertiary/95 backdrop-blur supports-[backdrop-filter]:bg-tertiary/80 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Danh mục tồn kho</h1>
                     <p className="text-muted-foreground">

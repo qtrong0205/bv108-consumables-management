@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
+
+const supplierOrderUiCache = { activeTab: 'active' };
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Mail, Plus } from 'lucide-react';
@@ -15,11 +17,37 @@ import { useOrder } from '@/context/OrderContext';
 
 export default function SupplierOrder() {
     const { toast } = useToast();
-    const { approvedOrders, orderHistory, addManualOrder, placeOrders, loadingOrders, refreshOrders } = useOrder();
+    const {
+        approvedOrders,
+        unreadOrderIds,
+        hasSupplierNotification,
+        clearSupplierNotification,
+        markOrdersAsRead,
+        orderHistory,
+        addManualOrder,
+        placeOrders,
+        loadingOrders,
+        refreshOrders
+    } = useOrder();
 
+    const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);
     const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        supplierOrderUiCache.activeTab = activeTab;
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (!hasSupplierNotification) return;
+
+        const timeoutId = setTimeout(() => {
+            clearSupplierNotification();
+        }, 1000);
+
+        return () => clearTimeout(timeoutId);
+    }, [hasSupplierNotification, clearSupplierNotification]);
 
     const activeOrders = approvedOrders;
 
@@ -80,7 +108,7 @@ export default function SupplierOrder() {
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
-            <div className="flex justify-between items-start">
+            <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-3 bg-tertiary/95 backdrop-blur supports-[backdrop-filter]:bg-tertiary/80 border-b border-border flex justify-between items-start">
                 <div>
                     <h1 className="text-2xl font-semibold mb-2">Gọi hàng</h1>
                     <p className="text-muted-foreground">
@@ -98,8 +126,8 @@ export default function SupplierOrder() {
 
             <Card>
                 <CardContent className="pt-6">
-                    <Tabs defaultValue="active">
-                        <div className="flex justify-between mb-4">
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                        <div className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border-b border-border/70 pb-3 mb-4 flex justify-between">
                             <TabsList className="grid grid-cols-2 w-[300px]">
                                 <TabsTrigger value="active">
                                     Đơn cần gọi ({activeOrders.length})
@@ -127,6 +155,8 @@ export default function SupplierOrder() {
                             ) : activeOrders.length > 0 ? (
                                 <OrderRequestTable
                                     orders={activeOrders}
+                                    unreadOrderIds={unreadOrderIds}
+                                    onMarkOrdersRead={markOrdersAsRead}
                                     selectedOrders={selectedOrders}
                                     setSelectedOrders={setSelectedOrders}
                                 />

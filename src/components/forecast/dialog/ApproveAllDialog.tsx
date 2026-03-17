@@ -30,10 +30,10 @@ const ApproveAllDialog = ({
                 <DialogHeader>
                     <DialogTitle className="text-foreground flex items-center gap-2">
                         <CheckCheck className="w-5 h-5 text-green-500" />
-                        Xác nhận phê duyệt tất cả
+                        Xác nhận phê duyệt vật tư đã chọn
                     </DialogTitle>
                     <DialogDescription className="text-muted-foreground">
-                        Bạn có chắc chắn muốn phê duyệt tất cả vật tư đang chờ duyệt?
+                        Bạn có chắc chắn muốn phê duyệt các vật tư đã tick chọn?
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -64,7 +64,7 @@ const ApproveAllDialog = ({
                         className="bg-green-600 hover:bg-green-700 text-white"
                     >
                         <CheckCheck className="w-4 h-4 mr-2" />
-                        Xác nhận duyệt tất cả
+                        Xác nhận duyệt đã chọn
                     </Button>
                 </DialogFooter>
             </DialogContent>

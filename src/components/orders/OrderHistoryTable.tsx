@@ -93,15 +93,23 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
         <div className="space-y-4">
             <div className="rounded-md border border-border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                            <col style={{ width: '44px' }} />
+                            <col />
+                            <col style={{ width: '140px' }} />
+                            <col style={{ width: '130px' }} />
+                            <col style={{ width: '110px' }} />
+                            <col style={{ width: '130px' }} />
+                        </colgroup>
                         <thead className="bg-primary text-primary-foreground">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-12"></th>
+                                <th className="px-4 py-3 text-left text-xs font-medium"></th>
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Số vật tư đã gọi</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Lần gọi gần nhất</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Nguồn gốc</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Số vật tư đã gọi</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Lần gọi gần nhất</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Nguồn gốc</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Trạng thái</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -161,22 +169,36 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                         {isExpanded && (
                                             <tr key={`${group.nhaThau}-items`}>
                                                 <td colSpan={6} className="p-0">
-                                                    <div className="bg-background border-l-4 border-green-300">
-                                                        <table className="w-full">
-                                                            <thead className="bg-tertiary/50">
+                                                    <div className="bg-background border-l-4 border-green-400 overflow-x-auto">
+                                                        <table className="w-full min-w-[900px]" style={{ tableLayout: 'fixed' }}>
+                                                            <colgroup>
+                                                                <col style={{ width: '40px' }} />
+                                                                <col style={{ width: '90px' }} />
+                                                                <col style={{ width: '220px' }} />
+                                                                <col style={{ width: '140px' }} />
+                                                                <col style={{ width: '55px' }} />
+                                                                <col style={{ width: '90px' }} />
+                                                                <col style={{ width: '65px' }} />
+                                                                <col style={{ width: '80px' }} />
+                                                                <col style={{ width: '130px' }} />
+                                                                <col style={{ width: '110px' }} />
+                                                                <col style={{ width: '110px' }} />
+                                                                <col style={{ width: '100px' }} />
+                                                            </colgroup>
+                                                            <thead className="bg-green-50 dark:bg-green-950/20 border-b border-green-200">
                                                                 <tr>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">STT</th>
-                                                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Mã VT</th>
-                                                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Tên vật tư</th>
-                                                                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Hãng SX</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">ĐVT</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Quy cách</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Số lượng</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Nguồn</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Ngày gọi</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Người duyệt</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Người gọi</th>
-                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Trạng thái</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">STT</th>
+                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Mã VT</th>
+                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Tên vật tư</th>
+                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hãng SX</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">ĐVT</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Quy cách</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">SL</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Nguồn</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Ngày gọi</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Người duyệt</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Người gọi</th>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Trạng thái</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -185,50 +207,44 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                         key={`${order.id}-${index}`}
                                                                         className="border-b border-border/50 hover:bg-muted/30 transition-colors"
                                                                     >
-                                                                        <td className="px-4 py-2 text-xs text-muted-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-muted-foreground text-center">
                                                                             {index + 1}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs font-mono text-foreground">
+                                                                        <td className="px-3 py-2 text-xs font-mono text-foreground truncate" title={order.maVtytCu}>
                                                                             {order.maVtytCu}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-sm text-foreground">
-                                                                            <div className="max-w-[250px]">
-                                                                                <p className="font-medium truncate" title={order.tenVtytBv}>
-                                                                                    {order.tenVtytBv}
-                                                                                </p>
-                                                                                <p className="text-xs text-muted-foreground truncate" title={order.maHieu}>
-                                                                                    {order.maHieu}
-                                                                                </p>
-                                                                            </div>
+                                                                        <td className="px-3 py-2 text-xs text-foreground">
+                                                                            <p className="font-medium truncate" title={order.tenVtytBv}>{order.tenVtytBv}</p>
+                                                                            <p className="text-[11px] text-muted-foreground truncate" title={order.maHieu ?? ''}>{order.maHieu}</p>
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground">
+                                                                        <td className="px-3 py-2 text-xs text-foreground truncate" title={order.hangSx}>
                                                                             {order.hangSx}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-foreground text-center">
                                                                             {order.donViTinh}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-foreground text-center truncate" title={order.quyCach}>
                                                                             {order.quyCach}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs font-semibold text-foreground text-center">
                                                                             {order.dotGoiHang}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-center">
-                                                                            {getSourceBadge(order.source)}
+                                                                        <td className="px-3 py-2">
+                                                                            <div className="flex justify-center">{getSourceBadge(order.source)}</div>
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-foreground text-center whitespace-nowrap">
                                                                             {formatDate(order.ngayDatHang)}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-foreground text-center truncate" title={getApproverLabel(order)}>
                                                                             {getApproverLabel(order)}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                        <td className="px-3 py-2 text-xs text-foreground text-center truncate" title={order.nguoiDatHang || ''}>
                                                                             {order.nguoiDatHang || 'Chưa xác định'}
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             <Badge
                                                                                 variant="outline"
-                                                                                className="bg-green-100 text-green-700 border-green-300 text-[10px]"
+                                                                                className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap"
                                                                             >
                                                                                 {order.trangThai}
                                                                             </Badge>

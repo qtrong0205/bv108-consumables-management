@@ -11,11 +11,11 @@ export default function DashboardLayout({ userRole, onLogout }: DashboardLayoutP
     const location = useLocation();
 
     return (
-        <div className="min-h-screen bg-tertiary flex">
+        <div className="h-screen overflow-hidden bg-tertiary flex">
             <Sidebar currentPath={location.pathname} />
-            <div className="flex-1 flex flex-col min-h-screen min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 h-screen">
                 <Topbar userRole={userRole} onLogout={onLogout} />
-                <main className="flex-1 overflow-auto">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden">
                     <Outlet />
                 </main>
             </div>

@@ -36,6 +36,26 @@ const CURRENT_DATE = new Date();
 const CURRENT_MONTH = CURRENT_DATE.getMonth() + 1; // 1-12
 const CURRENT_YEAR = CURRENT_DATE.getFullYear();
 
+type MaterialForecastUiCache = {
+    searchTerm: string;
+    selectedCategories: string[];
+    selectedSuppliers: string[];
+    page: number;
+    pageSize: number;
+    activeTab: string;
+    selectedRowKeys: string[];
+};
+
+const materialForecastUiCache: MaterialForecastUiCache = {
+    searchTerm: '',
+    selectedCategories: [],
+    selectedSuppliers: [],
+    page: 1,
+    pageSize: 100,
+    activeTab: 'forecast',
+    selectedRowKeys: [],
+};
+
 const extractPackQuantity = (quyCach: string): number => {
     const matched = quyCach.match(/\d+/);
     if (!matched) return 1;
@@ -98,15 +118,19 @@ const mapApprovalRecordToState = (record: ApiForecastApproval): {
 });
 
 export default function MaterialForecast() {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState(materialForecastUiCache.searchTerm);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(materialForecastUiCache.selectedCategories);
+    const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(materialForecastUiCache.selectedSuppliers);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(100);
-    const [total, setTotal] = useState(0);
-    const [totalPages, setTotalPages] = useState(1);
+    const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false);
+    const [page, setPage] = useState(materialForecastUiCache.page);
+    const [pageSize, setPageSize] = useState(materialForecastUiCache.pageSize);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState<IVatTuDuTru[]>([]);
+    const suppliers = useMemo(
+        () => [...new Set(data.map((item) => item.nhaThau).filter((supplier) => supplier && supplier.trim().length > 0))].sort((a, b) => a.localeCompare(b)),
+        [data]
+    );
     const filteredData = useMemo(() => {
         let filtered = data;
 
@@ -114,12 +138,22 @@ export default function MaterialForecast() {
             filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom || ''));
         }
 
+        if (selectedSuppliers.length > 0) {
+            filtered = filtered.filter((item) => selectedSuppliers.includes(item.nhaThau || ''));
+        }
+
         return filtered;
-    }, [data, selectedCategories]);
-    const [loadingSupplies, setLoadingSupplies] = useState(false);
+    }, [data, selectedCategories, selectedSuppliers]);
+    const total = filteredData.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const paginatedFilteredData = useMemo(() => {
+        const startIndex = (page - 1) * pageSize;
+        return filteredData.slice(startIndex, startIndex + pageSize);
+    }, [filteredData, page, pageSize]);
+    const [loadingSupplies, setLoadingSupplies] = useState(true);
     const { toast } = useToast();
     const { groups: categories } = useSupplyGroups();
-    const [activeTab, setActiveTab] = useState('forecast');
+    const [activeTab, setActiveTab] = useState(materialForecastUiCache.activeTab);
 
     // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
     const { addApprovedOrder, addApprovedOrdersBulk } = useOrder();
@@ -134,6 +168,7 @@ export default function MaterialForecast() {
     const [approvalStates, setApprovalStates] = useState<ApprovalState>({});
     const [approvalRecords, setApprovalRecords] = useState<ApiForecastApproval[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
+    const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>(materialForecastUiCache.selectedRowKeys);
 
     // State cho lịch sử thay đổi
     const [historyLog, setHistoryLog] = useState<HistoryEntry[]>([]);
@@ -153,6 +188,16 @@ export default function MaterialForecast() {
         window.scrollTo(0, 0);
     }, []);
 
+    useEffect(() => {
+        materialForecastUiCache.searchTerm = searchTerm;
+        materialForecastUiCache.selectedCategories = selectedCategories;
+        materialForecastUiCache.selectedSuppliers = selectedSuppliers;
+        materialForecastUiCache.page = page;
+        materialForecastUiCache.pageSize = pageSize;
+        materialForecastUiCache.activeTab = activeTab;
+        materialForecastUiCache.selectedRowKeys = selectedRowKeys;
+    }, [searchTerm, selectedCategories, selectedSuppliers, page, pageSize, activeTab, selectedRowKeys]);
+
     const refreshApprovalRecords = async () => {
         const response = await apiService.getForecastApprovals(CURRENT_MONTH, CURRENT_YEAR);
         setApprovalRecords(response.data);
@@ -169,38 +214,66 @@ export default function MaterialForecast() {
     }, [toast]);
 
     useEffect(() => {
+        if (page <= totalPages) return;
+        setPage(totalPages);
+    }, [page, totalPages]);
+
+    useEffect(() => {
+        let isDisposed = false;
+
         const fetchSupplies = async () => {
             try {
                 setLoadingSupplies(true);
                 setError(null);
 
                 const keyword = searchTerm.trim();
-                const response = keyword
-                    ? await apiService.searchSupplies(keyword, page, pageSize)
-                    : await apiService.getSupplies(page, pageSize);
+                const apiPageSize = 500;
+                const firstResponse = keyword
+                    ? await apiService.searchSupplies(keyword, 1, apiPageSize)
+                    : await apiService.getSupplies(1, apiPageSize);
 
-                const baseIndex = (response.page - 1) * response.pageSize;
-                const forecastRows = response.data
+                let allSupplies = [...firstResponse.data];
+                const apiTotalPages = firstResponse.totalPages || 1;
+
+                if (apiTotalPages > 1) {
+                    const pendingRequests: Promise<{ data: ApiSupply[] }>[] = [];
+                    for (let current = 2; current <= apiTotalPages; current += 1) {
+                        pendingRequests.push(
+                            keyword
+                                ? apiService.searchSupplies(keyword, current, apiPageSize)
+                                : apiService.getSupplies(current, apiPageSize)
+                        );
+                    }
+
+                    const remainingResponses = await Promise.all(pendingRequests);
+                    remainingResponses.forEach((response) => {
+                        allSupplies = allSupplies.concat(response.data);
+                    });
+                }
+
+                const forecastRows = allSupplies
                     .filter(shouldShowInForecast)
-                    .map((item, index) => mapSupplyToForecastItem(item, baseIndex + index));
+                    .map((item, index) => mapSupplyToForecastItem(item, index));
 
+                if (isDisposed) return;
                 setData(forecastRows);
-                setTotal(response.total);
-                setTotalPages(response.totalPages || 1);
             } catch (fetchError) {
                 const message = fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu vật tư';
+                if (isDisposed) return;
                 setError(message);
                 setData([]);
-                setTotal(0);
-                setTotalPages(1);
             } finally {
+                if (isDisposed) return;
                 setLoadingSupplies(false);
             }
         };
 
         const timeoutId = setTimeout(fetchSupplies, 300);
-        return () => clearTimeout(timeoutId);
-    }, [searchTerm, page, pageSize]);
+        return () => {
+            isDisposed = true;
+            clearTimeout(timeoutId);
+        };
+    }, [searchTerm]);
 
     useEffect(() => {
         if (!error) return;
@@ -239,18 +312,91 @@ export default function MaterialForecast() {
             }
             return [...prev, category];
         });
+        setPage(1);
     };
 
     const handleSelectAllCategories = () => {
         if (selectedCategories.length === categories.length) {
             setSelectedCategories([]);
+            setPage(1);
             return;
         }
         setSelectedCategories([...categories]);
+        setPage(1);
     };
 
     const handleClearCategories = () => {
         setSelectedCategories([]);
+        setPage(1);
+    };
+
+    const handleSupplierToggle = (supplier: string) => {
+        setSelectedSuppliers((prev) => {
+            if (prev.includes(supplier)) {
+                return prev.filter((s) => s !== supplier);
+            }
+            return [...prev, supplier];
+        });
+        setPage(1);
+    };
+
+    const handleSelectAllSuppliers = () => {
+        if (selectedSuppliers.length === suppliers.length) {
+            setSelectedSuppliers([]);
+            setPage(1);
+            return;
+        }
+        setSelectedSuppliers([...suppliers]);
+        setPage(1);
+    };
+
+    const handleClearSuppliers = () => {
+        setSelectedSuppliers([]);
+        setPage(1);
+    };
+
+    const getRowSelectionKey = (item: IVatTuDuTru) => `${item.stt}-${item.maVtytCu}`;
+
+    const isRowSelectable = (item: IVatTuDuTru) => !approvalStates[item.stt];
+
+    const selectableItems = useMemo(
+        () => filteredData.filter((item) => isRowSelectable(item)),
+        [filteredData, approvalStates]
+    );
+
+    const selectedPendingItems = useMemo(() => {
+        if (selectedRowKeys.length === 0) return [];
+        const selectedKeySet = new Set(selectedRowKeys);
+        return selectableItems.filter((item) => selectedKeySet.has(getRowSelectionKey(item)));
+    }, [selectableItems, selectedRowKeys]);
+
+    useEffect(() => {
+        if (loadingSupplies) return;
+        const visibleSelectableKeySet = new Set(selectableItems.map((item) => getRowSelectionKey(item)));
+        setSelectedRowKeys((prev) => prev.filter((key) => visibleSelectableKeySet.has(key)));
+    }, [selectableItems, loadingSupplies]);
+
+    const isRowSelected = (item: IVatTuDuTru) => selectedRowKeys.includes(getRowSelectionKey(item));
+
+    const handleRowSelectToggle = (item: IVatTuDuTru, checked: boolean) => {
+        if (!isRowSelectable(item)) return;
+
+        const key = getRowSelectionKey(item);
+        setSelectedRowKeys((prev) => {
+            if (checked) {
+                return prev.includes(key) ? prev : [...prev, key];
+            }
+            return prev.filter((rowKey) => rowKey !== key);
+        });
+    };
+
+    const handleToggleSelectAllRows = (checked: boolean) => {
+        if (!checked) {
+            setSelectedRowKeys([]);
+            return;
+        }
+
+        setSelectedRowKeys(selectableItems.map((item) => getRowSelectionKey(item)));
     };
 
     const buildForecastApprovalPayload = (
@@ -822,14 +968,26 @@ export default function MaterialForecast() {
     };
 
     // Đếm số vật tư chưa duyệt
-    const pendingCount = filteredData.filter(item => !approvalStates[item.stt]).length;
-    const approvedCount = filteredData.filter(item => approvalStates[item.stt]?.status === 'approved' || approvalStates[item.stt]?.status === 'edited').length;
+    const pendingCount = paginatedFilteredData.filter(item => !approvalStates[item.stt]).length;
+    const selectedPendingCount = selectedPendingItems.length;
+    const allSelectableRowsSelected = selectableItems.length > 0 && selectedPendingCount === selectableItems.length;
+    const someSelectableRowsSelected = selectedPendingCount > 0 && selectedPendingCount < selectableItems.length;
+    const approvedCount = paginatedFilteredData.filter(item => approvalStates[item.stt]?.status === 'approved' || approvalStates[item.stt]?.status === 'edited').length;
 
     // Duyệt tất cả
     const handleApproveAll = async () => {
         const newApprovalStates: ApprovalState = { ...approvalStates };
         const now = new Date();
-        const pendingItems = filteredData.filter(item => !approvalStates[item.stt]);
+        const pendingItems = selectedPendingItems;
+
+        if (pendingItems.length === 0) {
+            toast({
+                title: "Chưa chọn vật tư",
+                description: "Vui lòng tick chọn ít nhất 1 vật tư để duyệt.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         try {
             await apiService.saveForecastApprovalsBulk({
@@ -864,6 +1022,7 @@ export default function MaterialForecast() {
         });
 
         setApprovalStates(newApprovalStates);
+        setSelectedRowKeys([]);
         setIsApproveAllDialogOpen(false);
 
         // Cập nhật hàng loạt vào bản ghi tháng hiện tại
@@ -884,13 +1043,12 @@ export default function MaterialForecast() {
 
         toast({
             title: "Duyệt tất cả thành công",
-            description: `Đã phê duyệt ${pendingCount} vật tư chưa duyệt`,
+            description: `Đã phê duyệt ${pendingItems.length} vật tư đã chọn`,
         });
     };
 
-    // Tính tổng giá trị của các vật tư chưa duyệt
-    const pendingTotalValue = filteredData
-        .filter(item => !approvalStates[item.stt])
+    // Tính tổng giá trị của các vật tư đã chọn để duyệt
+    const pendingTotalValue = selectedPendingItems
         .reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
 
     // Lấy badge cho loại hành động trong lịch sử
@@ -915,7 +1073,7 @@ export default function MaterialForecast() {
     return (
         <div className="p-6 lg:p-8 space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-3 bg-tertiary/95 backdrop-blur supports-[backdrop-filter]:bg-tertiary/80 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Dự trù vật tư</h1>
                     <p className="text-muted-foreground">Lập kế hoạch dự trù và gọi hàng vật tư y tế</p>
@@ -939,10 +1097,10 @@ export default function MaterialForecast() {
                     <Button
                         className="bg-green-600 hover:bg-green-700 text-white font-normal"
                         onClick={() => setIsApproveAllDialogOpen(true)}
-                        disabled={pendingCount === 0}
+                        disabled={selectedPendingCount === 0}
                     >
                         <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
-                        Duyệt tất cả ({pendingCount})
+                        Duyệt tất cả ({selectedPendingCount})
                     </Button>
                 </div>
             </div>
@@ -972,24 +1130,31 @@ export default function MaterialForecast() {
                         approvedCount,
                     }}
                     tableData={{
-                        filteredData,
+                        filteredData: paginatedFilteredData,
                         searchTerm,
                         isSearching: searchTerm.trim().length > 0,
                         categories,
                         selectedCategories,
+                        suppliers,
+                        selectedSuppliers,
                         categoryPopoverOpen,
+                        supplierPopoverOpen,
                         page,
                         pageSize,
                         total,
                         totalPages,
                         error,
-                        totalOnPage: data.length,
+                        totalOnPage: total,
                         loading: loadingSupplies,
                         onSearchChange: handleSearchChange,
                         onCategoryPopoverOpenChange: setCategoryPopoverOpen,
                         onCategoryToggle: handleCategoryToggle,
                         onSelectAllCategories: handleSelectAllCategories,
                         onClearCategories: handleClearCategories,
+                        onSupplierPopoverOpenChange: setSupplierPopoverOpen,
+                        onSupplierToggle: handleSupplierToggle,
+                        onSelectAllSuppliers: handleSelectAllSuppliers,
+                        onClearSuppliers: handleClearSuppliers,
                         onPageChange: setPage,
                         onPageSizeChange: (size: number) => {
                             setPageSize(size);
@@ -1002,6 +1167,12 @@ export default function MaterialForecast() {
                         onForecastChange: handleForecastChange,
                         onForecastFocus: handleForecastFocus,
                         onForecastBlur: handleForecastBlur,
+                        isRowSelected,
+                        isRowSelectable,
+                        onRowSelectToggle: handleRowSelectToggle,
+                        allSelectableRowsSelected,
+                        someSelectableRowsSelected,
+                        onToggleSelectAllRows: handleToggleSelectAllRows,
                     }}
                 />
 
@@ -1049,7 +1220,7 @@ export default function MaterialForecast() {
             <ApproveAllDialog
                 isApproveAllDialogOpen={isApproveAllDialogOpen}
                 setIsApproveAllDialogOpen={setIsApproveAllDialogOpen}
-                pendingCount={pendingCount}
+                pendingCount={selectedPendingCount}
                 pendingTotalValue={pendingTotalValue}
                 handleApproveAll={handleApproveAll}
             />

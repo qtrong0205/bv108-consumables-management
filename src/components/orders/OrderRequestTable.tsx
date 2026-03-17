@@ -2,47 +2,105 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { OrderRequest } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus, Funnel } from 'lucide-react';
+import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus, Funnel, ArrowUpDown, Clock3 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type SortOrder = 'newest' | 'oldest';
+
+const getOrderTime = (order: OrderRequest): number => {
+    const t = order.thoiGianPheDuyet ?? order.ngayTao;
+    if (!t) return 0;
+    return new Date(t).getTime();
+};
 
 interface OrderRequestTableProps {
     orders: OrderRequest[];
+    unreadOrderIds: number[];
+    onMarkOrdersRead: (ids: number[]) => void;
     selectedOrders: number[];
     setSelectedOrders: (ids: number[]) => void;
 }
 
 // Interface cho nhóm Nhà thầu
 interface SupplierGroup {
+    groupKey: string;
     nhaThau: string;
+    approvedAt: string | Date | undefined;
+    sortTime: number;
     orders: OrderRequest[];
 }
 
-export default function OrderRequestTable({ orders, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
+const getApprovalGroupKey = (order: OrderRequest): string => {
+    const t = order.thoiGianPheDuyet ?? order.ngayTao;
+    if (!t) return `${order.nhaThau}__id_${order.id}`;
+
+    const parsed = new Date(t).getTime();
+    if (Number.isNaN(parsed)) return `${order.nhaThau}__raw_${String(t)}`;
+
+    return `${order.nhaThau}__${new Date(parsed).toISOString()}`;
+};
+
+const formatDateTime = (value?: string | Date) => {
+    if (!value) return 'Không rõ thời gian duyệt';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'Không rõ thời gian duyệt';
+    return d.toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+export default function OrderRequestTable({ orders, unreadOrderIds, onMarkOrdersRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     // State để track các nhà thầu đang mở rộng
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
     const [selectedCompany, setSelectedCompany] = useState('all');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
 
     // Refs cho checkbox indeterminate state
     const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
     // Gom nhóm vật tư theo Nhà thầu
     const supplierGroups = useMemo(() => {
-        const groups: { [key: string]: OrderRequest[] } = {};
+        const groups: { [key: string]: SupplierGroup } = {};
 
         orders.forEach(order => {
-            if (!groups[order.nhaThau]) {
-                groups[order.nhaThau] = [];
+            const groupKey = getApprovalGroupKey(order);
+            if (!groups[groupKey]) {
+                groups[groupKey] = {
+                    groupKey,
+                    nhaThau: order.nhaThau,
+                    approvedAt: order.thoiGianPheDuyet ?? order.ngayTao,
+                    sortTime: getOrderTime(order),
+                    orders: [],
+                };
             }
-            groups[order.nhaThau].push(order);
+
+            groups[groupKey].orders.push(order);
+            const orderTime = getOrderTime(order);
+            if (orderTime > groups[groupKey].sortTime) {
+                groups[groupKey].sortTime = orderTime;
+                groups[groupKey].approvedAt = order.thoiGianPheDuyet ?? order.ngayTao;
+            }
         });
 
-        return Object.entries(groups).map(([nhaThau, groupOrders]): SupplierGroup => ({
-            nhaThau,
-            orders: groupOrders,
-        })).sort((a, b) => a.nhaThau.localeCompare(b.nhaThau));
-    }, [orders]);
+        return Object.values(groups).map((group): SupplierGroup => ({
+            ...group,
+            orders: [...group.orders].sort((a, b) =>
+                sortOrder === 'newest'
+                    ? getOrderTime(b) - getOrderTime(a)
+                    : getOrderTime(a) - getOrderTime(b)
+            ),
+        })).sort((a, b) => {
+            return sortOrder === 'newest'
+                ? b.sortTime - a.sortTime
+                : a.sortTime - b.sortTime;
+        });
+    }, [orders, sortOrder]);
 
-    const companyOptions = useMemo(() => supplierGroups.map((group) => group.nhaThau), [supplierGroups]);
+    const companyOptions = useMemo(() => [...new Set(supplierGroups.map((group) => group.nhaThau))], [supplierGroups]);
 
     const visibleSupplierGroups = useMemo(() => {
         if (selectedCompany === 'all') {
@@ -56,13 +114,20 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
     }, [visibleSupplierGroups]);
 
     // Toggle mở rộng nhà thầu
-    const toggleExpand = (nhaThau: string) => {
+    const toggleExpand = (groupKey: string) => {
         setExpandedSuppliers(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(nhaThau)) {
-                newSet.delete(nhaThau);
+            const isExpanding = !newSet.has(groupKey);
+            if (isExpanding) {
+                const targetGroup = supplierGroups.find((group) => group.groupKey === groupKey);
+                if (targetGroup) {
+                    onMarkOrdersRead(targetGroup.orders.map((order) => order.id));
+                }
+            }
+            if (newSet.has(groupKey)) {
+                newSet.delete(groupKey);
             } else {
-                newSet.add(nhaThau);
+                newSet.add(groupKey);
             }
             return newSet;
         });
@@ -155,10 +220,12 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
         return 'mixed';
     };
 
+    const isUnreadOrder = (orderId: number) => unreadOrderIds.includes(orderId);
+
     // Update indeterminate state cho checkbox
     useEffect(() => {
         supplierGroups.forEach(group => {
-            const checkbox = checkboxRefs.current[group.nhaThau];
+            const checkbox = checkboxRefs.current[group.groupKey];
             if (checkbox) {
                 const state = getSupplierCheckState(group);
                 const input = checkbox.querySelector('input');
@@ -171,21 +238,35 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-end gap-2">
-                <Funnel className="w-4 h-4 text-muted-foreground" />
-                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                    <SelectTrigger className="w-full max-w-sm bg-neutral text-foreground border-border h-9">
-                        <SelectValue placeholder="Lọc theo công ty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Tất cả công ty</SelectItem>
-                        {companyOptions.map((company) => (
-                            <SelectItem key={company} value={company}>
-                                {company}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                    <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                    <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as SortOrder)}>
+                        <SelectTrigger className="w-52 bg-neutral text-foreground border-border h-9">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="newest">Mới nhất đến cũ nhất</SelectItem>
+                            <SelectItem value="oldest">Cũ nhất đến mới nhất</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Funnel className="w-4 h-4 text-muted-foreground" />
+                    <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                        <SelectTrigger className="w-full max-w-sm bg-neutral text-foreground border-border h-9">
+                            <SelectValue placeholder="Lọc theo công ty" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả công ty</SelectItem>
+                            {companyOptions.map((company) => (
+                                <SelectItem key={company} value={company}>
+                                    {company}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
             <div className="rounded-md border border-border overflow-hidden">
@@ -206,24 +287,25 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Số vật tư</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Nguồn gốc</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">Trạng thái</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-10"></th>
                             </tr>
                         </thead>
                         <tbody>
                             {visibleSupplierGroups.map((group) => {
-                                const isExpanded = expandedSuppliers.has(group.nhaThau);
+                                const isExpanded = expandedSuppliers.has(group.groupKey);
                                 const checkState = getSupplierCheckState(group);
                                 const status = getSupplierStatus(group);
 
                                 return (
-                                    <React.Fragment key={group.nhaThau}>
+                                    <React.Fragment key={group.groupKey}>
                                         {/* Dòng Nhà thầu */}
                                         <tr
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                                            onClick={() => toggleExpand(group.nhaThau)}
+                                            onClick={() => toggleExpand(group.groupKey)}
                                         >
                                             <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                                                 <Checkbox
-                                                    ref={(el) => { checkboxRefs.current[group.nhaThau] = el; }}
+                                                    ref={(el) => { checkboxRefs.current[group.groupKey] = el; }}
                                                     checked={checkState === 'checked'}
                                                     onCheckedChange={(checked: boolean) => handleSupplierCheck(group, checked)}
                                                     aria-label={`Chọn nhà thầu ${group.nhaThau}`}
@@ -240,9 +322,15 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Building2 className="w-4 h-4 text-primary" />
-                                                    <span className="font-medium text-sm text-foreground">{group.nhaThau}</span>
+                                                <div className="flex items-start gap-2">
+                                                    <Building2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-sm text-foreground truncate" title={group.nhaThau}>{group.nhaThau}</p>
+                                                        <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                            <Clock3 className="w-3 h-3 shrink-0" />
+                                                            <span className="truncate" title={formatDateTime(group.approvedAt)}>{formatDateTime(group.approvedAt)}</span>
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -270,12 +358,20 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
                                                     </Badge>
                                                 </div>
                                             </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {group.orders.some((order) => isUnreadOrder(order.id)) && (
+                                                    <span
+                                                        className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"
+                                                        title="Nhóm công ty vừa có đơn mới"
+                                                    />
+                                                )}
+                                            </td>
                                         </tr>
 
                                         {/* Bảng con - Danh sách vật tư */}
                                         {isExpanded && (
-                                            <tr key={`${group.nhaThau}-items`}>
-                                                <td colSpan={6} className="p-0">
+                                            <tr key={`${group.groupKey}-items`}>
+                                                <td colSpan={7} className="p-0">
                                                     <div className="bg-background border-l-4 border-primary/30">
                                                         <table className="w-full">
                                                             <thead className="bg-tertiary/50">
@@ -363,7 +459,7 @@ export default function OrderRequestTable({ orders, selectedOrders, setSelectedO
             <div className="flex items-center justify-between text-sm text-muted-foreground px-2">
                 <div className="flex items-center gap-4">
                     <span>
-                        <strong className="text-foreground">{visibleSupplierGroups.length}</strong> nhà thầu
+                        <strong className="text-foreground">{visibleSupplierGroups.length}</strong> nhóm duyệt
                     </span>
                     <span>
                         <strong className="text-foreground">{visibleOrderIds.length}</strong> vật tư

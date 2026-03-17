@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
+import { useOrder } from '@/context/OrderContext';
 
 interface SidebarProps {
     currentPath: string;
@@ -10,6 +11,7 @@ interface SidebarProps {
 
 export default function Sidebar({ currentPath }: SidebarProps) {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const { hasSupplierNotification } = useOrder();
 
     const navItems = [
         { path: '/dashboard', label: 'Tổng quan' },
@@ -40,7 +42,7 @@ export default function Sidebar({ currentPath }: SidebarProps) {
 
             <aside
                 className={cn(
-                    'fixed lg:static inset-y-0 left-0 z-40 w-64 bg-primary text-primary-foreground flex flex-col transition-transform duration-200 ease-in-out',
+                    'fixed lg:sticky lg:top-0 lg:h-screen lg:shrink-0 inset-y-0 left-0 z-40 w-64 bg-primary text-primary-foreground flex flex-col transition-transform duration-200 ease-in-out',
                     isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 )}
             >
@@ -70,6 +72,12 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                                 )}
                             >
                                 <span className="text-sm">{item.label}</span>
+                                {item.path === '/suppliers' && hasSupplierNotification && (
+                                    <span
+                                        className="ml-auto inline-block w-2.5 h-2.5 rounded-full bg-red-500"
+                                        title="Có đơn mới cần xử lý"
+                                    />
+                                )}
                             </Link>
                         );
                     })}

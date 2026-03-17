@@ -25,7 +25,10 @@ interface IForecastTableProps {
         isSearching: boolean;
         categories: string[];
         selectedCategories: string[];
+        suppliers: string[];
+        selectedSuppliers: string[];
         categoryPopoverOpen: boolean;
+        supplierPopoverOpen: boolean;
         page: number;
         pageSize: number;
         total: number;
@@ -37,6 +40,10 @@ interface IForecastTableProps {
         onCategoryToggle: (category: string) => void;
         onSelectAllCategories: () => void;
         onClearCategories: () => void;
+        onSupplierPopoverOpenChange: (open: boolean) => void;
+        onSupplierToggle: (supplier: string) => void;
+        onSelectAllSuppliers: () => void;
+        onClearSuppliers: () => void;
         onPageChange: (page: number) => void;
         onPageSizeChange: (size: number) => void;
     };
@@ -46,6 +53,12 @@ interface IForecastTableProps {
         onForecastChange: (stt: number, value: string) => void;
         onForecastFocus: (stt: number, value: number) => void;
         onForecastBlur: (stt: number, newValue: number) => void;
+        isRowSelected: (item: IVatTuDuTru) => boolean;
+        isRowSelectable: (item: IVatTuDuTru) => boolean;
+        onRowSelectToggle: (item: IVatTuDuTru, checked: boolean) => void;
+        allSelectableRowsSelected: boolean;
+        someSelectableRowsSelected: boolean;
+        onToggleSelectAllRows: (checked: boolean) => void;
     };
 }
 
@@ -54,6 +67,7 @@ const ForecastTable = ({
     tableData,
     handlers,
 }: IForecastTableProps) => {
+    const [supplierSearchTerm, setSupplierSearchTerm] = React.useState('');
     const { totalForecast, totalOrder, totalValue, approvedCount } = statistics;
     const {
         filteredData,
@@ -62,7 +76,10 @@ const ForecastTable = ({
         isSearching,
         categories,
         selectedCategories,
+        suppliers,
+        selectedSuppliers,
         categoryPopoverOpen,
+        supplierPopoverOpen,
         page,
         pageSize,
         total,
@@ -74,10 +91,32 @@ const ForecastTable = ({
         onCategoryToggle,
         onSelectAllCategories,
         onClearCategories,
+        onSupplierPopoverOpenChange,
+        onSupplierToggle,
+        onSelectAllSuppliers,
+        onClearSuppliers,
         onPageChange,
         onPageSizeChange,
     } = tableData;
-    const { onRowClick, getStatusBadge, onForecastChange, onForecastFocus, onForecastBlur } = handlers;
+    const {
+        onRowClick,
+        getStatusBadge,
+        onForecastChange,
+        onForecastFocus,
+        onForecastBlur,
+        isRowSelected,
+        isRowSelectable,
+        onRowSelectToggle,
+        allSelectableRowsSelected,
+        someSelectableRowsSelected,
+        onToggleSelectAllRows,
+    } = handlers;
+
+    const visibleSuppliers = React.useMemo(() => {
+        const keyword = supplierSearchTerm.trim().toLowerCase();
+        if (!keyword) return suppliers;
+        return suppliers.filter((supplier) => supplier.toLowerCase().includes(keyword));
+    }, [suppliers, supplierSearchTerm]);
 
     return (
         <TabsContent value="forecast" className="space-y-6">
@@ -222,6 +261,92 @@ const ForecastTable = ({
                             </PopoverContent>
                         </Popover>
 
+                        <Popover open={supplierPopoverOpen} onOpenChange={onSupplierPopoverOpenChange}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full md:w-72 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">
+                                        {selectedSuppliers.length === 0
+                                            ? 'Tất cả công ty'
+                                            : selectedSuppliers.length === 1
+                                                ? selectedSuppliers[0]
+                                                : `${selectedSuppliers.length} công ty đã chọn`}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn công ty</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={onSelectAllSuppliers}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {selectedSuppliers.length === suppliers.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3">
+                                        <Input
+                                            type="search"
+                                            placeholder="Tìm tên công ty..."
+                                            value={supplierSearchTerm}
+                                            onChange={(e) => setSupplierSearchTerm(e.target.value)}
+                                            className="h-8 bg-neutral text-foreground border-border"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {visibleSuppliers.map((supplier, index) => {
+                                        const supplierId = `supplier-${index}`;
+                                        return (
+                                            <div
+                                                key={supplier}
+                                                className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                                onClick={() => onSupplierToggle(supplier)}
+                                            >
+                                                <Checkbox
+                                                    id={supplierId}
+                                                    checked={selectedSuppliers.includes(supplier)}
+                                                    onCheckedChange={() => onSupplierToggle(supplier)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                                <label
+                                                    htmlFor={supplierId}
+                                                    className="text-sm text-foreground cursor-pointer flex-1 truncate"
+                                                    title={supplier}
+                                                >
+                                                    {supplier}
+                                                </label>
+                                            </div>
+                                        );
+                                    })}
+                                    {visibleSuppliers.length === 0 && (
+                                        <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                                            Không tìm thấy công ty phù hợp
+                                        </div>
+                                    )}
+                                </div>
+                                {selectedSuppliers.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onClearSuppliers}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc công ty
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
                         <Select value={pageSize.toString()} onValueChange={(v) => onPageSizeChange(Number(v))}>
                             <SelectTrigger className="w-full md:w-40 bg-neutral text-foreground border-border">
                                 <SelectValue />
@@ -235,7 +360,7 @@ const ForecastTable = ({
                         </Select>
                     </div>
 
-                    {selectedCategories.length > 0 && (
+                    {(selectedCategories.length > 0 || selectedSuppliers.length > 0) && (
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
                             <span className="text-sm text-muted-foreground">Đang lọc:</span>
                             {selectedCategories.map((category) => (
@@ -249,8 +374,23 @@ const ForecastTable = ({
                                     <X className="w-3 h-3 ml-1" />
                                 </Badge>
                             ))}
+                            {selectedSuppliers.map((supplier) => (
+                                <Badge
+                                    key={`supplier-${supplier}`}
+                                    variant="secondary"
+                                    className="bg-secondary/10 text-secondary border-secondary/20 cursor-pointer hover:bg-secondary/20"
+                                    onClick={() => onSupplierToggle(supplier)}
+                                    title={supplier}
+                                >
+                                    {supplier}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
                             <button
-                                onClick={onClearCategories}
+                                onClick={() => {
+                                    onClearCategories();
+                                    onClearSuppliers();
+                                }}
                                 className="text-xs text-muted-foreground hover:text-foreground underline"
                             >
                                 Xóa tất cả
@@ -288,6 +428,14 @@ const ForecastTable = ({
                                 <table className="w-full min-w-[1200px]">
                             <thead className="bg-primary text-primary-foreground">
                                 <tr>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap">
+                                        <Checkbox
+                                            checked={allSelectableRowsSelected ? true : (someSelectableRowsSelected ? 'indeterminate' : false)}
+                                            onCheckedChange={(checked) => onToggleSelectAllRows(checked === true)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            aria-label="Chọn tất cả vật tư chưa duyệt trên trang"
+                                        />
+                                    </th>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">STT</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
                                     <th className="px-3 py-3 text-left text-xs font-medium">Tên vật tư</th>
@@ -309,6 +457,14 @@ const ForecastTable = ({
                                         className="hover:bg-tertiary transition-colors cursor-pointer"
                                         onClick={() => onRowClick(item)}
                                     >
+                                        <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <Checkbox
+                                                checked={isRowSelected(item)}
+                                                disabled={!isRowSelectable(item)}
+                                                onCheckedChange={(checked) => onRowSelectToggle(item, checked === true)}
+                                                aria-label={`Chọn vật tư ${item.tenVtytBv}`}
+                                            />
+                                        </td>
                                         <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
                                         <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
                                         <td className="px-3 py-3 text-xs text-foreground">
@@ -372,7 +528,7 @@ const ForecastTable = ({
                             </tbody>
                             <tfoot className="bg-tertiary border-t-2 border-border">
                                 <tr>
-                                    <td colSpan={10} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
+                                    <td colSpan={11} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
                                         Tổng cộng:
                                     </td>
                                     <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">
@@ -394,7 +550,7 @@ const ForecastTable = ({
                         </CardContent>
                     </Card>
 
-                    {!isSearching && selectedCategories.length === 0 && (
+                    {totalPages > 0 && (
                         <Pagination
                             currentPage={page}
                             totalPages={totalPages}
@@ -404,7 +560,7 @@ const ForecastTable = ({
                         />
                     )}
 
-                    {(isSearching || selectedCategories.length > 0) && (
+                    {(isSearching || selectedCategories.length > 0 || selectedSuppliers.length > 0) && (
                         <div className="text-center text-sm text-muted-foreground">
                             Đang hiển thị {filteredData.length} / {totalOnPage} vật tư (đã filter)
                         </div>

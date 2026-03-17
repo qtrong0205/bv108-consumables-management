@@ -25,15 +25,21 @@ const supplierData = [
 
 const COLORS = ['hsl(218, 100%, 40%)', 'hsl(218, 90%, 52%)', 'hsl(148, 48%, 40%)', 'hsl(38, 90%, 50%)', 'hsl(210, 10%, 60%)'];
 
+const reportsUiCache = { activeTab: 'summary' };
+
 export default function Reports() {
     const [dateRange, setDateRange] = useState('last-month');
     const [category, setCategory] = useState('all');
     const [supplier, setSupplier] = useState('all');
-    const [activeTab, setActiveTab] = useState('summary');
+    const [activeTab, setActiveTab] = useState(reportsUiCache.activeTab);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
+
+    useEffect(() => {
+        reportsUiCache.activeTab = activeTab;
+    }, [activeTab]);
 
     return (
         <div className="p-6 lg:p-8 space-y-6">

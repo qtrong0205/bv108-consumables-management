@@ -19,7 +19,7 @@ export default function Topbar({ userRole, onLogout }: TopbarProps) {
     const navigate = useNavigate();
 
     return (
-        <header className="h-16 bg-neutral border-b border-border flex items-center justify-between px-6 lg:px-8">
+        <header className="sticky top-0 z-40 h-16 bg-neutral border-b border-border flex items-center justify-between px-6 lg:px-8">
             <div className="flex items-center gap-6 flex-1">
                 <h2 className="text-lg font-semibold text-foreground hidden sm:block">Bệnh Viện TWQĐ 108</h2>
             </div>

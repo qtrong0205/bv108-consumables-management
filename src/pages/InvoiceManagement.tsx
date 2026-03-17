@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
+const invoiceUiCache = { activeTab: 'reconcile' };
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import InvoiceTable from '@/components/orders/InvoiceTable';
@@ -8,6 +10,12 @@ import { useInvoiceData } from '@/hooks/use-invoice-data';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
 
 export default function InvoiceManagement() {
+    const [activeTab, setActiveTab] = useState(invoiceUiCache.activeTab);
+
+    useEffect(() => {
+        invoiceUiCache.activeTab = activeTab;
+    }, [activeTab]);
+
     // Load invoice data từ uBot
     useInvoiceData();
     
@@ -27,7 +35,7 @@ export default function InvoiceManagement() {
                 </p>
             </div>
 
-            <Tabs defaultValue="reconcile" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full max-w-md grid-cols-2">
                     <TabsTrigger value="reconcile">Đối chiếu đơn hàng</TabsTrigger>
                     <TabsTrigger value="ubot">Hóa đơn UBot</TabsTrigger>
