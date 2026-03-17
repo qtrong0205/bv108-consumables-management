@@ -2,6 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { OrderHistory, Invoice } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+    AlertTriangle,
+    Building2,
+    Calendar,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    FileX,
+    Package,
+} from 'lucide-react';
 
 interface InvoiceTableProps {
     orders: OrderHistory[];
@@ -19,6 +29,7 @@ interface ReconciliationResult {
 interface SupplierGroup {
     nhaThau: string;
     results: ReconciliationResult[];
+    latestDate: Date;
     stats: {
         matched: number;
         mismatched: number;
@@ -86,12 +97,13 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
         return Object.entries(groups).map(([nhaThau, results]): SupplierGroup => ({
             nhaThau,
             results,
+            latestDate: new Date(Math.max(...results.map(r => new Date(r.order.ngayDatHang).getTime()))),
             stats: {
                 matched: results.filter(r => r.status === 'matched').length,
                 mismatched: results.filter(r => r.status === 'mismatched').length,
                 noInvoice: results.filter(r => r.status === 'no-invoice').length,
             },
-        })).sort((a, b) => a.nhaThau.localeCompare(b.nhaThau));
+        })).sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
     }, [reconciliations, searchTerm]);
 
     const toggleExpand = (nhaThau: string) => {
@@ -118,23 +130,63 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
         switch (status) {
             case 'matched':
                 return (
-                    <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap">
                         Khớp
                     </Badge>
                 );
             case 'mismatched':
                 return (
-                    <Badge variant="destructive">
+                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 text-[10px] whitespace-nowrap">
                         Sai lệch
                     </Badge>
                 );
             case 'no-invoice':
                 return (
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-[10px] whitespace-nowrap">
                         Chưa có HĐ
                     </Badge>
                 );
         }
+    };
+
+    const getGroupStatus = (group: SupplierGroup) => {
+        if (group.stats.mismatched > 0) {
+            return (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    Sai lệch
+                </Badge>
+            );
+        }
+        if (group.stats.noInvoice > 0) {
+            return (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    <FileX className="w-3 h-3 mr-1" />
+                    Chưa đủ HĐ
+                </Badge>
+            );
+        }
+        return (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Khớp hoàn toàn
+            </Badge>
+        );
+    };
+
+    const getGroupStatusHint = (group: SupplierGroup) => {
+        if (group.stats.mismatched > 0) {
+            return 'Có dòng sai số lượng';
+        }
+        if (group.stats.noInvoice > 0) {
+            return 'Thiếu hóa đơn một phần';
+        }
+        return 'Tất cả dòng đã khớp';
+    };
+
+    const toPercent = (count: number, total: number) => {
+        if (total <= 0) return 0;
+        return Math.round((count / total) * 100);
     };
 
     // Thống kê tổng
@@ -157,34 +209,26 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                 />
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 rounded-lg border bg-green-50 border-green-200">
-                    <div className="text-2xl font-bold text-green-700">{totalStats.matched}</div>
-                    <div className="text-sm text-green-600">Khớp</div>
-                </div>
-                <div className="p-4 rounded-lg border bg-red-50 border-red-200">
-                    <div className="text-2xl font-bold text-red-700">{totalStats.mismatched}</div>
-                    <div className="text-sm text-red-600">Sai lệch</div>
-                </div>
-                <div className="p-4 rounded-lg border bg-amber-50 border-amber-200">
-                    <div className="text-2xl font-bold text-amber-700">{totalStats.noInvoice}</div>
-                    <div className="text-sm text-amber-600">Chưa có HĐ</div>
-                </div>
-            </div>
-
             {/* Table */}
-            <div className="rounded-md border overflow-hidden">
+            <div className="rounded-md border border-border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                            <col style={{ width: '44px' }} />
+                            <col />
+                            <col style={{ width: '130px' }} />
+                            <col style={{ width: '150px' }} />
+                            <col style={{ width: '170px' }} />
+                            <col style={{ width: '260px' }} />
+                        </colgroup>
                         <thead className="bg-primary text-primary-foreground">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium w-12"></th>
+                                <th className="px-4 py-3 text-left text-xs font-medium"></th>
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium">Tổng</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium">Khớp</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium">Lệch</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium">Chưa HĐ</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Số vật tư đối chiếu</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Lần đặt gần nhất</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Trạng thái chính</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium">Tỷ lệ đối chiếu</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -195,26 +239,73 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                                     <React.Fragment key={group.nhaThau}>
                                         {/* Dòng nhà thầu */}
                                         <tr
-                                            className="border-b bg-muted/30 hover:bg-muted/50 cursor-pointer"
+                                            className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
                                             onClick={() => toggleExpand(group.nhaThau)}
                                         >
-                                            <td className="px-4 py-3 text-center">
-                                                {isExpanded ? '▼' : '▶'}
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-center text-muted-foreground">
+                                                    {isExpanded ? (
+                                                        <ChevronDown className="w-4 h-4" />
+                                                    ) : (
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <span className="font-medium">{group.nhaThau}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="w-4 h-4 text-primary" />
+                                                    <span className="font-medium text-sm text-foreground">{group.nhaThau}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center font-medium">
-                                                {group.results.length}
+                                            <td className="px-4 py-3 text-center">
+                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                    <Package className="w-3 h-3 mr-1" />
+                                                    {group.results.length}
+                                                </Badge>
                                             </td>
-                                            <td className="px-4 py-3 text-center text-green-600 font-semibold">
-                                                {group.stats.matched}
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="inline-flex flex-col items-center gap-1">
+                                                    <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                                        <Calendar className="w-3 h-3 mr-1" />
+                                                        {formatDate(group.latestDate).split(' ')[0]}
+                                                    </Badge>
+                                                    <span className="text-[11px] text-muted-foreground">mới nhất</span>
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center text-red-600 font-semibold">
-                                                {group.stats.mismatched}
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="inline-flex flex-col items-center gap-1">
+                                                    {getGroupStatus(group)}
+                                                    <span className="text-[11px] text-muted-foreground">{getGroupStatusHint(group)}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center text-amber-600 font-semibold">
-                                                {group.stats.noInvoice}
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="space-y-2">
+                                                    <div className="h-2.5 w-full max-w-[220px] mx-auto rounded-full bg-muted overflow-hidden flex">
+                                                        <div
+                                                            className="bg-green-500"
+                                                            style={{ width: `${toPercent(group.stats.matched, group.results.length)}%` }}
+                                                        />
+                                                        <div
+                                                            className="bg-red-500"
+                                                            style={{ width: `${toPercent(group.stats.mismatched, group.results.length)}%` }}
+                                                        />
+                                                        <div
+                                                            className="bg-amber-400"
+                                                            style={{ width: `${toPercent(group.stats.noInvoice, group.results.length)}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center justify-center gap-1.5 text-[11px]">
+                                                        <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
+                                                            Khớp {group.stats.matched}
+                                                        </span>
+                                                        <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">
+                                                            Lệch {group.stats.mismatched}
+                                                        </span>
+                                                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                                            Chưa HĐ {group.stats.noInvoice}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </td>
                                         </tr>
 
@@ -222,44 +313,58 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                                         {isExpanded && (
                                             <tr>
                                                 <td colSpan={6} className="p-0">
-                                                    <div className="bg-muted/10">
-                                                        <table className="w-full">
-                                                            <thead className="bg-muted/50">
+                                                    <div className="bg-background border-l-4 border-blue-400 overflow-x-auto">
+                                                        <table className="w-full min-w-[980px]" style={{ tableLayout: 'fixed' }}>
+                                                            <colgroup>
+                                                                <col style={{ width: '90px' }} />
+                                                                <col style={{ width: '260px' }} />
+                                                                <col style={{ width: '100px' }} />
+                                                                <col style={{ width: '140px' }} />
+                                                                <col style={{ width: '90px' }} />
+                                                                <col style={{ width: '100px' }} />
+                                                                <col style={{ width: '130px' }} />
+                                                                <col style={{ width: '100px' }} />
+                                                            </colgroup>
+                                                            <thead className="bg-blue-50 border-b border-blue-200">
                                                                 <tr className="text-xs">
-                                                                    <th className="px-4 py-2 text-left font-medium">Mã QL</th>
-                                                                    <th className="px-4 py-2 text-left font-medium">Tên vật tư</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">SL đặt</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">Mã HĐ</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">SL HĐ</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">Chênh lệch</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">Ngày đặt</th>
-                                                                    <th className="px-4 py-2 text-center font-medium">Trạng thái</th>
+                                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Mã QL</th>
+                                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tên vật tư</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL đặt</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Mã HĐ</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL HĐ</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Chênh lệch</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Ngày đặt</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Trạng thái</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {group.results.map((result, idx) => (
                                                                     <tr
                                                                         key={idx}
-                                                                        className={`border-b text-sm hover:bg-muted/30 ${
-                                                                            result.status === 'mismatched' ? 'bg-red-50/50' : ''
+                                                                        className={`border-b border-border/50 text-xs hover:bg-muted/30 ${
+                                                                            result.status === 'mismatched'
+                                                                                ? 'bg-red-50/60'
+                                                                                : result.status === 'no-invoice'
+                                                                                    ? 'bg-amber-50/50'
+                                                                                    : ''
                                                                         }`}
                                                                     >
-                                                                        <td className="px-4 py-3">
-                                                                            <span className="font-mono text-xs">
+                                                                        <td className="px-3 py-2">
+                                                                            <span className="font-mono text-xs truncate" title={result.order.maQuanLy}>
                                                                                 {result.order.maQuanLy}
                                                                             </span>
                                                                         </td>
-                                                                        <td className="px-4 py-3">
+                                                                        <td className="px-3 py-2">
                                                                             <div>
-                                                                                <div className="font-medium">
+                                                                                <div className="font-medium text-foreground truncate" title={result.order.tenVtytBv}>
                                                                                     {result.order.tenVtytBv}
                                                                                 </div>
-                                                                                <div className="text-xs text-muted-foreground">
+                                                                                <div className="text-[11px] text-muted-foreground truncate" title={`${result.order.hangSx} • ${result.order.quyCach}`}>
                                                                                     {result.order.hangSx} • {result.order.quyCach}
                                                                                 </div>
                                                                             </div>
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             <span className="font-semibold">
                                                                                 {result.order.dotGoiHang}
                                                                             </span>
@@ -267,16 +372,16 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                                                                                 {result.order.donViTinh}
                                                                             </span>
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             {result.invoice ? (
-                                                                                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                                                                                <span className="font-mono text-[11px] bg-gray-100 px-2 py-1 rounded border border-gray-200">
                                                                                     {result.invoice.maHoaDon}
                                                                                 </span>
                                                                             ) : (
                                                                                 <span className="text-muted-foreground">—</span>
                                                                             )}
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             {result.invoice ? (
                                                                                 <span className="font-semibold">
                                                                                     {result.invoice.soLuong}
@@ -285,7 +390,7 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                                                                                 <span className="text-muted-foreground">—</span>
                                                                             )}
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             {result.difference !== undefined ? (
                                                                                 <span
                                                                                     className={`font-bold ${
@@ -301,10 +406,10 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                                                                                 <span className="text-muted-foreground">—</span>
                                                                             )}
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center text-xs">
+                                                                        <td className="px-3 py-2 text-center whitespace-nowrap">
                                                                             {formatDate(result.order.ngayDatHang)}
                                                                         </td>
-                                                                        <td className="px-4 py-3 text-center">
+                                                                        <td className="px-3 py-2 text-center">
                                                                             {renderStatus(result.status)}
                                                                         </td>
                                                                     </tr>
@@ -330,6 +435,28 @@ export default function InvoiceTable({ orders, invoices }: InvoiceTableProps) {
                         : 'Chưa có đơn hàng nào được gửi email'}
                 </div>
             )}
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground px-2">
+                <div className="flex items-center gap-4">
+                    <span>
+                        <strong className="text-foreground">{supplierGroups.length}</strong> nhà thầu
+                    </span>
+                    <span>
+                        <strong className="text-foreground">{reconciliations.length}</strong> dòng đối chiếu
+                    </span>
+                </div>
+                <div className="flex items-center gap-4">
+                    <span className="text-green-700">
+                        Khớp: <strong>{totalStats.matched}</strong>
+                    </span>
+                    <span className="text-red-700">
+                        Sai lệch: <strong>{totalStats.mismatched}</strong>
+                    </span>
+                    <span className="text-amber-700">
+                        Chưa HĐ: <strong>{totalStats.noInvoice}</strong>
+                    </span>
+                </div>
+            </div>
         </div>
     );
 }

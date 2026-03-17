@@ -24,21 +24,24 @@ function App() {
     const initialAuth = getStoredAuth();
     const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialAuth?.token));
     const [userRole, setUserRole] = useState<string>(initialAuth ? formatRoleLabel(initialAuth.user.role) : '');
+    const [authSessionKey, setAuthSessionKey] = useState(initialAuth?.token ?? 'guest');
 
     const handleLogin = (auth: AuthResponse) => {
         storeAuth(auth);
         setIsAuthenticated(true);
         setUserRole(formatRoleLabel(auth.user.role));
+        setAuthSessionKey(auth.token);
     };
 
     const handleLogout = () => {
         clearStoredAuth();
         setIsAuthenticated(false);
         setUserRole('');
+        setAuthSessionKey('guest');
     };
 
     return (
-        <OrderProvider>
+        <OrderProvider key={authSessionKey}>
             <Router>
                 <Routes>
                     <Route

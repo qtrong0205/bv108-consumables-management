@@ -113,6 +113,52 @@ export interface SaveForecastApprovalsBulkRequest {
   items: SaveForecastApprovalRequest[];
 }
 
+export interface ApiForecastChangeHistoryRecord {
+  id: number;
+  forecastMonth: number;
+  forecastYear: number;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  actionType: 'approve' | 'reject' | 'edit';
+  statusBefore?: string;
+  statusAfter: 'approved' | 'rejected' | 'edited';
+  duTruGoc?: number;
+  duTruSua?: number;
+  nguoiThucHien: string;
+  nguoiThucHienEmail?: string;
+  thoiGianThucHien: string;
+}
+
+export interface ApiMonthlyForecastHistoryItem {
+  stt: number;
+  maVtyt: string;
+  tenVtyt: string;
+  quyCach: string;
+  donViTinh: string;
+  duTru: number;
+  goiHang: number;
+  donGia: number;
+  thanhTien: number;
+  trangThai: 'approved' | 'rejected' | 'edited';
+  nguoiDuyet: string;
+  ngayDuyet: string;
+}
+
+export interface ApiMonthlyForecastHistoryRecord {
+  id: string;
+  thang: number;
+  nam: number;
+  ngayTao: string;
+  ngayDuyet: string;
+  nguoiTao: string;
+  nguoiDuyet: string;
+  tongSoVatTu: number;
+  tongGiaTri: number;
+  trangThai: 'approved' | 'partial' | 'rejected';
+  danhSachVatTu: ApiMonthlyForecastHistoryItem[];
+}
+
 export interface ApiCompareSupply {
   stt: number;
   tenCongTy: { String: string; Valid: boolean } | null;
@@ -425,6 +471,18 @@ class ApiService {
     return this.request<MutationMessageResponse>('/forecast-approvals/bulk', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async getForecastChangeHistory(limit: number = 1000): Promise<OrderListResponse<ApiForecastChangeHistoryRecord>> {
+    return this.request<OrderListResponse<ApiForecastChangeHistoryRecord>>(`/forecast-approvals/history?limit=${limit}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async getForecastMonthlyHistory(): Promise<OrderListResponse<ApiMonthlyForecastHistoryRecord>> {
+    return this.request<OrderListResponse<ApiMonthlyForecastHistoryRecord>>('/forecast-approvals/monthly-history', {
+      method: 'GET',
     }, true);
   }
 }

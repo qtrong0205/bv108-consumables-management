@@ -54,6 +54,7 @@ const toManualPayload = (order: OrderRequest): CreateOrderItemRequest => ({
 });
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const RED_DOT_STORAGE_PREFIX = 'bv108_supplier_red_dot_';
 
 const buildWebsocketUrl = (token: string) => {
     const wsBase = API_BASE_URL.replace(/^http/i, 'ws');
@@ -75,8 +76,24 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const wsRef = useRef<WebSocket | null>(null);
     const wsReconnectTimeoutRef = useRef<number | null>(null);
 
+    const getRedDotStorageKey = () => {
+        const auth = getStoredAuth();
+        if (!auth) return null;
+        return `${RED_DOT_STORAGE_PREFIX}${auth.user.id}`;
+    };
+
+    const persistRedDotState = (value: boolean) => {
+        const key = getRedDotStorageKey();
+        if (!key) return;
+        localStorage.setItem(key, value ? '1' : '0');
+    };
+
     const applyUnreadSnapshot = (snapshot: OrderUnreadSnapshot) => {
-        setHasSupplierNotification(snapshot.hasSupplierRedDot);
+        setHasSupplierNotification((prev) => {
+            const next = snapshot.hasSupplierRedDot ? true : prev;
+            persistRedDotState(next);
+            return next;
+        });
         setUnreadGroupKeys(uniqueStrings(snapshot.unreadGroupKeys || []));
     };
 
@@ -91,6 +108,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             setApprovedOrders([]);
             setUnreadGroupKeys([]);
             setHasSupplierNotification(false);
+            persistRedDotState(false);
             setOrderHistory([]);
             return;
         }
@@ -152,6 +170,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 if (data.type === 'orders.new_pending') {
                     const payload = data.payload as { groupKeys?: string[] };
                     setHasSupplierNotification(true);
+                    persistRedDotState(true);
                     setUnreadGroupKeys((prev) => uniqueStrings([...prev, ...(payload.groupKeys || [])]));
                     void refreshOrders();
                     return;
@@ -180,6 +199,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!getStoredAuth()) {
             return;
+        }
+
+        const storageKey = getRedDotStorageKey();
+        if (storageKey) {
+            setHasSupplierNotification(localStorage.getItem(storageKey) === '1');
         }
 
         void refreshOrders().catch(() => undefined);
@@ -256,6 +280,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     const clearSupplierNotification = () => {
         setHasSupplierNotification(false);
+        persistRedDotState(false);
         void apiService.markSupplierAlertSeen()
             .then(() => fetchUnreadSnapshot())
             .catch(() => undefined);

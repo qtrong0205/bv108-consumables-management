@@ -22,7 +22,6 @@ import { ApprovalState, HistoryEntry, HistoryActionType, MonthlyForecastRecord, 
 import ForecastTable from '@/components/forecast/tabs/ForecastTable';
 import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
-import { MOCK_MONTHLY_FORECAST_HISTORY } from '@/data/forecast/mockMonthlyForecast';
 import { useOrder } from '@/context/OrderContext';
 import { apiService, ApiForecastApproval, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
@@ -177,10 +176,8 @@ export default function MaterialForecast() {
     const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null);
     const [isHistoryDetailDialogOpen, setIsHistoryDetailDialogOpen] = useState(false);
 
-    // State cho lịch sử dự trù theo tháng (ban đầu chỉ có mock data, chưa có tháng hiện tại)
-    const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([
-        ...MOCK_MONTHLY_FORECAST_HISTORY
-    ]);
+    // State cho lịch sử dự trù theo tháng
+    const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
     const currentUser = useMemo(() => getStoredAuth()?.user.username || 'Người dùng hệ thống', []);
 
@@ -203,11 +200,67 @@ export default function MaterialForecast() {
         setApprovalRecords(response.data);
     };
 
+    const refreshHistoryTabs = async () => {
+        const [historyResponse, monthlyResponse] = await Promise.all([
+            apiService.getForecastChangeHistory(1000),
+            apiService.getForecastMonthlyHistory(),
+        ]);
+
+        setHistoryLog(historyResponse.data.map((entry) => ({
+            id: entry.id,
+            stt: entry.id,
+            maVtyt: entry.maVtytCu,
+            tenVtyt: entry.tenVtytBv,
+            actionType: entry.actionType,
+            nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
+            thoiGian: new Date(entry.thoiGianThucHien),
+            chiTiet: {
+                duTruGoc: entry.duTruGoc,
+                duTruMoi: entry.duTruSua,
+            },
+        })));
+
+        setMonthlyForecastHistory(monthlyResponse.data.map((record) => ({
+            id: record.id,
+            thang: record.thang,
+            nam: record.nam,
+            ngayTao: new Date(record.ngayTao),
+            ngayDuyet: new Date(record.ngayDuyet),
+            nguoiTao: record.nguoiTao || 'Hệ thống',
+            nguoiDuyet: record.nguoiDuyet || 'Hệ thống',
+            tongSoVatTu: record.tongSoVatTu,
+            tongGiaTri: record.tongGiaTri,
+            trangThai: record.trangThai,
+            danhSachVatTu: record.danhSachVatTu.map((item) => ({
+                stt: item.stt,
+                maVtyt: item.maVtyt,
+                tenVtyt: item.tenVtyt,
+                quyCach: item.quyCach,
+                donViTinh: item.donViTinh,
+                duTru: item.duTru,
+                goiHang: item.goiHang,
+                donGia: item.donGia,
+                thanhTien: item.thanhTien,
+                trangThai: item.trangThai,
+                nguoiDuyet: item.nguoiDuyet,
+                ngayDuyet: new Date(item.ngayDuyet),
+            })),
+        })));
+    };
+
     useEffect(() => {
         void refreshApprovalRecords().catch((fetchError) => {
             toast({
                 title: 'Lỗi tải phê duyệt',
                 description: fetchError instanceof Error ? fetchError.message : 'Không tải được trạng thái phê duyệt',
+                variant: 'destructive',
+            });
+        });
+
+        void refreshHistoryTabs().catch((fetchError) => {
+            toast({
+                title: 'Lỗi tải lịch sử',
+                description: fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu lịch sử thay đổi',
                 variant: 'destructive',
             });
         });
@@ -749,6 +802,7 @@ export default function MaterialForecast() {
                 buildForecastApprovalPayload(selectedItem, 'approved')
             );
             await refreshApprovalRecords();
+            await refreshHistoryTabs();
         } catch (error) {
             toast({
                 title: "Phê duyệt thất bại",
@@ -777,18 +831,7 @@ export default function MaterialForecast() {
             }
         }));
 
-        // Cập nhật vào bản ghi tháng hiện tại
-        updateCurrentMonthRecord(selectedItem, 'approved', currentUser);
-
-        // Ghi lịch sử
-        addHistoryEntry({
-            stt: selectedItem.stt,
-            maVtyt: selectedItem.maVtytCu,
-            tenVtyt: selectedItem.tenVtytBv,
-            actionType: 'approve',
-            nguoiThucHien: currentUser,
-            thoiGian: now,
-        });
+        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
 
         toast({
             title: "Phê duyệt thành công",
@@ -820,6 +863,7 @@ export default function MaterialForecast() {
                 })
             );
             await refreshApprovalRecords();
+            await refreshHistoryTabs();
         } catch (error) {
             toast({
                 title: "Từ chối thất bại",
@@ -839,21 +883,7 @@ export default function MaterialForecast() {
             }
         }));
 
-        // Cập nhật vào bản ghi tháng hiện tại
-        updateCurrentMonthRecord(selectedItem, 'rejected', currentUser);
-
-        // Ghi lịch sử
-        addHistoryEntry({
-            stt: selectedItem.stt,
-            maVtyt: selectedItem.maVtytCu,
-            tenVtyt: selectedItem.tenVtytBv,
-            actionType: 'reject',
-            nguoiThucHien: currentUser,
-            thoiGian: now,
-            chiTiet: {
-                lyDo: lyDoTuChoi,
-            },
-        });
+        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
 
         toast({
             title: "Đã từ chối",
@@ -881,6 +911,7 @@ export default function MaterialForecast() {
                 })
             );
             await refreshApprovalRecords();
+            await refreshHistoryTabs();
         } catch (error) {
             toast({
                 title: "Sửa và duyệt thất bại",
@@ -922,22 +953,7 @@ export default function MaterialForecast() {
             }
         }));
 
-        // Cập nhật vào bản ghi tháng hiện tại (với số lượng đã sửa)
-        updateCurrentMonthRecord(selectedItem, 'edited', currentUser, editDuTru);
-
-        // Ghi lịch sử
-        addHistoryEntry({
-            stt: selectedItem.stt,
-            maVtyt: selectedItem.maVtytCu,
-            tenVtyt: selectedItem.tenVtytBv,
-            actionType: 'edit',
-            nguoiThucHien: currentUser,
-            thoiGian: now,
-            chiTiet: {
-                duTruGoc: selectedItem.duTru,
-                duTruMoi: editDuTru,
-            },
-        });
+        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
 
         toast({
             title: "Sửa và duyệt thành công",
@@ -994,6 +1010,7 @@ export default function MaterialForecast() {
                 items: pendingItems.map((item) => buildForecastApprovalPayload(item, 'approved')),
             });
             await refreshApprovalRecords();
+            await refreshHistoryTabs();
         } catch (error) {
             toast({
                 title: "Duyệt tất cả thất bại",
@@ -1025,21 +1042,7 @@ export default function MaterialForecast() {
         setSelectedRowKeys([]);
         setIsApproveAllDialogOpen(false);
 
-        // Cập nhật hàng loạt vào bản ghi tháng hiện tại
-        updateCurrentMonthRecordBulk(pendingItems, currentUser);
-
-        // Ghi lịch sử duyệt tất cả
-        addHistoryEntry({
-            stt: 0, // Không liên quan đến item cụ thể
-            maVtyt: '',
-            tenVtyt: `Duyệt hàng loạt ${pendingItems.length} vật tư`,
-            actionType: 'approve_all',
-            nguoiThucHien: currentUser,
-            thoiGian: now,
-            chiTiet: {
-                soLuongDuyet: pendingItems.length,
-            },
-        });
+        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
 
         toast({
             title: "Duyệt tất cả thành công",
