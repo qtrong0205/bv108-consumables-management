@@ -33,7 +33,7 @@ export interface OrderRequest {
     hangSx: string;            // HANG_SX
     donViTinh: string;         // DON_VI_TINH
     quyCach: string;           // QUY_CACH
-    dotGoiHang: number;        // Đợt gọi hàng
+    dotGoiHang: number;        // Số lượng đặt hàng
     email?: string;            // Email của nhà thầu
     source?: OrderSource;      // Nguồn gốc: từ dự trù (forecast) hay form thủ công (manual)
     nguoiPheDuyet?: string;    // Người phê duyệt dự trù

@@ -171,6 +171,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                     <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Hãng SX</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">ĐVT</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Quy cách</th>
+                                                                    <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Số lượng</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Nguồn</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Ngày gọi</th>
                                                                     <th className="px-4 py-2 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">Người duyệt</th>
@@ -208,6 +209,9 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs text-foreground text-center">
                                                                             {order.quyCach}
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-xs text-foreground text-center">
+                                                                            {order.dotGoiHang}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-center">
                                                                             {getSourceBadge(order.source)}

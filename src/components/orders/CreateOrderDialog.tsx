@@ -53,7 +53,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         if (!formData.tenVtytBv?.trim()) newErrors.tenVtytBv = 'Tên vật tư không được để trống';
         if (!formData.donViTinh?.trim()) newErrors.donViTinh = 'Đơn vị tính không được để trống';
         if (!formData.quyCach?.trim()) newErrors.quyCach = 'Quy cách không được để trống';
-        if (!formData.dotGoiHang || formData.dotGoiHang < 1) newErrors.dotGoiHang = 'Số lượng gọi hàng phải >= 1';
+        if (!formData.dotGoiHang || formData.dotGoiHang < 1) newErrors.dotGoiHang = 'Số lượng phải >= 1';
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -250,7 +250,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
 
                                 <div className="space-y-2">
                                     <Label htmlFor="dotGoiHang" className="text-foreground font-medium">
-                                        Số lượng gọi <span className="text-red-500">*</span>
+                                        Số lượng <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                         id="dotGoiHang"
