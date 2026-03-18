@@ -75,8 +75,9 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
     const quyCach = getNullableString(item.quyCach);
     const slTrongQuyCach = extractPackQuantity(quyCach);
     const slXuat = getNullableNumber(item.xuatTrongKy);
-    const slTon = item.tonCuoiKy;
+    const slTon = getNullableNumber(item.tonDauKy); // Dùng tồn đầu kỳ, không phải cuối kỳ
     const diff = slXuat - slTon;
+    // Công thức: dự trù = SL_XUAT nếu (SL_XUAT - SL_TON) <= 0, ngược lại = SL_XUAT - SL_TON
     const duTru = diff <= 0 ? slXuat : diff;
 
     return {
@@ -91,9 +92,9 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
         quyCach,
         slTrongQuyCach,
         donGia: getNullableNumber(item.price),
-        slXuat: getNullableNumber(item.xuatTrongKy),
-        slNhap: getNullableNumber(item.nhapTrongKy),
-        slTon: item.tonCuoiKy,
+        slXuat: getNullableNumber(item.xuatTrongKy), // SL xuất trong kỳ
+        slNhap: getNullableNumber(item.nhapTrongKy), // SL nhập trong kỳ
+        slTon: slTon, // SL tồn đầu kỳ
         nhaThau: getNullableString(item.nhaCungCap),
         duTru,
         goiHang: Math.ceil(duTru / slTrongQuyCach),
@@ -126,6 +127,7 @@ export default function MaterialForecast() {
     const [pageSize, setPageSize] = useState(materialForecastUiCache.pageSize);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState<IVatTuDuTru[]>([]);
+    const [approvalStates, setApprovalStates] = useState<ApprovalState>({});
     const suppliers = useMemo(
         () => [...new Set(data.map((item) => item.nhaThau).filter((supplier) => supplier && supplier.trim().length > 0))].sort((a, b) => a.localeCompare(b)),
         [data]
@@ -141,8 +143,21 @@ export default function MaterialForecast() {
             filtered = filtered.filter((item) => selectedSuppliers.includes(item.nhaThau || ''));
         }
 
-        return filtered;
-    }, [data, selectedCategories, selectedSuppliers]);
+        // Đưa các dòng đã phê duyệt xuống cuối để dòng chưa phê duyệt nổi lên trên.
+        return [...filtered].sort((a, b) => {
+            const aStatus = approvalStates[a.stt]?.status;
+            const bStatus = approvalStates[b.stt]?.status;
+
+            const aRank = aStatus === 'approved' ? 1 : 0;
+            const bRank = bStatus === 'approved' ? 1 : 0;
+
+            if (aRank !== bRank) {
+                return aRank - bRank;
+            }
+
+            return a.stt - b.stt;
+        });
+    }, [data, selectedCategories, selectedSuppliers, approvalStates]);
     const total = filteredData.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const paginatedFilteredData = useMemo(() => {
@@ -164,7 +179,6 @@ export default function MaterialForecast() {
     const [editDuTru, setEditDuTru] = useState(0);
     const [lyDoTuChoi, setLyDoTuChoi] = useState('');
     const [isRejectMode, setIsRejectMode] = useState(false);
-    const [approvalStates, setApprovalStates] = useState<ApprovalState>({});
     const [approvalRecords, setApprovalRecords] = useState<ApiForecastApproval[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>(materialForecastUiCache.selectedRowKeys);
