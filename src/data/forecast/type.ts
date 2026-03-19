@@ -18,7 +18,7 @@ export interface HistoryEntry {
 }
 
 export interface ApprovalState {
-    [stt: number]: {
+    [materialKey: string]: {
         status: ApprovalStatus;
         lyDo?: string;
         duTruGoc?: number;

@@ -5,19 +5,81 @@ import { Badge } from '@/components/ui/badge';
 import Pagination from '@/components/ui/pagination';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const EMPTY_MATCHED_INVOICE_SET = new Set<string>();
+
+const normalizeInvoiceKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
+const getInvoiceNumber = (invoice: HoaDonUBot) => {
+    const soHoaDon = (invoice.soHoaDon || '').trim();
+    const idHoaDon = (invoice.idHoaDon || '').trim();
+    if (soHoaDon) return soHoaDon;
+    if (idHoaDon) return idHoaDon;
+    return `ID-${invoice.id}`;
+};
 
 interface UBotInvoiceTableProps {
     hoaDons: HoaDonUBot[];
     loading?: boolean;
     onRefresh?: () => void;
+    matchedInvoiceNumbers?: Set<string>;
+    searchTerm?: string;
+    onSearchChange?: (term: string) => void;
+    expandedInvoices?: Set<string>;
+    onExpandedInvoicesChange?: (expanded: Set<string>) => void;
+    currentPage?: number;
+    onCurrentPageChange?: (page: number) => void;
 }
 
-export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotInvoiceTableProps) {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+export default function UBotInvoiceTable({ 
+    hoaDons, 
+    loading, 
+    onRefresh,
+    matchedInvoiceNumbers,
+    searchTerm: externalSearchTerm,
+    onSearchChange,
+    expandedInvoices: externalExpandedInvoices,
+    onExpandedInvoicesChange,
+    currentPage: externalCurrentPage,
+    onCurrentPageChange,
+}: UBotInvoiceTableProps) {
+    // Use external state if provided, otherwise use internal state
+    const [internalSearchTerm, setInternalSearchTerm] = useState('');
+    const [internalExpandedInvoices, setInternalExpandedInvoices] = useState<Set<string>>(new Set());
+    const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+    
+    const searchTerm = externalSearchTerm ?? internalSearchTerm;
+    const setSearchTerm = (value: string | ((prev: string) => string)) => {
+        const newValue = typeof value === 'function' ? value(searchTerm) : value;
+        if (onSearchChange) {
+            onSearchChange(newValue);
+        } else {
+            setInternalSearchTerm(newValue);
+        }
+    };
+    
+    const expandedInvoices = externalExpandedInvoices ?? internalExpandedInvoices;
+    const setExpandedInvoices = (value: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+        const newValue = typeof value === 'function' ? value(expandedInvoices) : value;
+        if (onExpandedInvoicesChange) {
+            onExpandedInvoicesChange(newValue);
+        } else {
+            setInternalExpandedInvoices(newValue);
+        }
+    };
+    
+    const currentPage = externalCurrentPage ?? internalCurrentPage;
+    const setCurrentPage = (value: number | ((prev: number) => number)) => {
+        const newValue = typeof value === 'function' ? value(currentPage) : value;
+        if (onCurrentPageChange) {
+            onCurrentPageChange(newValue);
+        } else {
+            setInternalCurrentPage(newValue);
+        }
+    };
+    
     const [refreshing, setRefreshing] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 100;
+    const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
 
     const handleRefresh = async () => {
         if (!onRefresh) return;
@@ -73,17 +135,27 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
             groups[hd.idHoaDon].push(hd);
         });
 
-        return Object.entries(groups).map(([idHoaDon, items]) => ({
-            idHoaDon,
-            items: items.sort((a, b) => a.sttDongHang - b.sttDongHang),
-            firstItem: items[0],
-            totalAmount: items.reduce((sum, item) => 
-                sum + item.soLuong * item.donGiaChuaThue * (1 + item.thueSuatGtgt / 100), 0
-            ),
-        })).sort((a, b) => 
+        return Object.entries(groups).map(([idHoaDon, items]) => {
+            const isMatched = (() => {
+                if (matchedInvoiceKeySet.size === 0) return false;
+                const numberKey = normalizeInvoiceKey(getInvoiceNumber(items[0]));
+                const idKey = normalizeInvoiceKey(items[0].idHoaDon);
+                return (numberKey && matchedInvoiceKeySet.has(numberKey)) || (idKey && matchedInvoiceKeySet.has(idKey));
+            })();
+
+            return {
+                idHoaDon,
+                items: items.sort((a, b) => a.sttDongHang - b.sttDongHang),
+                firstItem: items[0],
+                isMatched,
+                totalAmount: items.reduce((sum, item) => 
+                    sum + item.soLuong * item.donGiaChuaThue * (1 + item.thueSuatGtgt / 100), 0
+                ),
+            };
+        }).sort((a, b) => 
             new Date(b.firstItem.ngayHoaDon).getTime() - new Date(a.firstItem.ngayHoaDon).getTime()
         );
-    }, [hoaDons, searchTerm]);
+    }, [hoaDons, searchTerm, matchedInvoiceKeySet]);
 
     // Pagination
     const totalPages = Math.ceil(invoiceGroups.length / pageSize);
@@ -192,12 +264,17 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
                             {paginatedGroups.map((group) => {
                                 const isExpanded = expandedInvoices.has(group.idHoaDon);
                                 const firstItem = group.firstItem;
+                                const rowClassName = group.isMatched
+                                    ? 'border-b bg-emerald-50/40 text-muted-foreground opacity-60 hover:bg-emerald-50/60 cursor-pointer'
+                                    : 'border-b bg-muted/30 hover:bg-muted/50 cursor-pointer';
+                                const detailRowClassName = group.isMatched ? 'border-b opacity-60' : 'border-b';
+                                const detailContainerClassName = group.isMatched ? 'bg-emerald-50/20 p-4' : 'bg-muted/10 p-4';
 
                                 return (
                                     <React.Fragment key={group.idHoaDon}>
                                         {/* Dòng hóa đơn */}
                                         <tr
-                                            className="border-b bg-muted/30 hover:bg-muted/50 cursor-pointer"
+                                            className={rowClassName}
                                             onClick={() => toggleExpand(group.idHoaDon)}
                                         >
                                             <td className="px-4 py-2">
@@ -225,9 +302,16 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
                                                 {formatCurrency(group.totalAmount)}
                                             </td>
                                             <td className="px-4 py-2 text-center">
-                                                <Badge variant={firstItem.trangThaiHoaDon === 'VALID' ? 'default' : 'secondary'}>
-                                                    {firstItem.trangThaiHoaDon}
-                                                </Badge>
+                                                <div className="inline-flex flex-col items-center gap-1">
+                                                    <Badge variant={firstItem.trangThaiHoaDon === 'VALID' ? 'default' : 'secondary'}>
+                                                        {firstItem.trangThaiHoaDon}
+                                                    </Badge>
+                                                    {group.isMatched ? (
+                                                        <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 text-[11px]">
+                                                            Đã match
+                                                        </Badge>
+                                                    ) : null}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-2 text-center">
                                                 <a
@@ -244,9 +328,9 @@ export default function UBotInvoiceTable({ hoaDons, loading, onRefresh }: UBotIn
 
                                         {/* Chi tiết hàng hóa */}
                                         {isExpanded && (
-                                            <tr className="border-b">
+                                            <tr className={detailRowClassName}>
                                                 <td colSpan={8} className="p-0">
-                                                    <div className="bg-muted/10 p-4">
+                                                    <div className={detailContainerClassName}>
                                                         <table className="w-full text-sm">
                                                             <thead>
                                                                 <tr className="border-b">

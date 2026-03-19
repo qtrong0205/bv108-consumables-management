@@ -43,6 +43,7 @@ type MaterialForecastUiCache = {
     pageSize: number;
     activeTab: string;
     selectedRowKeys: string[];
+    forecastOverrides: Record<string, number>;
 };
 
 const materialForecastUiCache: MaterialForecastUiCache = {
@@ -53,6 +54,23 @@ const materialForecastUiCache: MaterialForecastUiCache = {
     pageSize: 100,
     activeTab: 'forecast',
     selectedRowKeys: [],
+    forecastOverrides: {},
+};
+
+const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
+    const maVtytCu = (item.maVtytCu || '').trim();
+    const maQuanLy = (item.maQuanLy || '').trim();
+
+    if (maVtytCu && maQuanLy) {
+        return `${maVtytCu}::${maQuanLy}`;
+    }
+    if (maVtytCu) {
+        return maVtytCu;
+    }
+    if (maQuanLy) {
+        return maQuanLy;
+    }
+    return `stt:${item.stt}`;
 };
 
 const extractPackQuantity = (quyCach: string): number => {
@@ -145,8 +163,8 @@ export default function MaterialForecast() {
 
         // Đưa các dòng đã phê duyệt xuống cuối để dòng chưa phê duyệt nổi lên trên.
         return [...filtered].sort((a, b) => {
-            const aStatus = approvalStates[a.stt]?.status;
-            const bStatus = approvalStates[b.stt]?.status;
+            const aStatus = approvalStates[getMaterialKey(a)]?.status;
+            const bStatus = approvalStates[getMaterialKey(b)]?.status;
 
             const aRank = aStatus === 'approved' ? 1 : 0;
             const bRank = bStatus === 'approved' ? 1 : 0;
@@ -322,8 +340,23 @@ export default function MaterialForecast() {
                     .filter(shouldShowInForecast)
                     .map((item, index) => mapSupplyToForecastItem(item, index));
 
+                const forecastRowsWithOverrides = forecastRows.map((row) => {
+                    const rowKey = getMaterialKey(row);
+                    const overrideDuTru = materialForecastUiCache.forecastOverrides[rowKey];
+
+                    if (typeof overrideDuTru !== 'number') {
+                        return row;
+                    }
+
+                    return {
+                        ...row,
+                        duTru: overrideDuTru,
+                        goiHang: Math.ceil(overrideDuTru / row.slTrongQuyCach),
+                    };
+                });
+
                 if (isDisposed) return;
-                setData(forecastRows);
+                setData(forecastRowsWithOverrides);
             } catch (fetchError) {
                 const message = fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu vật tư';
                 if (isDisposed) return;
@@ -361,7 +394,7 @@ export default function MaterialForecast() {
                 return;
             }
 
-            nextApprovalStates[item.stt] = mapApprovalRecordToState(savedRecord);
+            nextApprovalStates[getMaterialKey(item)] = mapApprovalRecordToState(savedRecord);
         });
 
         setApprovalStates(nextApprovalStates);
@@ -422,9 +455,9 @@ export default function MaterialForecast() {
         setPage(1);
     };
 
-    const getRowSelectionKey = (item: IVatTuDuTru) => `${item.stt}-${item.maVtytCu}`;
+    const getRowSelectionKey = (item: IVatTuDuTru) => getMaterialKey(item);
 
-    const isRowSelectable = (item: IVatTuDuTru) => !approvalStates[item.stt];
+    const isRowSelectable = (item: IVatTuDuTru) => !approvalStates[getMaterialKey(item)];
 
     const selectableItems = useMemo(
         () => filteredData.filter((item) => isRowSelectable(item)),
@@ -434,14 +467,8 @@ export default function MaterialForecast() {
     const selectedPendingItems = useMemo(() => {
         if (selectedRowKeys.length === 0) return [];
         const selectedKeySet = new Set(selectedRowKeys);
-        return selectableItems.filter((item) => selectedKeySet.has(getRowSelectionKey(item)));
-    }, [selectableItems, selectedRowKeys]);
-
-    useEffect(() => {
-        if (loadingSupplies) return;
-        const visibleSelectableKeySet = new Set(selectableItems.map((item) => getRowSelectionKey(item)));
-        setSelectedRowKeys((prev) => prev.filter((key) => visibleSelectableKeySet.has(key)));
-    }, [selectableItems, loadingSupplies]);
+        return data.filter((item) => selectedKeySet.has(getRowSelectionKey(item)) && isRowSelectable(item));
+    }, [data, selectedRowKeys, approvalStates]);
 
     const isRowSelected = (item: IVatTuDuTru) => selectedRowKeys.includes(getRowSelectionKey(item));
 
@@ -459,11 +486,16 @@ export default function MaterialForecast() {
 
     const handleToggleSelectAllRows = (checked: boolean) => {
         if (!checked) {
-            setSelectedRowKeys([]);
+            const visibleKeys = new Set(selectableItems.map((item) => getRowSelectionKey(item)));
+            setSelectedRowKeys((prev) => prev.filter((key) => !visibleKeys.has(key)));
             return;
         }
 
-        setSelectedRowKeys(selectableItems.map((item) => getRowSelectionKey(item)));
+        setSelectedRowKeys((prev) => {
+            const merged = new Set(prev);
+            selectableItems.forEach((item) => merged.add(getRowSelectionKey(item)));
+            return Array.from(merged);
+        });
     };
 
     const buildForecastApprovalPayload = (
@@ -495,15 +527,18 @@ export default function MaterialForecast() {
     };
 
     // Lưu giá trị gốc khi focus vào input
-    const [originalDuTru, setOriginalDuTru] = useState<{ stt: number; value: number } | null>(null);
+    const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
 
     // Xử lý thay đổi giá trị dự trù
-    const handleForecastChange = (stt: number, value: string) => {
+    const handleForecastChange = (item: IVatTuDuTru, value: string) => {
         const numValue = parseInt(value) || 0;
+        const rowKey = getMaterialKey(item);
+
+        materialForecastUiCache.forecastOverrides[rowKey] = numValue;
 
         setData(prevData =>
             prevData.map(item => {
-                if (item.stt === stt) {
+                if (getMaterialKey(item) === rowKey) {
                     const goiHang = Math.ceil(numValue / item.slTrongQuyCach);
                     return { ...item, duTru: numValue, goiHang };
                 }
@@ -513,19 +548,21 @@ export default function MaterialForecast() {
     };
 
     // Lưu giá trị gốc khi focus
-    const handleForecastFocus = (stt: number, value: number) => {
-        setOriginalDuTru({ stt, value });
+    const handleForecastFocus = (item: IVatTuDuTru, value: number) => {
+        setOriginalDuTru({ rowKey: getMaterialKey(item), value });
     };
 
     // Ghi lịch sử khi blur (nếu có thay đổi)
-    const handleForecastBlur = (stt: number, newValue: number) => {
-        if (originalDuTru && originalDuTru.stt === stt && originalDuTru.value !== newValue) {
-            const item = data.find(i => i.stt === stt);
-            if (item) {
+    const handleForecastBlur = (item: IVatTuDuTru, newValue: number) => {
+        const rowKey = getMaterialKey(item);
+
+        if (originalDuTru && originalDuTru.rowKey === rowKey && originalDuTru.value !== newValue) {
+            const foundItem = data.find((row) => getMaterialKey(row) === rowKey);
+            if (foundItem) {
                 addHistoryEntry({
-                    stt: item.stt,
-                    maVtyt: item.maVtytCu,
-                    tenVtyt: item.tenVtytBv,
+                    stt: foundItem.stt,
+                    maVtyt: foundItem.maVtytCu,
+                    tenVtyt: foundItem.tenVtytBv,
                     actionType: 'edit_quantity',
                     nguoiThucHien: currentUser,
                     thoiGian: new Date(),
@@ -536,6 +573,20 @@ export default function MaterialForecast() {
                 });
             }
         }
+
+        materialForecastUiCache.forecastOverrides[rowKey] = newValue;
+
+        setData((prevData) =>
+            prevData.map((dataItem) => {
+                if (getMaterialKey(dataItem) !== rowKey) {
+                    return dataItem;
+                }
+
+                const goiHang = Math.ceil(newValue / dataItem.slTrongQuyCach);
+                return { ...dataItem, duTru: newValue, goiHang };
+            })
+        );
+
         setOriginalDuTru(null);
     };
 
@@ -838,7 +889,7 @@ export default function MaterialForecast() {
 
         setApprovalStates(prev => ({
             ...prev,
-            [selectedItem.stt]: {
+            [getMaterialKey(selectedItem)]: {
                 status: 'approved',
                 nguoiDuyet: currentUser,
                 thoiGian: now,
@@ -889,7 +940,7 @@ export default function MaterialForecast() {
 
         setApprovalStates(prev => ({
             ...prev,
-            [selectedItem.stt]: {
+            [getMaterialKey(selectedItem)]: {
                 status: 'rejected',
                 lyDo: lyDoTuChoi,
                 nguoiDuyet: currentUser,
@@ -946,19 +997,23 @@ export default function MaterialForecast() {
         }
 
         // Cập nhật data
+        const selectedItemKey = getMaterialKey(selectedItem);
+
         setData(prevData =>
             prevData.map(item => {
-                if (item.stt === selectedItem.stt) {
+                if (getMaterialKey(item) === selectedItemKey) {
                     return { ...item, duTru: editDuTru, goiHang };
                 }
                 return item;
             })
         );
 
+        materialForecastUiCache.forecastOverrides[selectedItemKey] = editDuTru;
+
         // Cập nhật trạng thái phê duyệt
         setApprovalStates(prev => ({
             ...prev,
-            [selectedItem.stt]: {
+            [selectedItemKey]: {
                 status: 'edited',
                 duTruGoc: selectedItem.duTru,
                 duTruSua: editDuTru,
@@ -979,8 +1034,8 @@ export default function MaterialForecast() {
     };
 
     // Lấy badge trạng thái
-    const getStatusBadge = (stt: number) => {
-        const state = approvalStates[stt];
+    const getStatusBadge = (item: IVatTuDuTru) => {
+        const state = approvalStates[getMaterialKey(item)];
         if (!state) return null;
 
         const baseClass = "text-[10px] whitespace-nowrap shrink-0 min-w-[85px] justify-center cursor-pointer transition-all";
@@ -998,11 +1053,15 @@ export default function MaterialForecast() {
     };
 
     // Đếm số vật tư chưa duyệt
-    const pendingCount = paginatedFilteredData.filter(item => !approvalStates[item.stt]).length;
+    const pendingCount = filteredData.filter((item) => !approvalStates[getMaterialKey(item)]).length;
     const selectedPendingCount = selectedPendingItems.length;
-    const allSelectableRowsSelected = selectableItems.length > 0 && selectedPendingCount === selectableItems.length;
-    const someSelectableRowsSelected = selectedPendingCount > 0 && selectedPendingCount < selectableItems.length;
-    const approvedCount = paginatedFilteredData.filter(item => approvalStates[item.stt]?.status === 'approved' || approvalStates[item.stt]?.status === 'edited').length;
+    const selectedPendingVisibleCount = selectableItems.filter((item) => selectedRowKeys.includes(getRowSelectionKey(item))).length;
+    const allSelectableRowsSelected = selectableItems.length > 0 && selectedPendingVisibleCount === selectableItems.length;
+    const someSelectableRowsSelected = selectedPendingVisibleCount > 0 && selectedPendingVisibleCount < selectableItems.length;
+    const approvedCount = filteredData.filter((item) => {
+        const status = approvalStates[getMaterialKey(item)]?.status;
+        return status === 'approved' || status === 'edited';
+    }).length;
 
     // Duyệt tất cả
     const handleApproveAll = async () => {
@@ -1045,7 +1104,7 @@ export default function MaterialForecast() {
         }
 
         pendingItems.forEach(item => {
-            newApprovalStates[item.stt] = {
+            newApprovalStates[getMaterialKey(item)] = {
                 status: 'approved',
                 nguoiDuyet: currentUser,
                 thoiGian: now,

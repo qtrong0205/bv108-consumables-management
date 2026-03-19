@@ -49,10 +49,10 @@ interface IForecastTableProps {
     };
     handlers: {
         onRowClick: (item: IVatTuDuTru) => void;
-        getStatusBadge: (stt: number) => React.ReactNode;
-        onForecastChange: (stt: number, value: string) => void;
-        onForecastFocus: (stt: number, value: number) => void;
-        onForecastBlur: (stt: number, newValue: number) => void;
+        getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
+        onForecastChange: (item: IVatTuDuTru, value: string) => void;
+        onForecastFocus: (item: IVatTuDuTru, value: number) => void;
+        onForecastBlur: (item: IVatTuDuTru, newValue: number) => void;
         isRowSelected: (item: IVatTuDuTru) => boolean;
         isRowSelectable: (item: IVatTuDuTru) => boolean;
         onRowSelectToggle: (item: IVatTuDuTru, checked: boolean) => void;
@@ -471,7 +471,7 @@ const ForecastTable = ({
                                             <div className="max-w-[200px]">
                                                 <div className="flex items-center gap-1 min-w-0">
                                                     <p className="font-semibold text-sm truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
-                                                    {getStatusBadge(item.stt)}
+                                                    {getStatusBadge(item)}
                                                 </div>
                                                 <p className="text-[11px] text-muted-foreground truncate" title={item.maHieu || ''}>
                                                     {item.maHieu || 'N/A'}
@@ -512,9 +512,9 @@ const ForecastTable = ({
                                                 type="number"
                                                 min="0"
                                                 value={item.duTru}
-                                                onChange={(e) => onForecastChange(item.stt, e.target.value)}
-                                                onFocus={() => onForecastFocus(item.stt, item.duTru)}
-                                                onBlur={(e) => onForecastBlur(item.stt, parseInt(e.target.value) || 0)}
+                                                onChange={(e) => onForecastChange(item, e.target.value)}
+                                                onFocus={() => onForecastFocus(item, item.duTru)}
+                                                onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
                                                 className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
                                             />
                                         </td>

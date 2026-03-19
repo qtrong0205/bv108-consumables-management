@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 
-const supplierOrderUiCache = { activeTab: 'active' };
+const supplierOrderUiCache = {
+    activeTab: 'active',
+    selectedOrders: [] as number[],
+};
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Mail, Plus } from 'lucide-react';
@@ -31,13 +34,14 @@ export default function SupplierOrder() {
     } = useOrder();
 
     const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);
-    const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
+    const [selectedOrders, setSelectedOrders] = useState<number[]>(supplierOrderUiCache.selectedOrders);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         supplierOrderUiCache.activeTab = activeTab;
-    }, [activeTab]);
+        supplierOrderUiCache.selectedOrders = selectedOrders;
+    }, [activeTab, selectedOrders]);
 
     useEffect(() => {
         if (!hasSupplierNotification) return;
@@ -50,6 +54,11 @@ export default function SupplierOrder() {
     }, [hasSupplierNotification, clearSupplierNotification]);
 
     const activeOrders = approvedOrders;
+
+    useEffect(() => {
+        const validIds = new Set(activeOrders.map((order) => order.id));
+        setSelectedOrders((prev) => prev.filter((id) => validIds.has(id)));
+    }, [activeOrders]);
 
     useEffect(() => {
         void refreshOrders().catch(() => undefined);

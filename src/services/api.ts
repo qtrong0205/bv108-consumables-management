@@ -167,6 +167,77 @@ export interface ApiMonthlyForecastHistoryRecord {
   danhSachVatTu: ApiMonthlyForecastHistoryItem[];
 }
 
+export interface ApiInvoiceReconciliationRecord {
+  id: number;
+  orderHistoryId: number;
+  orderBatchKey: string;
+  companyContactId?: number;
+  nhaThau: string;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  orderedQty: number;
+  orderTime?: string;
+  invoiceNumber: string;
+  invoiceIdHoaDon?: string;
+  invoiceRowId?: number;
+  invoiceCompanyContactId?: number;
+  invoiceCompanyName?: string;
+  invoiceItemCode?: string;
+  invoiceItemName?: string;
+  invoiceQty: number;
+  invoiceTime?: string;
+  hasInvoice: boolean;
+  detailStatus: string;
+  detailNote?: string;
+  matchScore: number;
+  quantityDiff: number;
+  matchedByUserId?: number;
+  matchedByUsername: string;
+  matchedByEmail?: string;
+  matchedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MatchedInvoiceNumbersResponse {
+  data: string[];
+  month?: number;
+  year?: number;
+  all?: boolean;
+}
+
+export interface SaveInvoiceReconciliationItemRequest {
+  orderHistoryId: number;
+  orderBatchKey: string;
+  companyContactId?: number;
+  nhaThau: string;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  orderedQty: number;
+  orderTime?: string;
+  invoiceNumber: string;
+  invoiceIdHoaDon?: string;
+  invoiceRowId?: number;
+  invoiceCompanyContactId?: number;
+  invoiceCompanyName?: string;
+  invoiceItemCode?: string;
+  invoiceItemName?: string;
+  invoiceQty: number;
+  invoiceTime?: string;
+  hasInvoice: boolean;
+  detailStatus: string;
+  detailNote?: string;
+  matchScore: number;
+  quantityDiff: number;
+  matchedAt?: string;
+}
+
+export interface SaveInvoiceReconciliationsBulkRequest {
+  items: SaveInvoiceReconciliationItemRequest[];
+}
+
 export interface ApiCompareSupply {
   stt: number;
   tenCongTy: { String: string; Valid: boolean } | null;
@@ -468,6 +539,38 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(payload),
     }, true);
+  }
+
+  async saveInvoiceReconciliationsBulk(payload: SaveInvoiceReconciliationsBulkRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/invoice-reconciliations/bulk', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async getInvoiceReconciliationHistory(month: number, year: number): Promise<OrderListResponse<ApiInvoiceReconciliationRecord>> {
+    return this.request<OrderListResponse<ApiInvoiceReconciliationRecord>>(
+      `/orders/invoice-reconciliations?month=${month}&year=${year}`,
+      { method: 'GET' },
+      true,
+    );
+  }
+
+  async getMatchedInvoiceNumbers(options: { month?: number; year?: number; all?: boolean } = {}): Promise<MatchedInvoiceNumbersResponse> {
+    const params = new URLSearchParams();
+    if (options.all) {
+      params.set('all', '1');
+    } else {
+      if (options.month) params.set('month', String(options.month));
+      if (options.year) params.set('year', String(options.year));
+    }
+
+    const query = params.toString();
+    const path = query
+      ? `/orders/invoice-reconciliations/matched-invoices?${query}`
+      : '/orders/invoice-reconciliations/matched-invoices';
+
+    return this.request<MatchedInvoiceNumbersResponse>(path, { method: 'GET' }, true);
   }
 
   async getForecastApprovals(month: number, year: number): Promise<OrderListResponse<ApiForecastApproval>> {

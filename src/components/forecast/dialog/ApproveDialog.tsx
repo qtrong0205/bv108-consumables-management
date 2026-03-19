@@ -20,7 +20,7 @@ interface IApproveDialogProps {
         onOpenChange: (open: boolean) => void;
         selectedItem: IVatTuDuTru | null;
         approvalStates: ApprovalState;
-        getStatusBadge: (stt: number) => React.ReactNode;
+        getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
     };
     editMode: {
         isActive: boolean;
@@ -52,13 +52,31 @@ const ApproveDialog = ({
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
     const { onApprove, onReject, onEditAndApprove } = actions;
 
+    const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
+        const maVtytCu = (item.maVtytCu || '').trim();
+        const maQuanLy = (item.maQuanLy || '').trim();
+
+        if (maVtytCu && maQuanLy) {
+            return `${maVtytCu}::${maQuanLy}`;
+        }
+        if (maVtytCu) {
+            return maVtytCu;
+        }
+        if (maQuanLy) {
+            return maQuanLy;
+        }
+        return `stt:${item.stt}`;
+    };
+
+    const selectedItemApproval = selectedItem ? approvalStates[getMaterialKey(selectedItem)] : undefined;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         Phê duyệt dự trù vật tư
-                        {selectedItem && getStatusBadge(selectedItem.stt)}
+                        {selectedItem && getStatusBadge(selectedItem)}
                     </DialogTitle>
                     <DialogDescription>
                         {selectedItem?.tenVtytBv}
@@ -162,27 +180,27 @@ const ApproveDialog = ({
                         </div>
 
                         {/* Hiển thị trạng thái đã phê duyệt */}
-                        {approvalStates[selectedItem.stt] && (
-                            <div className={`p-3 rounded-lg border ${approvalStates[selectedItem.stt].status === 'approved'
+                        {selectedItemApproval && (
+                            <div className={`p-3 rounded-lg border ${selectedItemApproval.status === 'approved'
                                 ? 'bg-green-50 border-green-200 dark:bg-green-950/30'
-                                : approvalStates[selectedItem.stt].status === 'rejected'
+                                : selectedItemApproval.status === 'rejected'
                                     ? 'bg-red-50 border-red-200 dark:bg-red-950/30'
                                     : 'bg-orange-50 border-orange-200 dark:bg-orange-950/30'
                                 }`}>
                                 <p className="text-sm font-medium">
-                                    {approvalStates[selectedItem.stt].status === 'approved' && '✅ Đã phê duyệt'}
-                                    {approvalStates[selectedItem.stt].status === 'rejected' && '❌ Đã từ chối'}
-                                    {approvalStates[selectedItem.stt].status === 'edited' && '✏️ Đã sửa và duyệt'}
+                                    {selectedItemApproval.status === 'approved' && '✅ Đã phê duyệt'}
+                                    {selectedItemApproval.status === 'rejected' && '❌ Đã từ chối'}
+                                    {selectedItemApproval.status === 'edited' && '✏️ Đã sửa và duyệt'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    Bởi: {approvalStates[selectedItem.stt].nguoiDuyet} - {approvalStates[selectedItem.stt].thoiGian?.toLocaleString('vi-VN')}
+                                    Bởi: {selectedItemApproval.nguoiDuyet} - {selectedItemApproval.thoiGian?.toLocaleString('vi-VN')}
                                 </p>
-                                {approvalStates[selectedItem.stt].lyDo && (
-                                    <p className="text-sm text-red-600 mt-1">Lý do: {approvalStates[selectedItem.stt].lyDo}</p>
+                                {selectedItemApproval.lyDo && (
+                                    <p className="text-sm text-red-600 mt-1">Lý do: {selectedItemApproval.lyDo}</p>
                                 )}
-                                {approvalStates[selectedItem.stt].duTruGoc !== undefined && (
+                                {selectedItemApproval.duTruGoc !== undefined && (
                                     <p className="text-sm text-orange-600 mt-1">
-                                        Đã sửa: {approvalStates[selectedItem.stt].duTruGoc} → {approvalStates[selectedItem.stt].duTruSua}
+                                        Đã sửa: {selectedItemApproval.duTruGoc} → {selectedItemApproval.duTruSua}
                                     </p>
                                 )}
                             </div>
@@ -205,7 +223,7 @@ const ApproveDialog = ({
                 )}
 
                 <DialogFooter className="flex-col sm:flex-row gap-2">
-                    {!approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
+                    {!selectedItemApproval && !isEditMode && !isRejectMode && (
                         <>
                             <Button
                                 onClick={onApprove}

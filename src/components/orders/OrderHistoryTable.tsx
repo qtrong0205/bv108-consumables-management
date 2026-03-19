@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { OrderHistory } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronDown, Building2, Package, Calendar, CheckCircle2, CheckCircle, Plus } from 'lucide-react';
@@ -15,9 +15,13 @@ interface SupplierHistoryGroup {
     latestDate: Date;
 }
 
+const orderHistoryUiCache = {
+    expandedSuppliers: [] as string[],
+};
+
 export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
     // State để track các nhà thầu đang mở rộng
-    const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
+    const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set(orderHistoryUiCache.expandedSuppliers));
 
     // Gom nhóm vật tư theo Nhà thầu
     const supplierGroups = useMemo(() => {
@@ -39,6 +43,10 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
             latestDate: new Date(Math.max(...groupOrders.map(o => new Date(o.ngayDatHang).getTime())))
         })).sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
     }, [orders]);
+
+    useEffect(() => {
+        orderHistoryUiCache.expandedSuppliers = Array.from(expandedSuppliers);
+    }, [expandedSuppliers]);
 
     // Toggle mở rộng nhà thầu
     const toggleExpand = (nhaThau: string) => {

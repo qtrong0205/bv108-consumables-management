@@ -7,6 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 type SortOrder = 'newest' | 'oldest';
 
+const orderRequestUiCache = {
+    expandedSuppliers: [] as string[],
+    selectedCompany: 'all',
+    sortOrder: 'newest' as SortOrder,
+};
+
 const getOrderTime = (order: OrderRequest): number => {
     const t = order.thoiGianPheDuyet ?? order.ngayTao;
     if (!t) return 0;
@@ -59,9 +65,9 @@ const formatDateTime = (value?: string | Date) => {
 
 export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroupsRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     // State để track các nhà thầu đang mở rộng
-    const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
-    const [selectedCompany, setSelectedCompany] = useState('all');
-    const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+    const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set(orderRequestUiCache.expandedSuppliers));
+    const [selectedCompany, setSelectedCompany] = useState(orderRequestUiCache.selectedCompany);
+    const [sortOrder, setSortOrder] = useState<SortOrder>(orderRequestUiCache.sortOrder);
 
     // Refs cho checkbox indeterminate state
     const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
@@ -105,6 +111,22 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
     }, [orders, sortOrder]);
 
     const companyOptions = useMemo(() => [...new Set(supplierGroups.map((group) => group.nhaThau))], [supplierGroups]);
+
+    useEffect(() => {
+        orderRequestUiCache.expandedSuppliers = Array.from(expandedSuppliers);
+        orderRequestUiCache.selectedCompany = selectedCompany;
+        orderRequestUiCache.sortOrder = sortOrder;
+    }, [expandedSuppliers, selectedCompany, sortOrder]);
+
+    useEffect(() => {
+        if (selectedCompany === 'all') {
+            return;
+        }
+        if (companyOptions.includes(selectedCompany)) {
+            return;
+        }
+        setSelectedCompany('all');
+    }, [companyOptions, selectedCompany]);
 
     const visibleSupplierGroups = useMemo(() => {
         if (selectedCompany === 'all') {

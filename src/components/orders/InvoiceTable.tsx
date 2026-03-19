@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
+import { apiService } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
@@ -20,6 +21,14 @@ import {
 interface InvoiceTableProps {
     orders: OrderHistory[];
     hoaDons: HoaDonUBot[];
+    matchedInvoiceNumbers?: Set<string>;
+    onMatchedInvoicesSaved?: (invoiceNumbers: string[]) => void;
+    searchTerm?: string;
+    onSearchChange?: (term: string) => void;
+    expandedSuppliers?: Set<string>;
+    onExpandedSuppliersChange?: (expanded: Set<string>) => void;
+    filterSupplierStatus?: 'all' | 'hasInvoice' | 'noInvoice';
+    onFilterSupplierStatusChange?: (status: 'all' | 'hasInvoice' | 'noInvoice') => void;
 }
 
 type DetailStatus = 'matched' | 'enough' | 'shortage' | 'surplus' | 'material-mismatch' | 'no-invoice';
@@ -32,25 +41,49 @@ interface ReconciliationResult {
     detailStatus: DetailStatus;
     detailNote?: string;
     matchScore?: number;
+    matchedInvoiceNumber?: string;
 }
 
 interface SupplierGroup {
+    groupId: string;
+    batchKey: string;
+    batchTime: string;
     nhaThau: string;
     results: ReconciliationResult[];
     latestDate: Date;
     stats: {
         hasInvoice: number;
         noInvoice: number;
+        matchedInvoiceNumber?: string;
+        matchedInvoiceLineCount?: number;
     };
 }
 
 interface InvoiceLine {
-    supplierKey: string;
     codeKey: string;
     nameKey: string;
     unitKey: string;
     invoiceDate: Date | null;
     data: HoaDonUBot;
+}
+
+interface InvoiceDocument {
+    supplierKey: string;
+    invoiceNumber: string;
+    invoiceDate: Date | null;
+    lines: InvoiceLine[];
+}
+
+interface SupplierDetailModalData {
+    supplierName: string;
+    orderItems: ReconciliationResult[];
+    invoiceItems: HoaDonUBot[];
+    selectedInvoiceNumber?: string;
+}
+
+interface ModalPairRow {
+    left?: ReconciliationResult;
+    right?: HoaDonUBot;
 }
 
 const normalize = (value?: string | null) => {
@@ -63,63 +96,470 @@ const normalize = (value?: string | null) => {
         .trim();
 };
 
+const normalizeInvoiceKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
 const parseDate = (value: string | Date) => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const tokenSimilarity = (a: string, b: string) => {
-    const aa = normalize(a);
-    const bb = normalize(b);
-    if (!aa || !bb) return 0;
-    if (aa === bb) return 1;
-    if (aa.includes(bb) || bb.includes(aa)) return 0.9;
+const EMPTY_MATCHED_INVOICE_SET = new Set<string>();
 
-    const aTokens = aa.split(' ').filter(Boolean);
-    const bTokens = bb.split(' ').filter(Boolean);
-    if (aTokens.length === 0 || bTokens.length === 0) return 0;
-
-    let hit = 0;
-    for (const t of aTokens) {
-        if (bTokens.includes(t)) hit += 1;
-    }
-    return hit / Math.max(aTokens.length, bTokens.length);
+// TEST MODE: keep true while testing with fake data.
+// Set to false to enable strict invoice time gating.
+const parseBooleanEnv = (value: string | undefined, defaultValue: boolean) => {
+    if (!value) return defaultValue;
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return defaultValue;
 };
 
-export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
-    const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set());
-    const [selectedDetail, setSelectedDetail] = useState<ReconciliationResult | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterInvoiceStatus, setFilterInvoiceStatus] = useState<'all' | 'hasInvoice' | 'noInvoice'>('all');
+const IS_INVOICE_RECONCILE_TEST_MODE = parseBooleanEnv(
+    import.meta.env.VITE_INVOICE_RECONCILE_TEST_MODE as string | undefined,
+    true,
+);
+const MIN_INVOICE_DELAY_HOURS = 12;
+const MIN_INVOICE_DELAY_MS = MIN_INVOICE_DELAY_HOURS * 60 * 60 * 1000;
 
-    const invoiceLinesBySupplier = useMemo(() => {
-        const grouped: Record<string, InvoiceLine[]> = {};
+const isInvoiceTimeEligible = (orderDate: Date, invoiceDate: Date) => {
+    return invoiceDate.getTime() - orderDate.getTime() >= MIN_INVOICE_DELAY_MS;
+};
 
-        hoaDons.forEach((hoaDon) => {
-            const supplierKey = normalize(hoaDon.congTy);
-            const line: InvoiceLine = {
-                supplierKey,
-                codeKey: normalize(hoaDon.maHangHoa),
-                nameKey: normalize(hoaDon.tenHangHoa),
-                unitKey: normalize(hoaDon.donViTinh),
-                invoiceDate: parseDate(hoaDon.ngayHoaDon),
-                data: hoaDon,
-            };
+const getInvoiceNumber = (invoice: HoaDonUBot) => {
+    const soHoaDon = (invoice.soHoaDon || '').trim();
+    const idHoaDon = (invoice.idHoaDon || '').trim();
+    if (soHoaDon) return soHoaDon;
+    if (idHoaDon) return idHoaDon;
+    return `ID-${invoice.id}`;
+};
 
-            if (!grouped[supplierKey]) grouped[supplierKey] = [];
-            grouped[supplierKey].push(line);
+const getOrderSupplierKey = (order: OrderHistory) => {
+    if (order.companyContactId !== undefined && order.companyContactId !== null) {
+        return `cc-${order.companyContactId}`;
+    }
+    return normalize(order.nhaThau);
+};
+
+const getOrderSupplierFallbackKey = (order: OrderHistory) => normalize(order.nhaThau);
+
+const getOrderBatchKey = (order: OrderHistory) => {
+    const fromApi = (order.orderBatchKey || '').trim();
+    if (fromApi) return fromApi;
+    return `${getOrderSupplierKey(order)}__${String(order.ngayDatHang)}`;
+};
+
+const getInvoiceDocumentCompanyContactId = (document: InvoiceDocument): number | undefined => {
+    const first = document.lines[0]?.data?.companyContactId;
+    return first === undefined || first === null ? undefined : first;
+};
+
+const getInvoiceDocumentCompanyNameKey = (document: InvoiceDocument) => {
+    const first = document.lines[0]?.data?.congTy;
+    return normalize(first || '');
+};
+
+const getInvoiceSupplierKey = (invoice: HoaDonUBot) => {
+    if (invoice.companyContactId !== undefined && invoice.companyContactId !== null) {
+        return `cc-${invoice.companyContactId}`;
+    }
+    return normalize(invoice.congTy);
+};
+
+const extractPotentialMaterialCodes = (value?: string | null) => {
+    const normalized = normalize(value || '');
+    if (!normalized) return [] as string[];
+    const parts = normalized.split(/\s+/).filter(Boolean);
+    const codeLike = parts.filter((part) => /[a-z]\d{4,}/.test(part));
+    return Array.from(new Set(codeLike));
+};
+
+const getOrderCodeKeys = (order: OrderHistory) => {
+    const keys = new Set<string>();
+    const baseCodes = [order.maQuanLy, order.maVtytCu, order.tenVtytBv];
+    baseCodes.forEach((raw) => {
+        const normalized = normalize(raw || '');
+        if (normalized) keys.add(normalized);
+        extractPotentialMaterialCodes(raw).forEach((code) => keys.add(code));
+    });
+    return Array.from(keys);
+};
+
+const deduplicateInvoiceDocuments = (documents: InvoiceDocument[]) => {
+    const map = new Map<string, InvoiceDocument>();
+    documents.forEach((doc) => {
+        const uniqueKey = `${doc.invoiceNumber}__${doc.lines.length}`;
+        if (!map.has(uniqueKey)) map.set(uniqueKey, doc);
+    });
+    return Array.from(map.values());
+};
+
+const getInvoiceDocumentUniqueKey = (document: InvoiceDocument) => {
+    return `${document.invoiceNumber}__${document.lines.length}`;
+};
+
+const selectCandidateDocsForBatch = (batchOrders: OrderHistory[], uniqueDocs: InvoiceDocument[]) => {
+    if (batchOrders.length === 0) return uniqueDocs;
+
+    const orderItemTypeCount = batchOrders.length;
+    const orderCompanyNameKey = normalize(batchOrders[0]?.nhaThau || '');
+    const orderCompanyContactId = batchOrders.find(
+        (order) => order.companyContactId !== undefined && order.companyContactId !== null,
+    )?.companyContactId;
+
+    const docsWithSameItemTypeCount = uniqueDocs.filter((doc) => doc.lines.length === orderItemTypeCount);
+    const docsWithNearItemTypeCount = uniqueDocs.filter((doc) => Math.abs(doc.lines.length - orderItemTypeCount) <= 1);
+
+    const docsWithSameCompanyContactId = orderCompanyContactId !== undefined
+        ? uniqueDocs.filter((doc) => getInvoiceDocumentCompanyContactId(doc) === orderCompanyContactId)
+        : [];
+
+    const docsWithSameCompanyName = uniqueDocs.filter(
+        (doc) => getInvoiceDocumentCompanyNameKey(doc) === orderCompanyNameKey,
+    );
+
+    const docsStrict = uniqueDocs.filter((doc) => {
+        const sameCount = Math.abs(doc.lines.length - orderItemTypeCount) <= 1;
+        const sameName = getInvoiceDocumentCompanyNameKey(doc) === orderCompanyNameKey;
+        const sameContact = orderCompanyContactId !== undefined
+            ? getInvoiceDocumentCompanyContactId(doc) === orderCompanyContactId
+            : true;
+        return sameCount && sameName && sameContact;
+    });
+
+    const docsByContactAndNearCount = docsWithSameCompanyContactId.filter(
+        (doc) => Math.abs(doc.lines.length - orderItemTypeCount) <= 1,
+    );
+
+    const docsByNameAndNearCount = docsWithSameCompanyName.filter(
+        (doc) => Math.abs(doc.lines.length - orderItemTypeCount) <= 1,
+    );
+
+    let candidateDocs = uniqueDocs;
+    if (docsStrict.length > 0) candidateDocs = docsStrict;
+    else if (docsByContactAndNearCount.length > 0) candidateDocs = docsByContactAndNearCount;
+    else if (docsByNameAndNearCount.length > 0) candidateDocs = docsByNameAndNearCount;
+    else if (docsWithSameItemTypeCount.length > 0) candidateDocs = docsWithSameItemTypeCount;
+    else if (docsWithNearItemTypeCount.length > 0) candidateDocs = docsWithNearItemTypeCount;
+
+    return candidateDocs;
+};
+
+const scoreOrderWithInvoiceLine = (order: OrderHistory, candidate: InvoiceLine) => {
+    const orderCodeKeys = getOrderCodeKeys(order);
+    const orderName = normalize(order.tenVtytBv);
+    const orderUnit = normalize(order.donViTinh);
+    const orderDate = parseDate(order.ngayDatHang);
+    const invoiceHasCode = !!candidate.codeKey;
+
+    if (!IS_INVOICE_RECONCILE_TEST_MODE && orderDate && candidate.invoiceDate) {
+        // Enable this time gate in non-test mode: invoice must be at least 12 hours after order time.
+        if (!isInvoiceTimeEligible(orderDate, candidate.invoiceDate)) {
+            return -10000;
+        }
+    }
+
+    let score = 0;
+
+    if (invoiceHasCode) {
+        const codeMatched = !!candidate.codeKey && orderCodeKeys.includes(candidate.codeKey);
+        if (codeMatched) score += 120;
+        else score -= 20;
+    } else {
+        if (orderName && candidate.nameKey && orderName === candidate.nameKey) score += 120;
+        else score -= 20;
+    }
+
+    if (orderUnit && candidate.unitKey && orderUnit === candidate.unitKey) score += 5;
+
+    const qtyGap = Math.abs(Number(candidate.data.soLuong) - Number(order.dotGoiHang));
+    score += Math.max(0, 10 - qtyGap);
+
+    if (orderDate && candidate.invoiceDate) {
+        const dayGap = Math.abs(orderDate.getTime() - candidate.invoiceDate.getTime()) / (24 * 60 * 60 * 1000);
+        if (dayGap <= 7) score += 10;
+        else if (dayGap <= 30) score += 6;
+        else if (dayGap <= 60) score += 2;
+    }
+
+    return score;
+};
+
+const evaluateInvoiceDocument = (orders: OrderHistory[], document: InvoiceDocument) => {
+    const usedInvoiceRows = new Set<number>();
+    let matchedCount = 0;
+    let matchScoreTotal = 0;
+    let quantityDiffTotal = 0;
+    let exactMatchCount = 0;
+
+    orders.forEach((order) => {
+        let bestCandidate: InvoiceLine | undefined;
+        let bestScore = -1;
+
+        document.lines.forEach((candidate) => {
+            if (usedInvoiceRows.has(candidate.data.id)) return;
+            const score = scoreOrderWithInvoiceLine(order, candidate);
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = candidate;
+            }
         });
 
-        return grouped;
-    }, [hoaDons]);
+        if (bestCandidate && bestScore >= 40) {
+            usedInvoiceRows.add(bestCandidate.data.id);
+            matchedCount += 1;
+            matchScoreTotal += bestScore;
+            const quantityDiff = Math.abs(Number(bestCandidate.data.soLuong) - Number(order.dotGoiHang));
+            quantityDiffTotal += quantityDiff;
 
-    const reconciliations = useMemo((): ReconciliationResult[] => {
-        const usedInvoiceRows = new Set<number>();
+            const orderCodeKeys = getOrderCodeKeys(order);
+            const orderName = normalize(order.tenVtytBv);
+            const invoiceHasCode = !!bestCandidate.codeKey;
+            const codeMatched = !!bestCandidate.codeKey && orderCodeKeys.includes(bestCandidate.codeKey);
+            const nameMatchedExact = !!(orderName && bestCandidate.nameKey && orderName === bestCandidate.nameKey);
+            const materialMatched = invoiceHasCode ? codeMatched : nameMatchedExact;
+
+            if (materialMatched && quantityDiff === 0) {
+                exactMatchCount += 1;
+            }
+        }
+    });
+
+    const lineGapPenalty = Math.abs(document.lines.length - orders.length) * 25;
+    const coverageScore = matchedCount * 120;
+    const quantityPenalty = quantityDiffTotal * 4;
+    const totalScore = coverageScore + matchScoreTotal - quantityPenalty - lineGapPenalty;
+    const isFullExactMatch =
+        matchedCount === orders.length &&
+        exactMatchCount === orders.length &&
+        document.lines.length === orders.length;
+
+    return {
+        matchedCount,
+        totalScore,
+        isFullExactMatch,
+    };
+};
+
+export default function InvoiceTable({ 
+    orders, 
+    hoaDons,
+    matchedInvoiceNumbers,
+    onMatchedInvoicesSaved,
+    searchTerm: externalSearchTerm,
+    onSearchChange,
+    expandedSuppliers: externalExpandedSuppliers,
+    onExpandedSuppliersChange,
+    filterSupplierStatus: externalFilterSupplierStatus,
+    onFilterSupplierStatusChange,
+}: InvoiceTableProps) {
+    // Use external state if provided, otherwise use internal state
+    const [internalExpandedSuppliers, setInternalExpandedSuppliers] = useState<Set<string>>(new Set());
+    const [internalSearchTerm, setInternalSearchTerm] = useState('');
+    const [internalFilterSupplierStatus, setInternalFilterSupplierStatus] = useState<'all' | 'hasInvoice' | 'noInvoice'>('all');
+    
+    const expandedSuppliers = externalExpandedSuppliers ?? internalExpandedSuppliers;
+    const setExpandedSuppliers = (value: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+        const newValue = typeof value === 'function' ? value(expandedSuppliers) : value;
+        if (onExpandedSuppliersChange) {
+            onExpandedSuppliersChange(newValue);
+        } else {
+            setInternalExpandedSuppliers(newValue);
+        }
+    };
+    
+    const searchTerm = externalSearchTerm ?? internalSearchTerm;
+    const setSearchTerm = (value: string | ((prev: string) => string)) => {
+        const newValue = typeof value === 'function' ? value(searchTerm) : value;
+        if (onSearchChange) {
+            onSearchChange(newValue);
+        } else {
+            setInternalSearchTerm(newValue);
+        }
+    };
+    
+    const filterSupplierStatus = externalFilterSupplierStatus ?? internalFilterSupplierStatus;
+    const setFilterSupplierStatus = (value: 'all' | 'hasInvoice' | 'noInvoice' | ((prev: 'all' | 'hasInvoice' | 'noInvoice') => 'all' | 'hasInvoice' | 'noInvoice')) => {
+        const newValue = typeof value === 'function' ? value(filterSupplierStatus) : value;
+        if (onFilterSupplierStatusChange) {
+            onFilterSupplierStatusChange(newValue);
+        } else {
+            setInternalFilterSupplierStatus(newValue);
+        }
+    };
+    
+    const [selectedDetail, setSelectedDetail] = useState<SupplierDetailModalData | null>(null);
+    const latestPersistedSignatureRef = useRef('');
+    const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
+
+    const eligibleHoaDons = useMemo(() => {
+        if (matchedInvoiceKeySet.size === 0) return hoaDons;
+        return hoaDons.filter((hoaDon) => {
+            const numberKey = normalizeInvoiceKey(getInvoiceNumber(hoaDon));
+            const idKey = normalizeInvoiceKey(hoaDon.idHoaDon);
+            return !(numberKey && matchedInvoiceKeySet.has(numberKey)) && !(idKey && matchedInvoiceKeySet.has(idKey));
+        });
+    }, [hoaDons, matchedInvoiceKeySet]);
+
+    const invoiceDocumentsBySupplier = useMemo(() => {
+        const grouped: Record<string, Record<string, InvoiceDocument>> = {};
+
+        eligibleHoaDons.forEach((hoaDon) => {
+            const primarySupplierKey = getInvoiceSupplierKey(hoaDon);
+            const nameSupplierKey = normalize(hoaDon.congTy);
+            const supplierKeys = Array.from(new Set([primarySupplierKey, nameSupplierKey].filter(Boolean)));
+            const invoiceNumberRaw = getInvoiceNumber(hoaDon);
+            const invoiceNumberKey = normalize(invoiceNumberRaw);
+
+            supplierKeys.forEach((supplierKey) => {
+                if (!grouped[supplierKey]) grouped[supplierKey] = {};
+                if (!grouped[supplierKey][invoiceNumberKey]) {
+                    grouped[supplierKey][invoiceNumberKey] = {
+                        supplierKey,
+                        invoiceNumber: invoiceNumberRaw,
+                        invoiceDate: parseDate(hoaDon.ngayHoaDon),
+                        lines: [],
+                    };
+                }
+
+                grouped[supplierKey][invoiceNumberKey].lines.push({
+                    codeKey: normalize(hoaDon.maHangHoa),
+                    nameKey: normalize(hoaDon.tenHangHoa),
+                    unitKey: normalize(hoaDon.donViTinh),
+                    invoiceDate: parseDate(hoaDon.ngayHoaDon),
+                    data: hoaDon,
+                });
+            });
+        });
+
+        const result: Record<string, InvoiceDocument[]> = {};
+        Object.entries(grouped).forEach(([supplierKey, docs]) => {
+            result[supplierKey] = Object.values(docs).map((doc) => ({
+                ...doc,
+                lines: [...doc.lines].sort((a, b) => (a.data.sttDongHang || 0) - (b.data.sttDongHang || 0)),
+            }));
+        });
+
+        return result;
+    }, [eligibleHoaDons]);
+
+    const bestInvoiceDocumentByBatch = useMemo(() => {
         const emailSentOrders = orders.filter((o) => o.emailSent === true);
 
+        const batchesByKey: Record<string, {
+            batchKey: string;
+            supplierKey: string;
+            fallbackKey: string;
+            orders: OrderHistory[];
+        }> = {};
+
+        emailSentOrders.forEach((order) => {
+            const batchKey = getOrderBatchKey(order);
+            if (!batchesByKey[batchKey]) {
+                batchesByKey[batchKey] = {
+                    batchKey,
+                    supplierKey: getOrderSupplierKey(order),
+                    fallbackKey: getOrderSupplierFallbackKey(order),
+                    orders: [],
+                };
+            }
+            batchesByKey[batchKey].orders.push(order);
+        });
+
+        const batchesBySupplier: Record<string, typeof batchesByKey[string][]> = {};
+        Object.values(batchesByKey).forEach((batch) => {
+            if (!batchesBySupplier[batch.supplierKey]) batchesBySupplier[batch.supplierKey] = [];
+            batchesBySupplier[batch.supplierKey].push(batch);
+        });
+
+        const result: Record<string, InvoiceDocument | undefined> = {};
+
+        Object.entries(batchesBySupplier).forEach(([supplierKey, supplierBatches]) => {
+            const docsByPrimaryKey = invoiceDocumentsBySupplier[supplierKey] || [];
+            const fallbackDocs = supplierBatches.flatMap((batch) => {
+                if (batch.fallbackKey === supplierKey) return [] as InvoiceDocument[];
+                return invoiceDocumentsBySupplier[batch.fallbackKey] || [];
+            });
+            const uniqueDocs = deduplicateInvoiceDocuments([...docsByPrimaryKey, ...fallbackDocs]);
+
+            if (uniqueDocs.length === 0) {
+                supplierBatches.forEach((batch) => {
+                    result[batch.batchKey] = undefined;
+                });
+                return;
+            }
+
+            type BatchDocScore = {
+                batchKey: string;
+                docKey: string;
+                doc: InvoiceDocument;
+                matchedCount: number;
+                totalScore: number;
+                isFullExactMatch: boolean;
+            };
+
+            const scores: BatchDocScore[] = [];
+            const fullyMatchedAndLockedDocKeys = new Set<string>();
+
+            supplierBatches.forEach((batch) => {
+                const availableDocs = uniqueDocs.filter(
+                    (doc) => !fullyMatchedAndLockedDocKeys.has(getInvoiceDocumentUniqueKey(doc)),
+                );
+                const candidateDocs = selectCandidateDocsForBatch(batch.orders, availableDocs);
+                candidateDocs.forEach((doc) => {
+                    const evalDoc = evaluateInvoiceDocument(batch.orders, doc);
+                    if (evalDoc.matchedCount <= 0 || evalDoc.totalScore <= 0) return;
+                    scores.push({
+                        batchKey: batch.batchKey,
+                        docKey: getInvoiceDocumentUniqueKey(doc),
+                        doc,
+                        matchedCount: evalDoc.matchedCount,
+                        totalScore: evalDoc.totalScore,
+                        isFullExactMatch: evalDoc.isFullExactMatch,
+                    });
+                });
+            });
+
+            scores.sort((a, b) => {
+                if (a.isFullExactMatch !== b.isFullExactMatch) {
+                    return a.isFullExactMatch ? -1 : 1;
+                }
+                if (b.matchedCount !== a.matchedCount) return b.matchedCount - a.matchedCount;
+                return b.totalScore - a.totalScore;
+            });
+
+            const usedBatchKeys = new Set<string>();
+            const usedDocKeys = new Set<string>();
+
+            scores.forEach((entry) => {
+                if (usedBatchKeys.has(entry.batchKey)) return;
+                if (usedDocKeys.has(entry.docKey)) return;
+                result[entry.batchKey] = entry.doc;
+                usedBatchKeys.add(entry.batchKey);
+                usedDocKeys.add(entry.docKey);
+
+                // Once a document is exact 100% matched for a batch, lock and skip it for later comparisons.
+                if (entry.isFullExactMatch) {
+                    fullyMatchedAndLockedDocKeys.add(entry.docKey);
+                }
+            });
+
+            supplierBatches.forEach((batch) => {
+                if (!(batch.batchKey in result)) result[batch.batchKey] = undefined;
+            });
+        });
+
+        return result;
+    }, [orders, invoiceDocumentsBySupplier]);
+
+    const reconciliations = useMemo((): ReconciliationResult[] => {
+        const emailSentOrders = orders.filter((o) => o.emailSent === true);
+        const usedInvoiceRowsByBatch = new Map<string, Set<number>>();
+
         return emailSentOrders.map((order) => {
-            const supplierKey = normalize(order.nhaThau);
-            const candidates = invoiceLinesBySupplier[supplierKey] || [];
+            const batchKey = getOrderBatchKey(order);
+            const selectedDoc = bestInvoiceDocumentByBatch[batchKey];
+            const candidates = selectedDoc?.lines || [];
 
             if (candidates.length === 0) {
                 return {
@@ -129,74 +569,58 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                 };
             }
 
-            const orderCode = normalize(order.maVtytCu);
-            const orderName = normalize(order.tenVtytBv);
-            const orderUnit = normalize(order.donViTinh);
-            const orderDate = parseDate(order.ngayDatHang);
+            if (!usedInvoiceRowsByBatch.has(batchKey)) {
+                usedInvoiceRowsByBatch.set(batchKey, new Set<number>());
+            }
+            const usedRows = usedInvoiceRowsByBatch.get(batchKey)!;
 
             let bestCandidate: InvoiceLine | undefined;
             let bestScore = -1;
-            let fallbackCandidate: InvoiceLine | undefined;
-            let fallbackScore = -1;
 
             candidates.forEach((candidate) => {
-                const nameSim = tokenSimilarity(orderName, candidate.nameKey);
-                let score = 0;
-
-                if (orderCode && candidate.codeKey && orderCode === candidate.codeKey) score += 70;
-                score += nameSim * 25;
-                if (orderUnit && candidate.unitKey && orderUnit === candidate.unitKey) score += 5;
-
-                if (orderDate && candidate.invoiceDate) {
-                    const dayGap = Math.abs(orderDate.getTime() - candidate.invoiceDate.getTime()) / (24 * 60 * 60 * 1000);
-                    if (dayGap <= 7) score += 10;
-                    else if (dayGap <= 30) score += 6;
-                    else if (dayGap <= 60) score += 2;
-                }
-
-                if (score > fallbackScore) {
-                    fallbackScore = score;
-                    fallbackCandidate = candidate;
-                }
-
-                if (!usedInvoiceRows.has(candidate.data.id) && score > bestScore) {
+                if (usedRows.has(candidate.data.id)) return;
+                const score = scoreOrderWithInvoiceLine(order, candidate);
+                if (score > bestScore) {
                     bestScore = score;
                     bestCandidate = candidate;
                 }
             });
 
-            const chosen = bestCandidate || fallbackCandidate;
-            const score = bestCandidate ? bestScore : fallbackScore;
-
-            if (!chosen || score < 40) {
+            if (!bestCandidate || bestScore < 40) {
                 return {
                     order,
                     hasInvoice: false,
                     detailStatus: 'no-invoice',
-                    matchScore: Number(score.toFixed(2)),
+                    matchScore: Number(bestScore.toFixed(2)),
+                    matchedInvoiceNumber: selectedDoc?.invoiceNumber,
                 };
             }
 
-            usedInvoiceRows.add(chosen.data.id);
-            const quantityDiff = Number((Number(chosen.data.soLuong) - Number(order.dotGoiHang)).toFixed(3));
+            usedRows.add(bestCandidate.data.id);
+            const quantityDiff = Number((Number(bestCandidate.data.soLuong) - Number(order.dotGoiHang)).toFixed(3));
 
-            const codeMatched = !!(orderCode && chosen.codeKey && orderCode === chosen.codeKey);
-            const nameMatched = tokenSimilarity(orderName, chosen.nameKey) >= 0.85;
-            const materialMatched = codeMatched || nameMatched;
+            const orderCodeKeys = getOrderCodeKeys(order);
+            const orderName = normalize(order.tenVtytBv);
+            const invoiceHasCode = !!bestCandidate.codeKey;
+            const codeMatched = !!bestCandidate.codeKey && orderCodeKeys.includes(bestCandidate.codeKey);
+            const nameMatchedExact = !!(orderName && bestCandidate.nameKey && orderName === bestCandidate.nameKey);
+            const materialMatched = invoiceHasCode ? codeMatched : nameMatchedExact;
 
             let detailStatus: DetailStatus = 'matched';
             let detailNote = 'Khớp vật tư và số lượng';
 
             if (!materialMatched) {
                 detailStatus = 'material-mismatch';
-                detailNote = 'Tên/mã vật tư trên hóa đơn chưa khớp với đơn đặt';
+                detailNote = invoiceHasCode
+                    ? 'Mã hàng hóa hóa đơn chưa khớp Mã QL'
+                    : 'Tên vật tư chưa trùng khớp 100%';
             } else if (quantityDiff < 0) {
                 detailStatus = 'shortage';
                 detailNote = `Thiếu ${Math.abs(quantityDiff)} so với số lượng đặt`;
             } else if (quantityDiff > 0) {
                 detailStatus = 'surplus';
                 detailNote = `Thừa ${quantityDiff} so với số lượng đặt`;
-            } else if (codeMatched) {
+            } else if (codeMatched || nameMatchedExact) {
                 detailStatus = 'matched';
                 detailNote = 'Đã khớp hoàn toàn';
             } else {
@@ -206,15 +630,90 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
 
             return {
                 order,
-                invoice: chosen.data,
+                invoice: bestCandidate.data,
                 hasInvoice: true,
                 quantityDiff,
                 detailStatus,
                 detailNote,
-                matchScore: Number(score.toFixed(2)),
+                matchScore: Number(bestScore.toFixed(2)),
+                matchedInvoiceNumber: selectedDoc?.invoiceNumber,
             };
         });
-    }, [orders, invoiceLinesBySupplier]);
+    }, [orders, bestInvoiceDocumentByBatch]);
+
+    const reconciliationPayloadItems = useMemo(() => {
+        return reconciliations
+            .filter((item) => item.hasInvoice && !!item.matchedInvoiceNumber)
+            .map((item) => ({
+                orderHistoryId: Number(item.order.id),
+                orderBatchKey: getOrderBatchKey(item.order),
+                companyContactId: item.order.companyContactId,
+                nhaThau: item.order.nhaThau,
+                maQuanLy: item.order.maQuanLy,
+                maVtytCu: item.order.maVtytCu,
+                tenVtytBv: item.order.tenVtytBv,
+                orderedQty: Number(item.order.dotGoiHang) || 0,
+                orderTime: item.order.ngayDatHang ? new Date(item.order.ngayDatHang).toISOString() : undefined,
+                invoiceNumber: item.matchedInvoiceNumber as string,
+                invoiceIdHoaDon: item.invoice?.idHoaDon,
+                invoiceRowId: item.invoice?.id,
+                invoiceCompanyContactId: item.invoice?.companyContactId,
+                invoiceCompanyName: item.invoice?.congTy,
+                invoiceItemCode: item.invoice?.maHangHoa,
+                invoiceItemName: item.invoice?.tenHangHoa,
+                invoiceQty: Number(item.invoice?.soLuong) || 0,
+                invoiceTime: item.invoice?.ngayHoaDon ? new Date(item.invoice.ngayHoaDon).toISOString() : undefined,
+                hasInvoice: item.hasInvoice,
+                detailStatus: item.detailStatus,
+                detailNote: item.detailNote,
+                matchScore: Number(item.matchScore) || 0,
+                quantityDiff: Number(item.quantityDiff) || 0,
+                matchedAt: new Date().toISOString(),
+            }))
+            .filter((item) => item.orderHistoryId > 0 && item.invoiceNumber.trim().length > 0)
+            .sort((a, b) => {
+                if (a.orderHistoryId !== b.orderHistoryId) return a.orderHistoryId - b.orderHistoryId;
+                return a.invoiceNumber.localeCompare(b.invoiceNumber);
+            });
+    }, [reconciliations]);
+
+    useEffect(() => {
+        if (reconciliationPayloadItems.length === 0) {
+            latestPersistedSignatureRef.current = '';
+            return;
+        }
+
+        const signature = JSON.stringify(reconciliationPayloadItems.map((item) => ({
+            orderHistoryId: item.orderHistoryId,
+            orderBatchKey: item.orderBatchKey,
+            invoiceNumber: item.invoiceNumber,
+            hasInvoice: item.hasInvoice,
+            detailStatus: item.detailStatus,
+            matchScore: item.matchScore,
+            quantityDiff: item.quantityDiff,
+            invoiceRowId: item.invoiceRowId,
+        })));
+
+        if (signature === latestPersistedSignatureRef.current) {
+            return;
+        }
+
+        latestPersistedSignatureRef.current = signature;
+
+        void apiService.saveInvoiceReconciliationsBulk({
+            items: reconciliationPayloadItems,
+        })
+            .then(() => {
+                if (onMatchedInvoicesSaved) {
+                    const uniqueNumbers = Array.from(new Set(reconciliationPayloadItems.map((item) => item.invoiceNumber)));
+                    onMatchedInvoicesSaved(uniqueNumbers);
+                }
+            })
+            .catch((error) => {
+                console.error('Khong luu duoc lich su doi chieu hoa don:', error);
+                latestPersistedSignatureRef.current = '';
+            });
+    }, [reconciliationPayloadItems, onMatchedInvoicesSaved]);
 
     const supplierGroups = useMemo(() => {
         let filtered = reconciliations;
@@ -230,39 +729,65 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
             );
         }
 
-        // Filter by invoice status
-        if (filterInvoiceStatus === 'hasInvoice') {
-            filtered = filtered.filter(r => r.hasInvoice);
-        } else if (filterInvoiceStatus === 'noInvoice') {
-            filtered = filtered.filter(r => !r.hasInvoice);
-        }
-
         const groups: { [key: string]: ReconciliationResult[] } = {};
         filtered.forEach(r => {
-            if (!groups[r.order.nhaThau]) {
-                groups[r.order.nhaThau] = [];
+            const batchKey = getOrderBatchKey(r.order);
+            if (!groups[batchKey]) {
+                groups[batchKey] = [];
             }
-            groups[r.order.nhaThau].push(r);
+            groups[batchKey].push(r);
         });
 
-        return Object.entries(groups).map(([nhaThau, results]): SupplierGroup => ({
-            nhaThau,
-            results,
-            latestDate: new Date(Math.max(...results.map(r => new Date(r.order.ngayDatHang).getTime()))),
-            stats: {
-                hasInvoice: results.filter(r => r.hasInvoice).length,
-                noInvoice: results.filter(r => !r.hasInvoice).length,
-            },
-        })).sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
-    }, [reconciliations, searchTerm, filterInvoiceStatus]);
+        return Object.entries(groups).map(([batchKey, results]): SupplierGroup => {
+            const sampleOrder = results[0]?.order;
+            const nhaThau = sampleOrder?.nhaThau || 'N/A';
+            const batchTime = String(sampleOrder?.ngayDatHang || '');
+            const hasInvoiceCount = results.filter(r => r.hasInvoice).length;
+            const matchedInvoiceNumbers = Array.from(
+                new Set(
+                    results
+                        .filter((r) => r.hasInvoice && r.matchedInvoiceNumber)
+                        .map((r) => r.matchedInvoiceNumber as string),
+                ),
+            );
+            return {
+                groupId: batchKey,
+                batchKey,
+                batchTime,
+                nhaThau,
+                results,
+                latestDate: new Date(Math.max(...results.map(r => new Date(r.order.ngayDatHang).getTime()))),
+                stats: {
+                    hasInvoice: hasInvoiceCount,
+                    noInvoice: results.filter(r => !r.hasInvoice).length,
+                    matchedInvoiceNumber: matchedInvoiceNumbers.length === 1
+                        ? matchedInvoiceNumbers[0]
+                        : (matchedInvoiceNumbers.length > 1 ? `${matchedInvoiceNumbers.length} hóa đơn` : undefined),
+                    matchedInvoiceLineCount: undefined,
+                },
+            };
+        }).filter((group) => {
+            if (filterSupplierStatus === 'hasInvoice') {
+                return group.stats.hasInvoice > 0;
+            } else if (filterSupplierStatus === 'noInvoice') {
+                return group.stats.hasInvoice === 0;
+            }
+            return true;
+        }).sort((a, b) => {
+            const aHas = a.stats.hasInvoice > 0 ? 1 : 0;
+            const bHas = b.stats.hasInvoice > 0 ? 1 : 0;
+            if (aHas !== bHas) return aHas - bHas;
+            return b.latestDate.getTime() - a.latestDate.getTime();
+        });
+    }, [reconciliations, searchTerm, filterSupplierStatus]);
 
-    const toggleExpand = (nhaThau: string) => {
+    const toggleExpand = (groupId: string) => {
         setExpandedSuppliers(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(nhaThau)) {
-                newSet.delete(nhaThau);
+            if (newSet.has(groupId)) {
+                newSet.delete(groupId);
             } else {
-                newSet.add(nhaThau);
+                newSet.add(groupId);
             }
             return newSet;
         });
@@ -278,73 +803,66 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
         });
     };
 
-    const renderDetailStatus = (status: DetailStatus) => {
-        switch (status) {
-            case 'matched':
-                return (
-                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap">
-                        Khớp
-                    </Badge>
-                );
-            case 'enough':
-                return (
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-[10px] whitespace-nowrap">
-                        Đủ
-                    </Badge>
-                );
-            case 'shortage':
-                return (
-                    <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 text-[10px] whitespace-nowrap">
-                        Thiếu
-                    </Badge>
-                );
-            case 'surplus':
-                return (
-                    <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-[10px] whitespace-nowrap">
-                        Thừa
-                    </Badge>
-                );
-            case 'material-mismatch':
-                return (
-                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 text-[10px] whitespace-nowrap">
-                        Lệch vật tư
-                    </Badge>
-                );
-            case 'no-invoice':
-                return (
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300 text-[10px] whitespace-nowrap">
-                        Chưa có HĐ
-                    </Badge>
-                );
-            default:
-                return (
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300 text-[10px] whitespace-nowrap">
-                        Khớp
-                    </Badge>
-                );
-        }
+    const formatDateTime = (date: string | Date) => {
+        return new Date(date).toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        });
     };
 
-    const isExactTextMatch = (left: string, right: string) => {
-        if (!left || !right) return false;
-        return normalize(left) === normalize(right);
+    const formatTime = (date: string | Date) => {
+        return new Date(date).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+        });
     };
 
-    const isNameMatch = (left: string, right: string) => tokenSimilarity(left, right) >= 0.85;
-
-    const renderCompareBadge = (isMatch: boolean, strict = false) => {
-        if (isMatch) {
-            return (
-                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap">
-                    {strict ? 'Khớp chuẩn' : 'Khớp'}
-                </Badge>
-            );
+    const getDetailCategory = (status: DetailStatus): { label: string; className: string } => {
+        if (status === 'matched' || status === 'enough') {
+            return { label: 'Khớp', className: 'bg-emerald-100 text-emerald-700 border-emerald-300' };
+        } else if (status === 'no-invoice') {
+            return { label: 'Chưa có HĐ', className: 'bg-red-100 text-red-700 border-red-300' };
+        } else if (status === 'shortage' || status === 'surplus' || status === 'material-mismatch') {
+            return { label: 'Thiếu', className: 'bg-amber-100 text-amber-700 border-amber-300' };
         }
-        return (
-            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 text-[10px] whitespace-nowrap">
-                Lệch
-            </Badge>
-        );
+        return { label: 'Khớp', className: 'bg-gray-100 text-gray-700 border-gray-300' };
+    };
+
+    const openSupplierDetail = (group: SupplierGroup) => {
+        const batchKeys = Array.from(new Set(group.results.map((item) => getOrderBatchKey(item.order))));
+        const docs = batchKeys
+            .map((batchKey) => bestInvoiceDocumentByBatch[batchKey])
+            .filter((doc): doc is InvoiceDocument => !!doc);
+
+        const invoiceMap = new Map<number, HoaDonUBot>();
+        docs.forEach((doc) => {
+            doc.lines.forEach((line) => {
+                invoiceMap.set(line.data.id, line.data);
+            });
+        });
+
+        const supplierInvoices = Array.from(invoiceMap.values()).sort((a, b) => {
+            const dateA = new Date(a.ngayHoaDon).getTime();
+            const dateB = new Date(b.ngayHoaDon).getTime();
+            if (dateA !== dateB) return dateB - dateA;
+            return (a.sttDongHang || 0) - (b.sttDongHang || 0);
+        });
+
+        const matchedNumbers = Array.from(new Set(docs.map((doc) => doc.invoiceNumber))).filter(Boolean);
+
+        setSelectedDetail({
+            supplierName: group.nhaThau,
+            orderItems: group.results,
+            invoiceItems: supplierInvoices,
+            selectedInvoiceNumber: matchedNumbers.length === 1 ? matchedNumbers[0] : undefined,
+        });
     };
 
     const totalStats = useMemo(() => {
@@ -353,6 +871,88 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
             noInvoice: acc.noInvoice + group.stats.noInvoice,
         }), { hasInvoice: 0, noInvoice: 0 });
     }, [supplierGroups]);
+
+    const detailOrderTotalQuantity = useMemo(() => {
+        if (!selectedDetail) return 0;
+        return selectedDetail.orderItems.reduce((sum, item) => sum + Number(item.order.dotGoiHang || 0), 0);
+    }, [selectedDetail]);
+
+    const detailInvoiceTotalQuantity = useMemo(() => {
+        if (!selectedDetail) return 0;
+        return selectedDetail.invoiceItems.reduce((sum, item) => sum + Number(item.soLuong || 0), 0);
+    }, [selectedDetail]);
+
+    const matchedOrderItems = useMemo(() => {
+        if (!selectedDetail) return [] as ReconciliationResult[];
+        return selectedDetail.orderItems.filter((item) => item.hasInvoice && (item.detailStatus === 'matched' || item.detailStatus === 'enough'));
+    }, [selectedDetail]);
+
+    const quantityMismatchOrderItems = useMemo(() => {
+        if (!selectedDetail) return [] as ReconciliationResult[];
+        return selectedDetail.orderItems.filter(
+            (item) => item.hasInvoice && (item.detailStatus === 'shortage' || item.detailStatus === 'surplus' || item.detailStatus === 'material-mismatch'),
+        );
+    }, [selectedDetail]);
+
+    const materialMissingOrderItems = useMemo(() => {
+        if (!selectedDetail) return [] as ReconciliationResult[];
+        return selectedDetail.orderItems.filter((item) => !item.hasInvoice);
+    }, [selectedDetail]);
+
+    const usedInvoiceIdSet = useMemo(() => {
+        const ids = new Set<number>();
+        if (!selectedDetail) return ids;
+        selectedDetail.orderItems.forEach((item) => {
+            if (item.invoice?.id) ids.add(item.invoice.id);
+        });
+        return ids;
+    }, [selectedDetail]);
+
+    const materialMissingInvoiceItems = useMemo(() => {
+        if (!selectedDetail) return [] as HoaDonUBot[];
+        return selectedDetail.invoiceItems.filter(
+            (line) => !usedInvoiceIdSet.has(line.id),
+        );
+    }, [selectedDetail, usedInvoiceIdSet]);
+
+    const redRows = useMemo((): ModalPairRow[] => {
+        const maxLen = Math.max(materialMissingOrderItems.length, materialMissingInvoiceItems.length);
+        return Array.from({ length: maxLen }).map((_, idx) => ({
+            left: materialMissingOrderItems[idx],
+            right: materialMissingInvoiceItems[idx],
+        }));
+    }, [materialMissingOrderItems, materialMissingInvoiceItems]);
+
+    const yellowRows = useMemo((): ModalPairRow[] => {
+        return quantityMismatchOrderItems.map((item) => ({
+            left: item,
+            right: item.invoice,
+        }));
+    }, [quantityMismatchOrderItems]);
+
+    const greenRows = useMemo((): ModalPairRow[] => {
+        return matchedOrderItems.map((item) => ({
+            left: item,
+            right: item.invoice,
+        }));
+    }, [matchedOrderItems]);
+
+    const selectedInvoiceNumberInModal = useMemo(() => {
+        if (!selectedDetail) return '';
+        if (selectedDetail.selectedInvoiceNumber) return selectedDetail.selectedInvoiceNumber;
+        if (selectedDetail.invoiceItems.length === 0) return '';
+        return getInvoiceNumber(selectedDetail.invoiceItems[0]);
+    }, [selectedDetail]);
+
+    const selectedInvoiceLookupLink = useMemo(() => {
+        if (!selectedDetail) return '';
+        const found = selectedDetail.invoiceItems.find((item) => (item.linkTraCuuHoaDon || '').trim().length > 0);
+        return found?.linkTraCuuHoaDon || '';
+    }, [selectedDetail]);
+
+    const showRedSection = redRows.length > 0;
+    const showYellowSection = yellowRows.length > 0;
+    const showGreenSection = greenRows.length > 0;
 
     return (
         <div className="space-y-4">
@@ -364,12 +964,12 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">Lọc theo trạng thái HĐ:</span>
+                    <span className="text-sm font-medium text-muted-foreground">Lọc theo HĐ:</span>
                     <button
                         type="button"
-                        onClick={() => setFilterInvoiceStatus('all')}
+                        onClick={() => setFilterSupplierStatus('all')}
                         className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            filterInvoiceStatus === 'all'
+                            filterSupplierStatus === 'all'
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
                         }`}
@@ -378,25 +978,25 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                     </button>
                     <button
                         type="button"
-                        onClick={() => setFilterInvoiceStatus('hasInvoice')}
+                        onClick={() => setFilterSupplierStatus('noInvoice')}
                         className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            filterInvoiceStatus === 'hasInvoice'
+                            filterSupplierStatus === 'noInvoice'
+                                ? 'bg-red-600 text-white'
+                                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                        }`}
+                    >
+                        Chưa có HĐ
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilterSupplierStatus('hasInvoice')}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            filterSupplierStatus === 'hasInvoice'
                                 ? 'bg-green-600 text-white'
                                 : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
                         }`}
                     >
                         Đã có HĐ
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilterInvoiceStatus('noInvoice')}
-                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            filterInvoiceStatus === 'noInvoice'
-                                ? 'bg-amber-600 text-white'
-                                : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-                        }`}
-                    >
-                        Chưa có HĐ
                     </button>
                 </div>
             </div>
@@ -439,14 +1039,14 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                         </thead>
                         <tbody>
                             {supplierGroups.map((group) => {
-                                const isExpanded = expandedSuppliers.has(group.nhaThau);
+                                const isExpanded = expandedSuppliers.has(group.groupId);
 
                                 return (
-                                    <React.Fragment key={group.nhaThau}>
+                                    <React.Fragment key={group.groupId}>
                                         {/* Dòng nhà thầu */}
                                         <tr
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                                            onClick={() => toggleExpand(group.nhaThau)}
+                                            onClick={() => toggleExpand(group.groupId)}
                                         >
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center text-muted-foreground">
@@ -458,9 +1058,14 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Building2 className="w-4 h-4 text-primary" />
-                                                    <span className="font-medium text-sm text-foreground">{group.nhaThau}</span>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Building2 className="w-4 h-4 text-primary" />
+                                                        <span className="font-medium text-sm text-foreground">{group.nhaThau}</span>
+                                                    </div>
+                                                    <span className="text-[11px] text-muted-foreground">
+                                                        Đơn theo thời điểm: {group.batchTime ? formatDateTime(group.batchTime) : 'N/A'}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -473,9 +1078,10 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                 <div className="inline-flex flex-col items-center gap-1">
                                                     <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
                                                         <Calendar className="w-3 h-3 mr-1" />
-                                                        {formatDate(group.latestDate).split(' ')[0]}
+                                                        {formatDate(group.latestDate)}
                                                     </Badge>
-                                                    <span className="text-[11px] text-muted-foreground">mới nhất</span>
+                                                    <span className="text-[11px] text-muted-foreground">{formatTime(group.latestDate)}</span>
+                                                    <span className="text-[10px] text-muted-foreground">mới nhất</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -483,17 +1089,23 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                     <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
                                                         Có HĐ: {group.stats.hasInvoice}/{group.results.length}
                                                     </Badge>
-                                                    <span className="text-[11px] text-muted-foreground">So khớp theo vật tư đã gửi email</span>
+                                                    {group.stats.matchedInvoiceNumber ? (
+                                                        <span className="text-[11px] text-muted-foreground">
+                                                            HĐ khớp: <span className="font-mono">{group.stats.matchedInvoiceNumber}</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[11px] text-muted-foreground">So khớp theo vật tư đã gửi email</span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {group.stats.noInvoice > 0 ? (
-                                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-semibold">
-                                                        Chưa có
-                                                    </Badge>
-                                                ) : (
+                                                {group.stats.hasInvoice > 0 ? (
                                                     <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 font-semibold">
                                                         Đã có
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-semibold">
+                                                        Chưa có
                                                     </Badge>
                                                 )}
                                             </td>
@@ -504,12 +1116,24 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                             <tr>
                                                 <td colSpan={6} className="p-0">
                                                     <div className="bg-background border-l-4 border-blue-400 overflow-x-auto">
+                                                        <div className="flex justify-end px-3 py-2 border-b border-blue-100 bg-blue-50/30">
+                                                            {group.stats.hasInvoice > 0 ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openSupplierDetail(group)}
+                                                                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2"
+                                                                >
+                                                                    Chi tiết
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-xs text-muted-foreground">Không có hóa đơn để xem chi tiết</span>
+                                                            )}
+                                                        </div>
                                                         <table className="w-full min-w-[1500px]" style={{ tableLayout: 'fixed' }}>
                                                             <colgroup>
                                                                 <col style={{ width: '130px' }} />
                                                                 <col style={{ width: '280px' }} />
                                                                 <col style={{ width: '140px' }} />
-                                                                <col style={{ width: '180px' }} />
                                                                 <col style={{ width: '130px' }} />
                                                                 <col style={{ width: '140px' }} />
                                                                 <col style={{ width: '200px' }} />
@@ -520,7 +1144,6 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Mã QL</th>
                                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tên vật tư</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL đặt</th>
-                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Mã HĐ</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL HĐ</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">Chênh lệch</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">Kết luận chi tiết</th>
@@ -566,15 +1189,6 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                                                 </td>
                                                                                 <td className="px-3 py-2 text-center">
                                                                                     {result.invoice ? (
-                                                                                        <span className="font-mono text-[11px] bg-gray-100 px-2 py-1 rounded border border-gray-200">
-                                                                                            {result.invoice.soHoaDon || result.invoice.idHoaDon}
-                                                                                        </span>
-                                                                                    ) : (
-                                                                                        <span className="text-muted-foreground">—</span>
-                                                                                    )}
-                                                                                </td>
-                                                                                <td className="px-3 py-2 text-center">
-                                                                                    {result.invoice ? (
                                                                                         <span className="font-semibold">
                                                                                             {result.invoice.soLuong}
                                                                                         </span>
@@ -602,7 +1216,14 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                                                 </td>
                                                                                 <td className="px-3 py-2 text-center">
                                                                                     <div className="inline-flex flex-col items-center gap-1">
-                                                                                        {renderDetailStatus(result.detailStatus)}
+                                                                                        {(() => {
+                                                                                            const category = getDetailCategory(result.detailStatus);
+                                                                                            return (
+                                                                                                <Badge variant="outline" className={`${category.className} text-[10px] whitespace-nowrap`}>
+                                                                                                    {category.label}
+                                                                                                </Badge>
+                                                                                            );
+                                                                                        })()}
                                                                                         {result.detailNote && (
                                                                                             <span className="text-[10px] text-muted-foreground max-w-[140px] leading-tight" title={result.detailNote}>
                                                                                                 {result.detailNote}
@@ -612,17 +1233,6 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
                                                                                 </td>
                                                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                                                     {formatDate(result.order.ngayDatHang)}
-                                                                                </td>
-                                                                                <td className="px-3 py-2 text-center">
-                                                                                    {result.hasInvoice ? (
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => setSelectedDetail(result)}
-                                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-900 hover:underline"
-                                                                                        >
-                                                                                            Chi tiết
-                                                                                        </button>
-                                                                                    ) : null}
                                                                                 </td>
                                                                             </tr>
                                                                         </React.Fragment>
@@ -643,83 +1253,177 @@ export default function InvoiceTable({ orders, hoaDons }: InvoiceTableProps) {
             </div>
 
             <Dialog open={!!selectedDetail} onOpenChange={(open) => { if (!open) setSelectedDetail(null); }}>
-                {selectedDetail?.invoice && (
-                    <DialogContent className="max-w-4xl">
+                {selectedDetail && (
+                    <DialogContent className="w-[80vw] max-w-[80vw] max-h-[92vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>Đối chiếu chi tiết đơn và hóa đơn</DialogTitle>
+                            <DialogTitle>Chi tiết đối chiếu toàn bộ vật tư</DialogTitle>
                             <DialogDescription>
-                                {selectedDetail.order.nhaThau} • Mã QL: {selectedDetail.order.maQuanLy}
+                                {selectedDetail.supplierName}
+                                {selectedInvoiceNumberInModal ? ` • Hóa đơn khớp: ${selectedInvoiceNumberInModal}` : ''}
+                                {' • Bên trái: Order History • Bên phải: Hóa đơn'}
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
-                                <div className="text-sm font-semibold text-blue-700 mb-3">Bên gọi hàng (BV108)</div>
-                                <div className="space-y-2 text-sm">
-                                    <div><span className="text-muted-foreground">Mã quản lý:</span> <span className="font-medium">{selectedDetail.order.maQuanLy}</span></div>
-                                    <div><span className="text-muted-foreground">Mã vật tư:</span> <span className="font-medium">{selectedDetail.order.maVtytCu || '—'}</span></div>
-                                    <div><span className="text-muted-foreground">Tên vật tư:</span> <span className="font-medium">{selectedDetail.order.tenVtytBv}</span></div>
-                                    <div><span className="text-muted-foreground">Đơn vị:</span> <span className="font-medium">{selectedDetail.order.donViTinh}</span></div>
-                                    <div><span className="text-muted-foreground">Số lượng gọi:</span> <span className="font-semibold">{selectedDetail.order.dotGoiHang}</span></div>
-                                </div>
-                            </div>
-
-                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
-                                <div className="text-sm font-semibold text-emerald-700 mb-3">Bên hóa đơn (UBot)</div>
-                                <div className="space-y-2 text-sm">
-                                    <div><span className="text-muted-foreground">Số hóa đơn:</span> <span className="font-medium">{selectedDetail.invoice.soHoaDon || selectedDetail.invoice.idHoaDon}</span></div>
-                                    <div><span className="text-muted-foreground">Mã hàng hóa:</span> <span className="font-medium">{selectedDetail.invoice.maHangHoa || '—'}</span></div>
-                                    <div><span className="text-muted-foreground">Tên hàng hóa:</span> <span className="font-medium">{selectedDetail.invoice.tenHangHoa}</span></div>
-                                    <div><span className="text-muted-foreground">Đơn vị:</span> <span className="font-medium">{selectedDetail.invoice.donViTinh}</span></div>
-                                    <div><span className="text-muted-foreground">Số lượng hóa đơn:</span> <span className="font-semibold">{selectedDetail.invoice.soLuong}</span></div>
-                                </div>
+                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 px-4 py-3 text-sm">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className="text-muted-foreground">Mã hóa đơn:</span>
+                                <span className="font-mono font-semibold text-indigo-700">{selectedInvoiceNumberInModal || '—'}</span>
+                                {selectedInvoiceLookupLink ? (
+                                    <a
+                                        href={selectedInvoiceLookupLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-indigo-700 font-medium hover:text-indigo-900 underline underline-offset-2"
+                                    >
+                                        Xem hóa đơn
+                                    </a>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground">Không có link tra cứu</span>
+                                )}
                             </div>
                         </div>
 
-                        <div className="rounded-lg border border-border">
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50">
-                                    <tr>
-                                        <th className="px-3 py-2 text-left">Tiêu chí</th>
-                                        <th className="px-3 py-2 text-left">Bên gọi</th>
-                                        <th className="px-3 py-2 text-left">Bên hóa đơn</th>
-                                        <th className="px-3 py-2 text-center">Kết quả</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr className="border-t">
-                                        <td className="px-3 py-2">Mã vật tư</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.order.maVtytCu || '—'}</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.invoice.maHangHoa || '—'}</td>
-                                        <td className="px-3 py-2 text-center">{renderCompareBadge(isExactTextMatch(selectedDetail.order.maVtytCu || '', selectedDetail.invoice.maHangHoa || ''), true)}</td>
-                                    </tr>
-                                    <tr className="border-t">
-                                        <td className="px-3 py-2">Tên vật tư</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.order.tenVtytBv}</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.invoice.tenHangHoa}</td>
-                                        <td className="px-3 py-2 text-center">{renderCompareBadge(isNameMatch(selectedDetail.order.tenVtytBv || '', selectedDetail.invoice.tenHangHoa || ''))}</td>
-                                    </tr>
-                                    <tr className="border-t">
-                                        <td className="px-3 py-2">Đơn vị tính</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.order.donViTinh || '—'}</td>
-                                        <td className="px-3 py-2 font-medium">{selectedDetail.invoice.donViTinh || '—'}</td>
-                                        <td className="px-3 py-2 text-center">{renderCompareBadge(isExactTextMatch(selectedDetail.order.donViTinh || '', selectedDetail.invoice.donViTinh || ''))}</td>
-                                    </tr>
-                                    <tr className="border-t">
-                                        <td className="px-3 py-2">Số lượng</td>
-                                        <td className="px-3 py-2 font-semibold">{selectedDetail.order.dotGoiHang}</td>
-                                        <td className="px-3 py-2 font-semibold">{selectedDetail.invoice.soLuong}</td>
-                                        <td className="px-3 py-2 text-center">{renderCompareBadge(Number(selectedDetail.order.dotGoiHang) === Number(selectedDetail.invoice.soLuong), true)}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3">
+                                <div className="text-muted-foreground">Tổng dòng Order History</div>
+                                <div className="text-lg font-semibold text-blue-700">{selectedDetail.orderItems.length}</div>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+                                <div className="text-muted-foreground">Tổng SL Order History</div>
+                                <div className="text-lg font-semibold text-emerald-700">{detailOrderTotalQuantity}</div>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                                <div className="text-muted-foreground">Tổng SL Hóa đơn</div>
+                                <div className="text-lg font-semibold text-slate-700">{detailInvoiceTotalQuantity}</div>
+                            </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 text-sm">
-                            <span className="text-muted-foreground">Kết luận:</span>
-                            {renderDetailStatus(selectedDetail.detailStatus)}
-                            {selectedDetail.detailNote && <span className="text-muted-foreground">{selectedDetail.detailNote}</span>}
-                            <span className="text-muted-foreground">• Điểm match: {selectedDetail.matchScore ?? 0}</span>
+                        <div className="space-y-4">
+                            {showRedSection && (
+                            <div className="rounded-lg border border-red-300 bg-red-50/40 overflow-hidden">
+                                <div className="px-3 py-2 text-sm font-semibold text-red-800 border-b border-red-200">
+                                    Sai hoàn toàn vật tư (chỉ xuất hiện 1 bên)
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                                        <colgroup>
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                        </colgroup>
+                                        <thead className="bg-red-100/50">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-red-400">SL đặt</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-red-400">Mã hàng hóa</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (HĐ)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap">SL HĐ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {redRows.map((row, idx) => (
+                                                <tr key={`red-row-${idx}`} className="border-t border-red-100 align-top">
+                                                    <td className="px-3 py-2 font-mono bg-red-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 bg-red-50/30">{row.left?.order.tenVtytBv || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold border-r-4 border-red-400 bg-red-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
+                                                    <td className="px-3 py-2 font-mono border-l-4 border-red-400">{row.right?.maHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2">{row.right?.tenHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold">{row.right ? row.right.soLuong : '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            )}
+
+                            {showYellowSection && (
+                            <div className="rounded-lg border border-amber-300 bg-amber-50/40 overflow-hidden">
+                                <div className="px-3 py-2 text-sm font-semibold text-amber-800 border-b border-amber-200">
+                                    Có ở cả 2 bên nhưng sai số lượng hoặc sai thông tin khớp
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                                        <colgroup>
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                        </colgroup>
+                                        <thead className="bg-amber-100/50">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-amber-400">SL đặt</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-amber-400">Mã hàng hóa</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (HĐ)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap">SL HĐ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {yellowRows.map((row, idx) => (
+                                                <tr key={`yellow-row-${idx}`} className="border-t border-amber-100 align-top">
+                                                    <td className="px-3 py-2 font-mono bg-amber-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 bg-amber-50/30">{row.left?.order.tenVtytBv || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold border-r-4 border-amber-400 bg-amber-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
+                                                    <td className="px-3 py-2 font-mono border-l-4 border-amber-400">{row.right?.maHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2">{row.right?.tenHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold">{row.right ? row.right.soLuong : '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            )}
+
+                            {showGreenSection && (
+                            <div className="rounded-lg border border-emerald-300 bg-emerald-50/40 overflow-hidden">
+                                <div className="px-3 py-2 text-sm font-semibold text-emerald-800 border-b border-emerald-200">
+                                    Khớp (đã xử lý, có thể bỏ qua)
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                                        <colgroup>
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.67%' }} />
+                                            <col style={{ width: '16.66%' }} />
+                                        </colgroup>
+                                        <thead className="bg-emerald-100/50">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-emerald-400">SL đặt</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-emerald-400">Mã hàng hóa</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (HĐ)</th>
+                                                <th className="px-3 py-2 text-center whitespace-nowrap">SL HĐ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {greenRows.map((row, idx) => (
+                                                <tr key={`green-row-${idx}`} className="border-t border-emerald-100 opacity-50 line-through decoration-slate-300 align-top">
+                                                    <td className="px-3 py-2 font-mono bg-emerald-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 bg-emerald-50/30">{row.left?.order.tenVtytBv || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold border-r-4 border-emerald-400 bg-emerald-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
+                                                    <td className="px-3 py-2 font-mono border-l-4 border-emerald-400">{row.right?.maHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2">{row.right?.tenHangHoa || '—'}</td>
+                                                    <td className="px-3 py-2 text-center font-semibold">{row.right ? row.right.soLuong : '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            )}
                         </div>
                     </DialogContent>
                 )}
