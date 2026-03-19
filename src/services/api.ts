@@ -63,6 +63,14 @@ export interface MutationMessageResponse {
   count?: number;
 }
 
+export interface CompanyContactSuggestion {
+  id: number;
+  identityKey: string;
+  companyName: string;
+  taxId?: string;
+  email: string;
+}
+
 export interface PlaceOrdersRequest {
   orderIds: number[];
 }
@@ -426,6 +434,14 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(payload),
     }, true);
+  }
+
+  async searchCompanyContacts(keyword: string, limit: number = 8): Promise<OrderListResponse<CompanyContactSuggestion>> {
+    return this.request<OrderListResponse<CompanyContactSuggestion>>(
+      `/orders/company-contacts/search?keyword=${encodeURIComponent(keyword)}&limit=${limit}`,
+      { method: 'GET' },
+      true,
+    );
   }
 
   async placeOrders(payload: PlaceOrdersRequest): Promise<PlaceOrdersResponse> {

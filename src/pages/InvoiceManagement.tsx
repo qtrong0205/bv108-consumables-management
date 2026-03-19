@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import InvoiceTable from '@/components/orders/InvoiceTable';
 import UBotInvoiceTable from '@/components/orders/UBotInvoiceTable';
 import { useOrder } from '@/context/OrderContext';
-import { useInvoiceData } from '@/hooks/use-invoice-data';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
 
 export default function InvoiceManagement() {
@@ -16,10 +15,7 @@ export default function InvoiceManagement() {
         invoiceUiCache.activeTab = activeTab;
     }, [activeTab]);
 
-    // Load invoice data từ uBot
-    useInvoiceData();
-    
-    const { invoices, orderHistory, refreshOrders, loadingOrders } = useOrder();
+    const { orderHistory, refreshOrders, loadingOrders } = useOrder();
     const { hoaDons, loading, error, refetch } = useHoaDonUBot();
 
     useEffect(() => {
@@ -49,10 +45,7 @@ export default function InvoiceManagement() {
                                     Đang tải lịch sử đơn hàng...
                                 </div>
                             ) : (
-                                <InvoiceTable 
-                                    orders={orderHistory}
-                                    invoices={invoices}
-                                />
+                                <InvoiceTable orders={orderHistory} hoaDons={hoaDons} />
                             )}
                         </CardContent>
                     </Card>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,12 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { OrderRequest } from '@/types';
+import { apiService, ApiSupply, CompanyContactSuggestion, getNullableString } from '@/services/api';
 
 interface CreateOrderDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSubmit: (order: OrderRequest) => void | Promise<void>;
 }
+
+type SupplyLookupField = 'maQuanLy' | 'maVtytCu' | 'tenVtytBv';
+
+const normalizeText = (value: string) => value.trim().toLowerCase();
 
 export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: CreateOrderDialogProps) {
     const [formData, setFormData] = useState<Partial<OrderRequest>>({
@@ -29,6 +34,18 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
 
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [companySuggestions, setCompanySuggestions] = useState<CompanyContactSuggestion[]>([]);
+    const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
+    const [isLoadingCompanySuggestions, setIsLoadingCompanySuggestions] = useState(false);
+    const [supplySuggestions, setSupplySuggestions] = useState<ApiSupply[]>([]);
+    const [showSupplySuggestionsFor, setShowSupplySuggestionsFor] = useState<SupplyLookupField | null>(null);
+    const [isLoadingSupplySuggestions, setIsLoadingSupplySuggestions] = useState(false);
+
+    const matchingCompany = useMemo(() => {
+        const currentCompany = normalizeText(formData.nhaThau || '');
+        if (!currentCompany) return null;
+        return companySuggestions.find((item) => normalizeText(item.companyName) === currentCompany) || null;
+    }, [companySuggestions, formData.nhaThau]);
 
     const handleInputChange = (field: keyof OrderRequest, value: any) => {
         setFormData(prev => ({
@@ -44,6 +61,119 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
             });
         }
     };
+
+    const handleSelectCompany = (contact: CompanyContactSuggestion) => {
+        setFormData((prev) => ({
+            ...prev,
+            nhaThau: contact.companyName,
+            email: contact.email || prev.email || '',
+        }));
+        setShowCompanySuggestions(false);
+    };
+
+    const handleSupplyLookupInput = (field: SupplyLookupField, value: string) => {
+        handleInputChange(field, value);
+        setShowSupplySuggestionsFor(field);
+    };
+
+    const handleSelectSupply = (supply: ApiSupply) => {
+        const maQuanLy = getNullableString(supply.idx2) || String(supply.idx1 || '');
+        const maVtytCu = getNullableString(supply.id);
+        const tenVtytBv = getNullableString(supply.name);
+
+        setFormData((prev) => ({
+            ...prev,
+            maQuanLy,
+            maVtytCu,
+            tenVtytBv,
+            maHieu: getNullableString(supply.maHieu),
+            hangSx: getNullableString(supply.hangSx),
+            donViTinh: getNullableString(supply.unit),
+            quyCach: getNullableString(supply.quyCach),
+        }));
+
+        setShowSupplySuggestionsFor(null);
+        setSupplySuggestions([]);
+    };
+
+    useEffect(() => {
+        if (!open) {
+            setCompanySuggestions([]);
+            setSupplySuggestions([]);
+            setShowCompanySuggestions(false);
+            setShowSupplySuggestionsFor(null);
+            return;
+        }
+
+        const keyword = (formData.nhaThau || '').trim();
+        if (keyword.length < 2) {
+            setCompanySuggestions([]);
+            setShowCompanySuggestions(false);
+            return;
+        }
+
+        let isCancelled = false;
+        const timer = window.setTimeout(async () => {
+            setIsLoadingCompanySuggestions(true);
+            try {
+                const response = await apiService.searchCompanyContacts(keyword, 8);
+                if (!isCancelled) {
+                    setCompanySuggestions(response.data || []);
+                    setShowCompanySuggestions(true);
+                }
+            } catch {
+                if (!isCancelled) {
+                    setCompanySuggestions([]);
+                    setShowCompanySuggestions(false);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingCompanySuggestions(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            isCancelled = true;
+            window.clearTimeout(timer);
+        };
+    }, [formData.nhaThau, open]);
+
+    useEffect(() => {
+        if (!open || !showSupplySuggestionsFor) {
+            return;
+        }
+
+        const keyword = (formData[showSupplySuggestionsFor] || '').toString().trim();
+        if (keyword.length < 2) {
+            setSupplySuggestions([]);
+            return;
+        }
+
+        let isCancelled = false;
+        const timer = window.setTimeout(async () => {
+            setIsLoadingSupplySuggestions(true);
+            try {
+                const response = await apiService.searchSupplies(keyword, 1, 8);
+                if (!isCancelled) {
+                    setSupplySuggestions(response.data || []);
+                }
+            } catch {
+                if (!isCancelled) {
+                    setSupplySuggestions([]);
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingSupplySuggestions(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            isCancelled = true;
+            window.clearTimeout(timer);
+        };
+    }, [formData, open, showSupplySuggestionsFor]);
 
     const validateForm = (): boolean => {
         const newErrors: Record<string, string> = {};
@@ -119,7 +249,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                                <div className="space-y-2 relative">
                                     <Label htmlFor="nhaThau" className="text-foreground font-medium">
                                         Nhà thầu <span className="text-red-500">*</span>
                                     </Label>
@@ -128,8 +258,38 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         placeholder="Tên công ty nhà thầu"
                                         value={formData.nhaThau || ''}
                                         onChange={(e) => handleInputChange('nhaThau', e.target.value)}
+                                        onFocus={() => {
+                                            if (companySuggestions.length > 0) {
+                                                setShowCompanySuggestions(true);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            window.setTimeout(() => setShowCompanySuggestions(false), 120);
+                                        }}
                                         className={errors.nhaThau ? 'border-red-500' : ''}
                                     />
+                                    {showCompanySuggestions && (
+                                        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-background shadow-lg">
+                                            {isLoadingCompanySuggestions ? (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Đang tìm công ty...</div>
+                                            ) : companySuggestions.length > 0 ? (
+                                                companySuggestions.map((contact) => (
+                                                    <button
+                                                        key={contact.id}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => handleSelectCompany(contact)}
+                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+                                                    >
+                                                        <div className="text-sm font-medium text-foreground">{contact.companyName}</div>
+                                                        <div className="text-xs text-muted-foreground">{contact.email || 'Chưa có email'}</div>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
+                                            )}
+                                        </div>
+                                    )}
                                     {errors.nhaThau && <p className="text-sm text-red-500">{errors.nhaThau}</p>}
                                 </div>
 
@@ -140,7 +300,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                     <Input
                                         id="email"
                                         type="email"
-                                        placeholder="email@example.com"
+                                        placeholder={matchingCompany?.email || 'email@example.com'}
                                         value={formData.email || ''}
                                         onChange={(e) => handleInputChange('email', e.target.value)}
                                     />
@@ -156,7 +316,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                                <div className="space-y-2 relative">
                                     <Label htmlFor="maQuanLy" className="text-foreground font-medium">
                                         Mã quản lý
                                     </Label>
@@ -164,11 +324,37 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         id="maQuanLy"
                                         placeholder="VD: MA001"
                                         value={formData.maQuanLy || ''}
-                                        onChange={(e) => handleInputChange('maQuanLy', e.target.value)}
+                                        onChange={(e) => handleSupplyLookupInput('maQuanLy', e.target.value)}
+                                        onFocus={() => setShowSupplySuggestionsFor('maQuanLy')}
+                                        onBlur={() => {
+                                            window.setTimeout(() => setShowSupplySuggestionsFor(null), 120);
+                                        }}
                                     />
+                                    {showSupplySuggestionsFor === 'maQuanLy' && (
+                                        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-background shadow-lg">
+                                            {isLoadingSupplySuggestions ? (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Đang tìm vật tư...</div>
+                                            ) : supplySuggestions.length > 0 ? (
+                                                supplySuggestions.map((supply) => (
+                                                    <button
+                                                        key={`${supply.idx1}-${getNullableString(supply.id)}-${getNullableString(supply.idx2)}`}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => handleSelectSupply(supply)}
+                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+                                                    >
+                                                        <div className="text-sm font-medium text-foreground">{getNullableString(supply.idx2) || supply.idx1}</div>
+                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • {getNullableString(supply.id)}</div>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="space-y-2 relative">
                                     <Label htmlFor="maVtytCu" className="text-foreground font-medium">
                                         Mã vật tư <span className="text-red-500">*</span>
                                     </Label>
@@ -176,13 +362,39 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         id="maVtytCu"
                                         placeholder="VD: VT001"
                                         value={formData.maVtytCu || ''}
-                                        onChange={(e) => handleInputChange('maVtytCu', e.target.value)}
+                                        onChange={(e) => handleSupplyLookupInput('maVtytCu', e.target.value)}
+                                        onFocus={() => setShowSupplySuggestionsFor('maVtytCu')}
+                                        onBlur={() => {
+                                            window.setTimeout(() => setShowSupplySuggestionsFor(null), 120);
+                                        }}
                                         className={errors.maVtytCu ? 'border-red-500' : ''}
                                     />
+                                    {showSupplySuggestionsFor === 'maVtytCu' && (
+                                        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-background shadow-lg">
+                                            {isLoadingSupplySuggestions ? (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Đang tìm vật tư...</div>
+                                            ) : supplySuggestions.length > 0 ? (
+                                                supplySuggestions.map((supply) => (
+                                                    <button
+                                                        key={`${supply.idx1}-${getNullableString(supply.id)}-${getNullableString(supply.idx2)}`}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => handleSelectSupply(supply)}
+                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+                                                    >
+                                                        <div className="text-sm font-medium text-foreground">{getNullableString(supply.id)}</div>
+                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • MQL: {getNullableString(supply.idx2) || supply.idx1}</div>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
+                                            )}
+                                        </div>
+                                    )}
                                     {errors.maVtytCu && <p className="text-sm text-red-500">{errors.maVtytCu}</p>}
                                 </div>
 
-                                <div className="space-y-2 col-span-2">
+                                <div className="space-y-2 col-span-2 relative">
                                     <Label htmlFor="tenVtytBv" className="text-foreground font-medium">
                                         Tên vật tư <span className="text-red-500">*</span>
                                     </Label>
@@ -190,9 +402,35 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         id="tenVtytBv"
                                         placeholder="Tên chi tiết của vật tư"
                                         value={formData.tenVtytBv || ''}
-                                        onChange={(e) => handleInputChange('tenVtytBv', e.target.value)}
+                                        onChange={(e) => handleSupplyLookupInput('tenVtytBv', e.target.value)}
+                                        onFocus={() => setShowSupplySuggestionsFor('tenVtytBv')}
+                                        onBlur={() => {
+                                            window.setTimeout(() => setShowSupplySuggestionsFor(null), 120);
+                                        }}
                                         className={errors.tenVtytBv ? 'border-red-500' : ''}
                                     />
+                                    {showSupplySuggestionsFor === 'tenVtytBv' && (
+                                        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-background shadow-lg">
+                                            {isLoadingSupplySuggestions ? (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Đang tìm vật tư...</div>
+                                            ) : supplySuggestions.length > 0 ? (
+                                                supplySuggestions.map((supply) => (
+                                                    <button
+                                                        key={`${supply.idx1}-${getNullableString(supply.id)}-${getNullableString(supply.idx2)}`}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => handleSelectSupply(supply)}
+                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+                                                    >
+                                                        <div className="text-sm font-medium text-foreground">{getNullableString(supply.name)}</div>
+                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.id)} • {getNullableString(supply.unit)}</div>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
+                                            )}
+                                        </div>
+                                    )}
                                     {errors.tenVtytBv && <p className="text-sm text-red-500">{errors.tenVtytBv}</p>}
                                 </div>
 
