@@ -71,6 +71,7 @@ export default function InvoiceManagement() {
     const [historyError, setHistoryError] = useState<string | null>(null);
     const [historyRecords, setHistoryRecords] = useState<ApiInvoiceReconciliationRecord[]>([]);
     const [matchedInvoiceNumbers, setMatchedInvoiceNumbers] = useState<Set<string>>(new Set());
+    const [matchedOrderRecords, setMatchedOrderRecords] = useState<ApiInvoiceReconciliationRecord[]>([]);
 
     const loadInvoiceHistory = async () => {
         try {
@@ -99,6 +100,15 @@ export default function InvoiceManagement() {
         }
     };
 
+    const loadMatchedOrders = async () => {
+        try {
+            const response = await apiService.getMatchedOrderReconciliations();
+            setMatchedOrderRecords(response.data || []);
+        } catch (fetchError) {
+            console.error('Không tải được lịch sử đơn hàng đã khớp:', fetchError);
+        }
+    };
+
     const handleMatchedInvoicesSaved = (invoiceNumbers: string[]) => {
         if (invoiceNumbers.length === 0) return;
         setMatchedInvoiceNumbers((prev) => {
@@ -117,12 +127,14 @@ export default function InvoiceManagement() {
 
     useEffect(() => {
         void loadMatchedInvoices();
+        void loadMatchedOrders();
     }, []);
 
     useEffect(() => {
         if (activeTab !== 'history') return;
         void loadInvoiceHistory();
         void loadMatchedInvoices();
+        void loadMatchedOrders();
     }, [activeTab, tabStates.history.month, tabStates.history.year]);
 
     return (
@@ -154,6 +166,7 @@ export default function InvoiceManagement() {
                                     orders={orderHistory} 
                                     hoaDons={hoaDons} 
                                     matchedInvoiceNumbers={matchedInvoiceNumbers}
+                                    matchedReconciliations={matchedOrderRecords}
                                     onMatchedInvoicesSaved={handleMatchedInvoicesSaved}
                                     searchTerm={tabStates.reconcile.searchTerm}
                                     onSearchChange={(term) => updateTabState('reconcile', { searchTerm: term })}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
-import { apiService } from '@/services/api';
+import { ApiInvoiceReconciliationRecord, SaveInvoiceReconciliationItemRequest, apiService } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
@@ -22,6 +22,7 @@ interface InvoiceTableProps {
     orders: OrderHistory[];
     hoaDons: HoaDonUBot[];
     matchedInvoiceNumbers?: Set<string>;
+    matchedReconciliations?: ApiInvoiceReconciliationRecord[];
     onMatchedInvoicesSaved?: (invoiceNumbers: string[]) => void;
     searchTerm?: string;
     onSearchChange?: (term: string) => void;
@@ -42,6 +43,7 @@ interface ReconciliationResult {
     detailNote?: string;
     matchScore?: number;
     matchedInvoiceNumber?: string;
+    isFromHistory?: boolean;
 }
 
 interface SupplierGroup {
@@ -97,6 +99,20 @@ const normalize = (value?: string | null) => {
 };
 
 const normalizeInvoiceKey = (value?: string | null) => (value || '').trim().toLowerCase();
+
+const coerceDetailStatus = (value?: string | null): DetailStatus => {
+    switch (value) {
+        case 'matched':
+        case 'enough':
+        case 'shortage':
+        case 'surplus':
+        case 'material-mismatch':
+        case 'no-invoice':
+            return value;
+        default:
+            return 'matched';
+    }
+};
 
 const parseDate = (value: string | Date) => {
     const date = new Date(value);
@@ -345,6 +361,7 @@ export default function InvoiceTable({
     orders, 
     hoaDons,
     matchedInvoiceNumbers,
+    matchedReconciliations,
     onMatchedInvoicesSaved,
     searchTerm: externalSearchTerm,
     onSearchChange,
@@ -390,7 +407,52 @@ export default function InvoiceTable({
     
     const [selectedDetail, setSelectedDetail] = useState<SupplierDetailModalData | null>(null);
     const latestPersistedSignatureRef = useRef('');
+    const [localMatchedMap, setLocalMatchedMap] = useState<Map<number, SaveInvoiceReconciliationItemRequest>>(new Map());
     const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
+    const matchedHistoryMap = useMemo(() => {
+        const map = new Map<number, ApiInvoiceReconciliationRecord>();
+        (matchedReconciliations || []).forEach((record) => {
+            if (!record || record.orderHistoryId <= 0) return;
+            const existing = map.get(record.orderHistoryId);
+            if (!existing) {
+                map.set(record.orderHistoryId, record);
+                return;
+            }
+            const existingTime = new Date(existing.matchedAt).getTime();
+            const nextTime = new Date(record.matchedAt).getTime();
+            if (nextTime > existingTime) {
+                map.set(record.orderHistoryId, record);
+            }
+        });
+        return map;
+    }, [matchedReconciliations]);
+    const invoiceRowById = useMemo(() => {
+        const map = new Map<number, HoaDonUBot>();
+        hoaDons.forEach((hoaDon) => {
+            map.set(hoaDon.id, hoaDon);
+        });
+        return map;
+    }, [hoaDons]);
+
+    const resolveInvoiceLine = (invoiceNumber?: string | null, invoiceRowId?: number | null): HoaDonUBot | undefined => {
+        if (invoiceRowId) {
+            const byId = invoiceRowById.get(invoiceRowId);
+            if (byId) return byId;
+        }
+
+        const invoiceKey = normalizeInvoiceKey(invoiceNumber);
+        if (!invoiceKey) return undefined;
+
+        for (const hoaDon of hoaDons) {
+            const numberKey = normalizeInvoiceKey(getInvoiceNumber(hoaDon));
+            const idKey = normalizeInvoiceKey(hoaDon.idHoaDon);
+            if (numberKey === invoiceKey || idKey === invoiceKey) {
+                return hoaDon;
+            }
+        }
+
+        return undefined;
+    };
 
     const eligibleHoaDons = useMemo(() => {
         if (matchedInvoiceKeySet.size === 0) return hoaDons;
@@ -557,6 +619,38 @@ export default function InvoiceTable({
         const usedInvoiceRowsByBatch = new Map<string, Set<number>>();
 
         return emailSentOrders.map((order) => {
+            const localRecord = localMatchedMap.get(Number(order.id));
+            if (localRecord) {
+                const invoiceFromLocal = resolveInvoiceLine(localRecord.invoiceNumber, localRecord.invoiceRowId);
+                return {
+                    order,
+                    invoice: invoiceFromLocal,
+                    hasInvoice: true,
+                    quantityDiff: localRecord.quantityDiff,
+                    detailStatus: coerceDetailStatus(localRecord.detailStatus),
+                    detailNote: localRecord.detailNote,
+                    matchScore: localRecord.matchScore,
+                    matchedInvoiceNumber: localRecord.invoiceNumber,
+                    isFromHistory: true,
+                };
+            }
+
+            const historyRecord = matchedHistoryMap.get(Number(order.id));
+            if (historyRecord) {
+                const invoiceFromHistory = resolveInvoiceLine(historyRecord.invoiceNumber, historyRecord.invoiceRowId);
+                return {
+                    order,
+                    invoice: invoiceFromHistory,
+                    hasInvoice: true,
+                    quantityDiff: historyRecord.quantityDiff,
+                    detailStatus: coerceDetailStatus(historyRecord.detailStatus),
+                    detailNote: historyRecord.detailNote,
+                    matchScore: historyRecord.matchScore,
+                    matchedInvoiceNumber: historyRecord.invoiceNumber,
+                    isFromHistory: true,
+                };
+            }
+
             const batchKey = getOrderBatchKey(order);
             const selectedDoc = bestInvoiceDocumentByBatch[batchKey];
             const candidates = selectedDoc?.lines || [];
@@ -639,11 +733,11 @@ export default function InvoiceTable({
                 matchedInvoiceNumber: selectedDoc?.invoiceNumber,
             };
         });
-    }, [orders, bestInvoiceDocumentByBatch]);
+    }, [orders, bestInvoiceDocumentByBatch, matchedHistoryMap, localMatchedMap, hoaDons, invoiceRowById]);
 
     const reconciliationPayloadItems = useMemo(() => {
         return reconciliations
-            .filter((item) => item.hasInvoice && !!item.matchedInvoiceNumber)
+            .filter((item) => !item.isFromHistory && item.hasInvoice && !!item.matchedInvoiceNumber)
             .map((item) => ({
                 orderHistoryId: Number(item.order.id),
                 orderBatchKey: getOrderBatchKey(item.order),
@@ -704,6 +798,15 @@ export default function InvoiceTable({
             items: reconciliationPayloadItems,
         })
             .then(() => {
+                if (reconciliationPayloadItems.length > 0) {
+                    setLocalMatchedMap((prev) => {
+                        const next = new Map(prev);
+                        reconciliationPayloadItems.forEach((item) => {
+                            next.set(item.orderHistoryId, item);
+                        });
+                        return next;
+                    });
+                }
                 if (onMatchedInvoicesSaved) {
                     const uniqueNumbers = Array.from(new Set(reconciliationPayloadItems.map((item) => item.invoiceNumber)));
                     onMatchedInvoicesSaved(uniqueNumbers);
@@ -725,7 +828,7 @@ export default function InvoiceTable({
                 r.order.maQuanLy.toLowerCase().includes(term) ||
                 r.order.tenVtytBv.toLowerCase().includes(term) ||
                 r.order.nhaThau.toLowerCase().includes(term) ||
-                (r.invoice?.soHoaDon || '').toLowerCase().includes(term)
+                (r.invoice?.soHoaDon || r.matchedInvoiceNumber || '').toLowerCase().includes(term)
             );
         }
 
@@ -848,6 +951,26 @@ export default function InvoiceTable({
             });
         });
 
+        const historyInvoiceNumbers = Array.from(new Set(
+            group.results
+                .map((item) => item.matchedInvoiceNumber)
+                .filter(Boolean) as string[],
+        ));
+        const historyInvoiceKeys = historyInvoiceNumbers
+            .map((value) => normalizeInvoiceKey(value))
+            .filter(Boolean);
+        const historyInvoiceKeySet = new Set(historyInvoiceKeys);
+
+        if (historyInvoiceKeySet.size > 0) {
+            hoaDons.forEach((hoaDon) => {
+                const numberKey = normalizeInvoiceKey(getInvoiceNumber(hoaDon));
+                const idKey = normalizeInvoiceKey(hoaDon.idHoaDon);
+                if (historyInvoiceKeySet.has(numberKey) || historyInvoiceKeySet.has(idKey)) {
+                    invoiceMap.set(hoaDon.id, hoaDon);
+                }
+            });
+        }
+
         const supplierInvoices = Array.from(invoiceMap.values()).sort((a, b) => {
             const dateA = new Date(a.ngayHoaDon).getTime();
             const dateB = new Date(b.ngayHoaDon).getTime();
@@ -855,7 +978,10 @@ export default function InvoiceTable({
             return (a.sttDongHang || 0) - (b.sttDongHang || 0);
         });
 
-        const matchedNumbers = Array.from(new Set(docs.map((doc) => doc.invoiceNumber))).filter(Boolean);
+        const matchedNumbers = Array.from(new Set([
+            ...docs.map((doc) => doc.invoiceNumber),
+            ...historyInvoiceNumbers,
+        ])).filter(Boolean);
 
         setSelectedDetail({
             supplierName: group.nhaThau,

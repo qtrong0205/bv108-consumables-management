@@ -573,6 +573,14 @@ class ApiService {
     return this.request<MatchedInvoiceNumbersResponse>(path, { method: 'GET' }, true);
   }
 
+  async getMatchedOrderReconciliations(): Promise<OrderListResponse<ApiInvoiceReconciliationRecord>> {
+    return this.request<OrderListResponse<ApiInvoiceReconciliationRecord>>(
+      '/orders/invoice-reconciliations/matched-orders',
+      { method: 'GET' },
+      true,
+    );
+  }
+
   async getForecastApprovals(month: number, year: number): Promise<OrderListResponse<ApiForecastApproval>> {
     return this.request<OrderListResponse<ApiForecastApproval>>(`/forecast-approvals?month=${month}&year=${year}`, {
       method: 'GET',
