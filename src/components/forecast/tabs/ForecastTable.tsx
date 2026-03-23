@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Pagination from "@/components/ui/pagination"
 import { IVatTuDuTru } from "@/data/mockData";
 import { TabsContent } from "@radix-ui/react-tabs"
-import { Calculator, CheckCircle2, Search, ChevronDown, X, Loader2, AlertTriangle } from "lucide-react"
+import { Calculator, CheckCircle2, Search, ChevronDown, ChevronRight, X, Loader2, AlertTriangle } from "lucide-react"
 import React from "react"
 
 interface IForecastTableProps {
@@ -62,6 +62,26 @@ interface IForecastTableProps {
     };
 }
 
+type TypeLevel1Group = {
+    key: string;
+    label: string;
+    items: IVatTuDuTru[];
+};
+
+const getTypeLevel1 = (typeName?: string): string => {
+    if (!typeName) return '';
+    const parts = typeName
+        .split('-')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    return parts.length >= 1 ? parts[0] : '';
+};
+
+const getTypeLevel1Label = (typeName?: string): string => {
+    const level1 = getTypeLevel1(typeName);
+    return level1 || 'Chưa phân nhóm';
+};
+
 const ForecastTable = ({
     statistics,
     tableData,
@@ -112,6 +132,34 @@ const ForecastTable = ({
         onToggleSelectAllRows,
     } = handlers;
 
+    const typeGroups = React.useMemo<TypeLevel1Group[]>(() => {
+        const groups = new Map<string, TypeLevel1Group>();
+
+        filteredData.forEach((item) => {
+            const label = getTypeLevel1Label(item.typeName);
+            if (!groups.has(label)) {
+                groups.set(label, { key: label, label, items: [] });
+            }
+            groups.get(label)!.items.push(item);
+        });
+
+        return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
+    }, [filteredData]);
+
+    const [expandedTypeGroups, setExpandedTypeGroups] = React.useState<Set<string>>(new Set());
+
+    const toggleExpand = (groupKey: string) => {
+        setExpandedTypeGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(groupKey)) {
+                next.delete(groupKey);
+            } else {
+                next.add(groupKey);
+            }
+            return next;
+        });
+    };
+
     const visibleSuppliers = React.useMemo(() => {
         const keyword = supplierSearchTerm.trim().toLowerCase();
         if (!keyword) return suppliers;
@@ -161,7 +209,7 @@ const ForecastTable = ({
                             <div>
                                 <p className="text-sm text-muted-foreground">Tiến độ phê duyệt</p>
                                 <p className="text-2xl font-semibold text-foreground">
-                                    {approvedCount}/{filteredData.length}
+                                    {approvedCount}/{totalOnPage}
                                 </p>
                             </div>
                             <CheckCircle2 className="w-8 h-8 text-green-500 opacity-50" />
@@ -169,7 +217,7 @@ const ForecastTable = ({
                         <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                             <div
                                 className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${filteredData.length > 0 ? (approvedCount / filteredData.length) * 100 : 0}%` }}
+                                style={{ width: `${totalOnPage > 0 ? (approvedCount / totalOnPage) * 100 : 0}%` }}
                             />
                         </div>
                     </CardContent>
@@ -428,7 +476,7 @@ const ForecastTable = ({
                                 <table className="w-full min-w-[1200px]">
                             <thead className="bg-primary text-primary-foreground">
                                 <tr>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap">
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-10">
                                         <Checkbox
                                             checked={allSelectableRowsSelected ? true : (someSelectableRowsSelected ? 'indeterminate' : false)}
                                             onCheckedChange={(checked) => onToggleSelectAllRows(checked === true)}
@@ -436,99 +484,124 @@ const ForecastTable = ({
                                             aria-label="Chọn tất cả vật tư chưa duyệt trên trang"
                                         />
                                     </th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">STT</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Mã VT</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium">Tên vật tư</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Hãng SX</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Quy cách</th>
-                                    <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap">Đơn giá</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Xuất</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Nhập</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600">SL Tồn</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap">Nhà thầu</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600">Dự trù</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600">Gọi hàng</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-24">Mã VT</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium min-w-[300px]">Tên vật tư</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-32">Mã hiệu</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-24 bg-amber-600">Đơn giá</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Xuất</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Nhập</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Tồn</th>
+                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap min-w-[160px]">Nhà thầu</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-24">Dự trù</th>
+                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-20">Gọi hàng</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                                {filteredData.map((item) => (
-                                    <tr
-                                        key={item.stt}
-                                        className="hover:bg-tertiary transition-colors cursor-pointer"
-                                        onClick={() => onRowClick(item)}
-                                    >
-                                        <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                            <Checkbox
-                                                checked={isRowSelected(item)}
-                                                disabled={!isRowSelectable(item)}
-                                                onCheckedChange={(checked) => onRowSelectToggle(item, checked === true)}
-                                                aria-label={`Chọn vật tư ${item.tenVtytBv}`}
-                                            />
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-center">{item.stt}</td>
-                                        <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
-                                        <td className="px-3 py-3 text-xs text-foreground">
-                                            <div className="max-w-[200px]">
-                                                <div className="flex items-center gap-1 min-w-0">
-                                                    <p className="font-semibold text-sm truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
-                                                    {getStatusBadge(item)}
-                                                </div>
-                                                <p className="text-[11px] text-muted-foreground truncate" title={item.maHieu || ''}>
-                                                    {item.maHieu || 'N/A'}
-                                                </p>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground">
-                                            <div className="max-w-[184px] truncate" title={item.hangSx}>
-                                                {item.hangSx}
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground">
-                                            <div className="max-w-[80px] truncate" title={`${item.quyCach} (${item.slTrongQuyCach} ${item.donViTinh})`}>
-                                                {item.quyCach} ({item.slTrongQuyCach} {item.donViTinh})
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
-                                            {item.donGia.toLocaleString('vi-VN')}
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                            {item.slXuat}
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                            {item.slNhap}
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                            <Badge variant={item.slTon < 50 ? "destructive" : "secondary"} className="text-xs">
-                                                {item.slTon}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground">
-                                            <div className="max-w-[100px] truncate" title={item.nhaThau}>
-                                                {item.nhaThau}
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                value={item.duTru}
-                                                onChange={(e) => onForecastChange(item, e.target.value)}
-                                                onFocus={() => onForecastFocus(item, item.duTru)}
-                                                onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
-                                                className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
-                                            />
-                                        </td>
-                                        <td className="px-3 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
-                                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                                                {item.goiHang}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {typeGroups.map((group) => {
+                                    const isExpanded = expandedTypeGroups.has(group.key);
+
+                                    return (
+                                        <React.Fragment key={group.key}>
+                                            <tr
+                                                className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
+                                                onClick={() => toggleExpand(group.key)}
+                                            >
+                                                <td colSpan={11} className="px-3 py-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            {isExpanded ? (
+                                                                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                                                            ) : (
+                                                                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                                                            )}
+                                                            <span className="font-medium text-sm text-foreground truncate" title={group.label}>
+                                                                Mã cấp 1: {group.label}
+                                                            </span>
+                                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                                {group.items.length} vật tư
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            {isExpanded && group.items.map((item) => (
+                                                <tr
+                                                    key={item.stt}
+                                                    className="hover:bg-tertiary transition-colors cursor-pointer"
+                                                    onClick={() => onRowClick(item)}
+                                                >
+                                                    <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                        <Checkbox
+                                                            checked={isRowSelected(item)}
+                                                            disabled={!isRowSelectable(item)}
+                                                            onCheckedChange={(checked) => onRowSelectToggle(item, checked === true)}
+                                                            aria-label={`Chọn vật tư ${item.tenVtytBv}`}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
+                                                    <td className="px-3 py-3 text-xs text-foreground">
+                                                        <div className="max-w-[320px]">
+                                                            <div className="flex items-center gap-1 min-w-0">
+                                                                <p className="font-semibold text-sm truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
+                                                                {getStatusBadge(item)}
+                                                            </div>
+                                                            <p className="text-[11px] text-muted-foreground truncate" title={item.hangSx || ''}>
+                                                                {item.hangSx || 'N/A'}
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground">
+                                                        <div className="max-w-[220px] truncate font-mono" title={item.maHieu || ''}>
+                                                            {item.maHieu || '—'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap bg-amber-50 dark:bg-amber-950/30">
+                                                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                                                            {item.donGia.toLocaleString('vi-VN')}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                        {item.slXuat}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                        {item.slNhap}
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                        <Badge variant={item.slTon < 50 ? "destructive" : "secondary"} className="text-xs">
+                                                            {item.slTon}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground">
+                                                        <div className="w-full break-words" title={item.nhaThau}>
+                                                            {item.nhaThau}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={item.duTru}
+                                                            onChange={(e) => onForecastChange(item, e.target.value)}
+                                                            onFocus={() => onForecastFocus(item, item.duTru)}
+                                                            onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
+                                                            className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
+                                                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                                                            {item.goiHang}
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </tbody>
                             <tfoot className="bg-tertiary border-t-2 border-border">
                                 <tr>
-                                    <td colSpan={11} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
+                                    <td colSpan={9} className="px-3 py-3 text-sm font-semibold text-foreground text-right">
                                         Tổng cộng:
                                     </td>
                                     <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">

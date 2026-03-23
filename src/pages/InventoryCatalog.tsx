@@ -16,13 +16,35 @@ import { useSupplies, useSupplyGroups, useSupplySearch } from '@/hooks/use-suppl
 import ApiDebug from '@/components/debug/ApiDebug';
 import Pagination from '@/components/ui/pagination';
 
+const getTypeLevel1 = (typeName?: string): string => {
+    if (!typeName) return '';
+    const parts = typeName
+        .split('-')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    return parts.length >= 1 ? parts[0] : '';
+};
+
+const getTypeLevel2 = (typeName?: string): string => {
+    if (!typeName) return '';
+    const parts = typeName
+        .split('-')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    return parts.length >= 2 ? parts[1] : '';
+};
+
 export default function InventoryCatalog() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchInput, setSearchInput] = useState('');
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [selectedTypeLevel1, setSelectedTypeLevel1] = useState<string[]>([]);
+    const [selectedTypeLevel2, setSelectedTypeLevel2] = useState<string[]>([]);
     const [stockFilter, setStockFilter] = useState<'all' | 'low-stock'>('all');
     const [selectedItem, setSelectedItem] = useState<MedicalSupply | null>(null);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+    const [typeLevel1PopoverOpen, setTypeLevel1PopoverOpen] = useState(false);
+    const [typeLevel2PopoverOpen, setTypeLevel2PopoverOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
@@ -38,6 +60,42 @@ export default function InventoryCatalog() {
 
     const { supplies, loading, error, page, pageSize, total, totalPages, setPage, setPageSize } = activeHook;
     const { groups: categories, loading: groupsLoading } = useSupplyGroups();
+    const typeLevel1Options = useMemo(
+        () =>
+            [...new Set(supplies.map((item) => getTypeLevel1(item.typeName)).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b)
+            ),
+        [supplies]
+    );
+    const typeLevel2Options = useMemo(() => {
+        if (selectedTypeLevel1.length === 0) return [];
+        const base = supplies.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
+        return [...new Set(base.map((item) => getTypeLevel2(item.typeName)).filter(Boolean))].sort((a, b) =>
+            a.localeCompare(b)
+        );
+    }, [supplies, selectedTypeLevel1]);
+
+    useEffect(() => {
+        if (selectedTypeLevel1.length === 0) return;
+        const valid = selectedTypeLevel1.filter((code) => typeLevel1Options.includes(code));
+        if (valid.length !== selectedTypeLevel1.length) {
+            setSelectedTypeLevel1(valid);
+        }
+    }, [selectedTypeLevel1, typeLevel1Options]);
+
+    useEffect(() => {
+        if (selectedTypeLevel2.length === 0) return;
+        const valid = selectedTypeLevel2.filter((code) => typeLevel2Options.includes(code));
+        if (valid.length !== selectedTypeLevel2.length) {
+            setSelectedTypeLevel2(valid);
+        }
+    }, [selectedTypeLevel2, typeLevel2Options]);
+
+    useEffect(() => {
+        if (selectedTypeLevel1.length === 0 && selectedTypeLevel2.length > 0) {
+            setSelectedTypeLevel2([]);
+        }
+    }, [selectedTypeLevel1, selectedTypeLevel2]);
 
     // Cập nhật keyword cho search hook khi searchInput thay đổi
     useEffect(() => {
@@ -80,13 +138,23 @@ export default function InventoryCatalog() {
             filtered = filtered.filter((item) => selectedCategories.includes(item.tenNhom || ''));
         }
 
+        // Filter theo mã cấp 1 của typeName
+        if (selectedTypeLevel1.length > 0) {
+            filtered = filtered.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
+        }
+
+        // Filter theo mã cấp 2 của typeName (chỉ khi đã chọn mã cấp 1)
+        if (selectedTypeLevel1.length > 0 && selectedTypeLevel2.length > 0) {
+            filtered = filtered.filter((item) => selectedTypeLevel2.includes(getTypeLevel2(item.typeName)));
+        }
+
         // Filter theo tình trạng tồn kho
         if (stockFilter === 'low-stock') {
             filtered = filtered.filter((item) => item.soLuongTon < item.soLuongToiThieu);
         }
 
         return filtered;
-    }, [supplies, selectedCategories, stockFilter]);
+    }, [supplies, selectedCategories, selectedTypeLevel1, selectedTypeLevel2, stockFilter]);
 
     // Tính toán lowStock từ dữ liệu supplies
     const lowStock = useMemo(() => {
@@ -96,6 +164,28 @@ export default function InventoryCatalog() {
     }, [supplies]);
 
     const lowStockCount = lowStock.length;
+    const hasActiveFilters = selectedCategories.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0;
+    const isTypeLevel2Disabled = selectedTypeLevel1.length === 0;
+    const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
+    const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
+    const typeLevel1Label = selectedTypeLevel1.length === 0
+        ? 'Tất cả mã cấp 1'
+        : selectedTypeLevel1.length === 1
+            ? selectedTypeLevel1[0]
+            : `${selectedTypeLevel1.length} mã cấp 1 đã chọn`;
+    const typeLevel2Label = isTypeLevel2Disabled
+        ? 'Chọn mã cấp 1 trước'
+        : selectedTypeLevel2.length === 0
+            ? 'Tất cả mã cấp 2'
+            : selectedTypeLevel2.length === 1
+                ? selectedTypeLevel2[0]
+                : `${selectedTypeLevel2.length} mã cấp 2 đã chọn`;
+
+    useEffect(() => {
+        if (isTypeLevel2Disabled && typeLevel2PopoverOpen) {
+            setTypeLevel2PopoverOpen(false);
+        }
+    }, [isTypeLevel2Disabled, typeLevel2PopoverOpen]);
 
     const handleStockFilterChange = (value: 'all' | 'low-stock') => {
         setStockFilter(value);
@@ -126,6 +216,56 @@ export default function InventoryCatalog() {
 
     const handleClearCategories = () => {
         setSelectedCategories([]);
+    };
+
+    const handleTypeLevel1Toggle = (code: string) => {
+        setSelectedTypeLevel1((prev) => {
+            if (prev.includes(code)) {
+                return prev.filter((item) => item !== code);
+            }
+            return [...prev, code];
+        });
+    };
+
+    const handleSelectAllTypeLevel1 = () => {
+        if (selectedTypeLevel1.length === typeLevel1Options.length) {
+            setSelectedTypeLevel1([]);
+        } else {
+            setSelectedTypeLevel1([...typeLevel1Options]);
+        }
+    };
+
+    const handleClearTypeLevel1 = () => {
+        setSelectedTypeLevel1([]);
+    };
+
+    const handleTypeLevel2Toggle = (code: string) => {
+        if (isTypeLevel2Disabled) return;
+        setSelectedTypeLevel2((prev) => {
+            if (prev.includes(code)) {
+                return prev.filter((item) => item !== code);
+            }
+            return [...prev, code];
+        });
+    };
+
+    const handleSelectAllTypeLevel2 = () => {
+        if (isTypeLevel2Disabled) return;
+        if (selectedTypeLevel2.length === typeLevel2Options.length) {
+            setSelectedTypeLevel2([]);
+        } else {
+            setSelectedTypeLevel2([...typeLevel2Options]);
+        }
+    };
+
+    const handleClearTypeLevel2 = () => {
+        setSelectedTypeLevel2([]);
+    };
+
+    const handleClearAllFilters = () => {
+        setSelectedCategories([]);
+        setSelectedTypeLevel1([]);
+        setSelectedTypeLevel2([]);
     };
 
     const handleImportClick = () => {
@@ -306,6 +446,137 @@ export default function InventoryCatalog() {
                             </PopoverContent>
                         </Popover>
 
+                        {/* Multi-select Type Level 1 Filter */}
+                        <Popover open={typeLevel1PopoverOpen} onOpenChange={setTypeLevel1PopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full md:w-56 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">{typeLevel1Label}</span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn mã cấp 1</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleSelectAllTypeLevel1}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {isAllTypeLevel1Selected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {typeLevel1Options.map((code) => (
+                                        <div
+                                            key={code}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => handleTypeLevel1Toggle(code)}
+                                        >
+                                            <Checkbox
+                                                id={`type-level1-${code}`}
+                                                checked={selectedTypeLevel1.includes(code)}
+                                                onCheckedChange={() => handleTypeLevel1Toggle(code)}
+                                            />
+                                            <label
+                                                htmlFor={`type-level1-${code}`}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {code}
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {typeLevel1Options.length === 0 && (
+                                        <div className="p-2 text-xs text-muted-foreground">Không có mã cấp 1</div>
+                                    )}
+                                </div>
+                                {selectedTypeLevel1.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleClearTypeLevel1}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
+                        {/* Multi-select Type Level 2 Filter */}
+                        <Popover open={typeLevel2PopoverOpen} onOpenChange={setTypeLevel2PopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    disabled={isTypeLevel2Disabled}
+                                    className="w-full md:w-56 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">{typeLevel2Label}</span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn mã cấp 2</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleSelectAllTypeLevel2}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {isAllTypeLevel2Selected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {typeLevel2Options.map((code) => (
+                                        <div
+                                            key={code}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => handleTypeLevel2Toggle(code)}
+                                        >
+                                            <Checkbox
+                                                id={`type-level2-${code}`}
+                                                checked={selectedTypeLevel2.includes(code)}
+                                                onCheckedChange={() => handleTypeLevel2Toggle(code)}
+                                            />
+                                            <label
+                                                htmlFor={`type-level2-${code}`}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {code}
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {typeLevel2Options.length === 0 && (
+                                        <div className="p-2 text-xs text-muted-foreground">Không có mã cấp 2</div>
+                                    )}
+                                </div>
+                                {selectedTypeLevel2.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleClearTypeLevel2}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
                         <Select value={stockFilter} onValueChange={(v) => handleStockFilterChange(v as 'all' | 'low-stock')}>
                             <SelectTrigger className="w-full md:w-48 bg-neutral text-foreground border-border">
                                 <SelectValue placeholder="Tình trạng tồn kho" />
@@ -331,7 +602,7 @@ export default function InventoryCatalog() {
                     </div>
 
                     {/* Hiển thị các danh mục đã chọn */}
-                    {selectedCategories.length > 0 && (
+                    {hasActiveFilters && (
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
                             <span className="text-sm text-muted-foreground">Đang lọc:</span>
                             {selectedCategories.map((category) => (
@@ -345,8 +616,30 @@ export default function InventoryCatalog() {
                                     <X className="w-3 h-3 ml-1" />
                                 </Badge>
                             ))}
+                            {selectedTypeLevel1.map((code) => (
+                                <Badge
+                                    key={`type1-${code}`}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => handleTypeLevel1Toggle(code)}
+                                >
+                                    Mã cấp 1: {code}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
+                            {selectedTypeLevel2.map((code) => (
+                                <Badge
+                                    key={`type2-${code}`}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => handleTypeLevel2Toggle(code)}
+                                >
+                                    Mã cấp 2: {code}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
                             <button
-                                onClick={handleClearCategories}
+                                onClick={handleClearAllFilters}
                                 className="text-xs text-muted-foreground hover:text-foreground underline"
                             >
                                 Xóa tất cả
@@ -383,7 +676,7 @@ export default function InventoryCatalog() {
                     <InventoryTable items={filteredItems} lowStockItems={lowStock} onRowClick={setSelectedItem} />
 
                     {/* Pagination - chỉ hiển thị khi không filter */}
-                    {!searchInput && selectedCategories.length === 0 && stockFilter === 'all' && (
+                    {!searchInput && selectedCategories.length === 0 && selectedTypeLevel1.length === 0 && selectedTypeLevel2.length === 0 && stockFilter === 'all' && (
                         <Pagination
                             currentPage={page}
                             totalPages={totalPages}
@@ -394,7 +687,7 @@ export default function InventoryCatalog() {
                     )}
 
                     {/* Thông tin khi có filter */}
-                    {(searchInput || selectedCategories.length > 0 || stockFilter === 'low-stock') && (
+                    {(searchInput || selectedCategories.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0 || stockFilter === 'low-stock') && (
                         <div className="text-center text-sm text-muted-foreground">
                             Đang hiển thị {filteredItems.length} / {supplies.length} vật tư (đã filter)
                         </div>

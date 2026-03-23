@@ -103,6 +103,7 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
         maQuanLy: getNullableString(item.id),
         maVtytCu: getNullableString(item.id),
         tenNhom: getNullableString(item.groupName),
+        typeName: getNullableString(item.typeName),
         tenVtytBv: getNullableString(item.name),
         maHieu: getNullableString(item.maHieu),
         hangSx: getNullableString(item.hangSx),
@@ -961,43 +962,27 @@ export default function MaterialForecast() {
         setLyDoTuChoi('');
     };
 
-    // Sửa và duyệt
-    const handleEditAndApprove = async () => {
+    // Sửa và lưu
+    const handleEditAndSave = () => {
         if (!selectedItem) return;
 
-        const goiHang = Math.ceil(editDuTru / selectedItem.slTrongQuyCach);
-        const now = new Date();
-
-        try {
-            await apiService.saveForecastApproval(
-                buildForecastApprovalPayload(selectedItem, 'edited', {
-                    duTruGoc: selectedItem.duTru,
-                    duTruSua: editDuTru,
-                })
-            );
-            await refreshApprovalRecords();
-            await refreshHistoryTabs();
-        } catch (error) {
-            toast({
-                title: "Sửa và duyệt thất bại",
-                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
-                variant: "destructive",
-            });
-            return;
-        }
-
-        try {
-            await addApprovedOrder(selectedItem, editDuTru);
-        } catch (error) {
-            toast({
-                title: "Đã lưu trạng thái sửa và duyệt",
-                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
-                variant: "destructive",
-            });
-        }
-
-        // Cập nhật data
         const selectedItemKey = getMaterialKey(selectedItem);
+        const goiHang = Math.ceil(editDuTru / selectedItem.slTrongQuyCach);
+
+        if (selectedItem.duTru !== editDuTru) {
+            addHistoryEntry({
+                stt: selectedItem.stt,
+                maVtyt: selectedItem.maVtytCu,
+                tenVtyt: selectedItem.tenVtytBv,
+                actionType: 'edit_quantity',
+                nguoiThucHien: currentUser,
+                thoiGian: new Date(),
+                chiTiet: {
+                    duTruGoc: selectedItem.duTru,
+                    duTruMoi: editDuTru,
+                },
+            });
+        }
 
         setData(prevData =>
             prevData.map(item => {
@@ -1009,24 +994,11 @@ export default function MaterialForecast() {
         );
 
         materialForecastUiCache.forecastOverrides[selectedItemKey] = editDuTru;
-
-        // Cập nhật trạng thái phê duyệt
-        setApprovalStates(prev => ({
-            ...prev,
-            [selectedItemKey]: {
-                status: 'edited',
-                duTruGoc: selectedItem.duTru,
-                duTruSua: editDuTru,
-                nguoiDuyet: currentUser,
-                thoiGian: now,
-            }
-        }));
-
-        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
+        setSelectedItem({ ...selectedItem, duTru: editDuTru, goiHang });
 
         toast({
-            title: "Sửa và duyệt thành công",
-            description: `Vật tư "${selectedItem.tenVtytBv}" đã được sửa từ ${selectedItem.duTru} → ${editDuTru} và phê duyệt`,
+            title: "Đã lưu thay đổi",
+            description: `Vật tư "${selectedItem.tenVtytBv}" đã được cập nhật dự trù`,
         });
 
         setIsDialogOpen(false);
@@ -1288,7 +1260,7 @@ export default function MaterialForecast() {
                 actions={{
                     onApprove: handleApprove,
                     onReject: handleReject,
-                    onEditAndApprove: handleEditAndApprove,
+                    onEditAndSave: handleEditAndSave,
                 }}
             />
 

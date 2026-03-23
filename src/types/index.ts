@@ -6,6 +6,7 @@ export interface MedicalSupply {
     tenVtyt: string;           // TEN_VTYT_B
     tenThuongMai: string;      // TEN_THUON
     maHieu: string;            // MA_HIEU
+    typeName?: string;         // TYPENAME (mã cấp 1-2-3)
     maNhom: string;            // MA_NHOM
     tenNhom: string;           // TEN_NHOM
     quyCach: string;           // QUY_CACH

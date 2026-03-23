@@ -37,7 +37,7 @@ interface IApproveDialogProps {
     actions: {
         onApprove: () => void;
         onReject: () => void;
-        onEditAndApprove: () => void;
+        onEditAndSave: () => void;
     };
 }
 
@@ -50,7 +50,7 @@ const ApproveDialog = ({
     const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge } = dialog;
     const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
-    const { onApprove, onReject, onEditAndApprove } = actions;
+    const { onApprove, onReject, onEditAndSave } = actions;
 
     const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
         const maVtytCu = (item.maVtytCu || '').trim();
@@ -190,7 +190,7 @@ const ApproveDialog = ({
                                 <p className="text-sm font-medium">
                                     {selectedItemApproval.status === 'approved' && '✅ Đã phê duyệt'}
                                     {selectedItemApproval.status === 'rejected' && '❌ Đã từ chối'}
-                                    {selectedItemApproval.status === 'edited' && '✏️ Đã sửa và duyệt'}
+                                    {selectedItemApproval.status === 'edited' && '✏️ Đã sửa'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     Bởi: {selectedItemApproval.nguoiDuyet} - {selectedItemApproval.thoiGian?.toLocaleString('vi-VN')}
@@ -239,25 +239,25 @@ const ApproveDialog = ({
                                 <XCircle className="w-4 h-4 mr-2" />
                                 Từ chối
                             </Button>
-                            <Button
-                                onClick={() => setIsEditMode(true)}
-                                variant="outline"
-                                className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                            >
-                                <FilePen className="w-4 h-4 mr-2" />
-                                Sửa và duyệt
-                            </Button>
+                                <Button
+                                    onClick={() => setIsEditMode(true)}
+                                    variant="outline"
+                                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                >
+                                    <FilePen className="w-4 h-4 mr-2" />
+                                    Sửa và lưu
+                                </Button>
                         </>
                     )}
 
                     {isEditMode && (
                         <>
                             <Button
-                                onClick={onEditAndApprove}
+                                onClick={onEditAndSave}
                                 className="bg-orange-600 hover:bg-orange-700 text-white"
                             >
                                 <Save className="w-4 h-4 mr-2" />
-                                Xác nhận sửa và duyệt
+                                Xác nhận sửa và lưu
                             </Button>
                             <Button
                                 onClick={() => {
