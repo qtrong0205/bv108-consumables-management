@@ -33,6 +33,7 @@ interface SupplierGroup {
     nhaThau: string;
     approvedAt: string | Date | undefined;
     sortTime: number;
+    unreadSourceGroupKeys: string[];
     orders: OrderRequest[];
 }
 
@@ -49,6 +50,13 @@ const getApprovalGroupKey = (order: OrderRequest): string => {
 
     return `${order.nhaThau}__${new Date(parsed).toISOString()}`;
 };
+
+const normalizeCompanyName = (name?: string) => {
+    const normalized = (name || '').trim();
+    return normalized.length > 0 ? normalized : 'Chưa xác định công ty';
+};
+
+const toCompanyGroupKey = (companyName: string) => `company__${companyName.toLowerCase()}`;
 
 const formatDateTime = (value?: string | Date) => {
     if (!value) return 'Không rõ thời gian duyệt';
@@ -72,23 +80,32 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
     // Refs cho checkbox indeterminate state
     const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
-    // Gom nhóm vật tư theo Nhà thầu
+    // Gom nhóm vật tư theo công ty/nhà thầu
     const supplierGroups = useMemo(() => {
-        const groups: { [key: string]: SupplierGroup } = {};
+        const groups: Record<string, SupplierGroup & { unreadSourceGroupKeySet: Set<string> }> = {};
 
         orders.forEach(order => {
-            const groupKey = getApprovalGroupKey(order);
+            const normalizedCompanyName = normalizeCompanyName(order.nhaThau);
+            const groupKey = toCompanyGroupKey(normalizedCompanyName);
             if (!groups[groupKey]) {
                 groups[groupKey] = {
                     groupKey,
-                    nhaThau: order.nhaThau,
+                    nhaThau: normalizedCompanyName,
                     approvedAt: order.thoiGianPheDuyet ?? order.ngayTao,
                     sortTime: getOrderTime(order),
+                    unreadSourceGroupKeys: [],
+                    unreadSourceGroupKeySet: new Set<string>(),
                     orders: [],
                 };
             }
 
             groups[groupKey].orders.push(order);
+            const backendGroupKey = order.groupKey || getApprovalGroupKey(order);
+            if (backendGroupKey && !groups[groupKey].unreadSourceGroupKeySet.has(backendGroupKey)) {
+                groups[groupKey].unreadSourceGroupKeySet.add(backendGroupKey);
+                groups[groupKey].unreadSourceGroupKeys.push(backendGroupKey);
+            }
+
             const orderTime = getOrderTime(order);
             if (orderTime > groups[groupKey].sortTime) {
                 groups[groupKey].sortTime = orderTime;
@@ -96,18 +113,23 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             }
         });
 
-        return Object.values(groups).map((group): SupplierGroup => ({
-            ...group,
-            orders: [...group.orders].sort((a, b) =>
-                sortOrder === 'newest'
-                    ? getOrderTime(b) - getOrderTime(a)
-                    : getOrderTime(a) - getOrderTime(b)
-            ),
-        })).sort((a, b) => {
-            return sortOrder === 'newest'
-                ? b.sortTime - a.sortTime
-                : a.sortTime - b.sortTime;
-        });
+        return Object.values(groups)
+            .map((group): SupplierGroup => {
+                const { unreadSourceGroupKeySet: _, ...restGroup } = group;
+                return {
+                    ...restGroup,
+                    orders: [...group.orders].sort((a, b) =>
+                        sortOrder === 'newest'
+                            ? getOrderTime(b) - getOrderTime(a)
+                            : getOrderTime(a) - getOrderTime(b)
+                    ),
+                };
+            })
+            .sort((a, b) => {
+                return sortOrder === 'newest'
+                    ? b.sortTime - a.sortTime
+                    : a.sortTime - b.sortTime;
+            });
     }, [orders, sortOrder]);
 
     const companyOptions = useMemo(() => [...new Set(supplierGroups.map((group) => group.nhaThau))], [supplierGroups]);
@@ -145,7 +167,10 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             const newSet = new Set(prev);
             const isExpanding = !newSet.has(groupKey);
             if (isExpanding) {
-                    onMarkGroupsRead([groupKey]);
+                const targetGroup = supplierGroups.find((group) => group.groupKey === groupKey);
+                if (targetGroup && targetGroup.unreadSourceGroupKeys.length > 0) {
+                    onMarkGroupsRead(targetGroup.unreadSourceGroupKeys);
+                }
             }
             if (newSet.has(groupKey)) {
                 newSet.delete(groupKey);
@@ -218,6 +243,14 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
 
     // Lấy badge nguồn gốc đơn hàng
     const getSourceBadge = (source?: string) => {
+        if (source === 'mixed') {
+            return (
+                <Badge className="bg-amber-50 text-amber-700 border-amber-200 border text-[10px] px-2 py-0.5 whitespace-nowrap w-fit">
+                    Hỗn hợp
+                </Badge>
+            );
+        }
+
         if (source === 'manual') {
             return (
                 <Badge className="bg-blue-50 text-blue-700 border-blue-200 border text-[10px] px-2 py-0.5 flex items-center gap-0.5 whitespace-nowrap w-fit">
@@ -318,6 +351,9 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                 const isExpanded = expandedSuppliers.has(group.groupKey);
                                 const checkState = getSupplierCheckState(group);
                                 const status = getSupplierStatus(group);
+                                const hasUnread =
+                                    unreadGroupKeySet.has(group.groupKey)
+                                    || group.unreadSourceGroupKeys.some((groupKey) => unreadGroupKeySet.has(groupKey));
 
                                 return (
                                     <React.Fragment key={group.groupKey}>
@@ -364,7 +400,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center">
-                                                    {getSourceBadge(getGroupSource(group) === 'mixed' ? undefined : getGroupSource(group))}
+                                                    {getSourceBadge(getGroupSource(group))}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
@@ -382,7 +418,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {unreadGroupKeySet.has(group.groupKey) && (
+                                                {hasUnread && (
                                                     <span
                                                         className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500"
                                                         title="Nhóm công ty vừa có đơn mới"
@@ -482,7 +518,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             <div className="flex items-center justify-between text-sm text-muted-foreground px-2">
                 <div className="flex items-center gap-4">
                     <span>
-                        <strong className="text-foreground">{visibleSupplierGroups.length}</strong> nhóm duyệt
+                        <strong className="text-foreground">{visibleSupplierGroups.length}</strong> công ty
                     </span>
                     <span>
                         <strong className="text-foreground">{visibleOrderIds.length}</strong> vật tư

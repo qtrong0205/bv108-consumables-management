@@ -25,6 +25,12 @@ interface IForecastTableProps {
         isSearching: boolean;
         categories: string[];
         selectedCategories: string[];
+        typeLevel1Options: string[];
+        typeLevel2Options: string[];
+        selectedTypeLevel1: string[];
+        selectedTypeLevel2: string[];
+        typeLevel1PopoverOpen: boolean;
+        typeLevel2PopoverOpen: boolean;
         suppliers: string[];
         selectedSuppliers: string[];
         categoryPopoverOpen: boolean;
@@ -40,6 +46,14 @@ interface IForecastTableProps {
         onCategoryToggle: (category: string) => void;
         onSelectAllCategories: () => void;
         onClearCategories: () => void;
+        onTypeLevel1PopoverOpenChange: (open: boolean) => void;
+        onTypeLevel1Toggle: (code: string) => void;
+        onSelectAllTypeLevel1: () => void;
+        onClearTypeLevel1: () => void;
+        onTypeLevel2PopoverOpenChange: (open: boolean) => void;
+        onTypeLevel2Toggle: (code: string) => void;
+        onSelectAllTypeLevel2: () => void;
+        onClearTypeLevel2: () => void;
         onSupplierPopoverOpenChange: (open: boolean) => void;
         onSupplierToggle: (supplier: string) => void;
         onSelectAllSuppliers: () => void;
@@ -50,6 +64,7 @@ interface IForecastTableProps {
     handlers: {
         onRowClick: (item: IVatTuDuTru) => void;
         getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
+        isForecastEditable: (item: IVatTuDuTru) => boolean;
         onForecastChange: (item: IVatTuDuTru, value: string) => void;
         onForecastFocus: (item: IVatTuDuTru, value: number) => void;
         onForecastBlur: (item: IVatTuDuTru, newValue: number) => void;
@@ -64,6 +79,8 @@ interface IForecastTableProps {
 
 type TypeLevel1Group = {
     key: string;
+    code: string;
+    level1Code: string;
     label: string;
     items: IVatTuDuTru[];
 };
@@ -75,11 +92,6 @@ const getTypeLevel1 = (typeName?: string): string => {
         .map((part) => part.trim())
         .filter(Boolean);
     return parts.length >= 1 ? parts[0] : '';
-};
-
-const getTypeLevel1Label = (typeName?: string): string => {
-    const level1 = getTypeLevel1(typeName);
-    return level1 || 'Chưa phân nhóm';
 };
 
 const ForecastTable = ({
@@ -96,6 +108,12 @@ const ForecastTable = ({
         isSearching,
         categories,
         selectedCategories,
+        typeLevel1Options,
+        typeLevel2Options,
+        selectedTypeLevel1,
+        selectedTypeLevel2,
+        typeLevel1PopoverOpen,
+        typeLevel2PopoverOpen,
         suppliers,
         selectedSuppliers,
         categoryPopoverOpen,
@@ -111,6 +129,14 @@ const ForecastTable = ({
         onCategoryToggle,
         onSelectAllCategories,
         onClearCategories,
+        onTypeLevel1PopoverOpenChange,
+        onTypeLevel1Toggle,
+        onSelectAllTypeLevel1,
+        onClearTypeLevel1,
+        onTypeLevel2PopoverOpenChange,
+        onTypeLevel2Toggle,
+        onSelectAllTypeLevel2,
+        onClearTypeLevel2,
         onSupplierPopoverOpenChange,
         onSupplierToggle,
         onSelectAllSuppliers,
@@ -121,6 +147,7 @@ const ForecastTable = ({
     const {
         onRowClick,
         getStatusBadge,
+        isForecastEditable,
         onForecastChange,
         onForecastFocus,
         onForecastBlur,
@@ -136,11 +163,30 @@ const ForecastTable = ({
         const groups = new Map<string, TypeLevel1Group>();
 
         filteredData.forEach((item) => {
-            const label = getTypeLevel1Label(item.typeName);
-            if (!groups.has(label)) {
-                groups.set(label, { key: label, label, items: [] });
+            const level1Code = getTypeLevel1(item.typeName);
+            const groupName = (item.tenNhom || '').trim();
+            const code = level1Code || groupName || 'unknown';
+            const fallbackLabel = groupName || level1Code || 'Chưa phân nhóm';
+
+            if (!groups.has(code)) {
+                groups.set(code, {
+                    key: code,
+                    code,
+                    level1Code: level1Code || '',
+                    label: groupName || fallbackLabel,
+                    items: [],
+                });
+            } else if (groupName) {
+                const existing = groups.get(code)!;
+                if (!existing.label || existing.label === fallbackLabel) {
+                    existing.label = groupName;
+                }
+                if (!existing.level1Code && level1Code) {
+                    existing.level1Code = level1Code;
+                }
             }
-            groups.get(label)!.items.push(item);
+
+            groups.get(code)!.items.push(item);
         });
 
         return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
@@ -165,6 +211,22 @@ const ForecastTable = ({
         if (!keyword) return suppliers;
         return suppliers.filter((supplier) => supplier.toLowerCase().includes(keyword));
     }, [suppliers, supplierSearchTerm]);
+
+    const isTypeLevel2Disabled = selectedTypeLevel1.length === 0;
+    const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
+    const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
+    const typeLevel1Label = selectedTypeLevel1.length === 0
+        ? 'Tất cả mã cấp 1'
+        : selectedTypeLevel1.length === 1
+            ? selectedTypeLevel1[0]
+            : `${selectedTypeLevel1.length} mã cấp 1 đã chọn`;
+    const typeLevel2Label = isTypeLevel2Disabled
+        ? 'Chọn mã cấp 1 trước'
+        : selectedTypeLevel2.length === 0
+            ? 'Tất cả mã cấp 2'
+            : selectedTypeLevel2.length === 1
+                ? selectedTypeLevel2[0]
+                : `${selectedTypeLevel2.length} mã cấp 2 đã chọn`;
 
     return (
         <TabsContent value="forecast" className="space-y-6">
@@ -309,6 +371,135 @@ const ForecastTable = ({
                             </PopoverContent>
                         </Popover>
 
+                        <Popover open={typeLevel1PopoverOpen} onOpenChange={onTypeLevel1PopoverOpenChange}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full md:w-56 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">{typeLevel1Label}</span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn mã cấp 1</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={onSelectAllTypeLevel1}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {isAllTypeLevel1Selected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {typeLevel1Options.map((code) => (
+                                        <div
+                                            key={code}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => onTypeLevel1Toggle(code)}
+                                        >
+                                            <Checkbox
+                                                id={`type-level1-${code}`}
+                                                checked={selectedTypeLevel1.includes(code)}
+                                                onCheckedChange={() => onTypeLevel1Toggle(code)}
+                                            />
+                                            <label
+                                                htmlFor={`type-level1-${code}`}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {code}
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {typeLevel1Options.length === 0 && (
+                                        <div className="p-2 text-xs text-muted-foreground">Không có mã cấp 1</div>
+                                    )}
+                                </div>
+                                {selectedTypeLevel1.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onClearTypeLevel1}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
+                        <Popover open={typeLevel2PopoverOpen} onOpenChange={onTypeLevel2PopoverOpenChange}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    disabled={isTypeLevel2Disabled}
+                                    className="w-full md:w-56 bg-neutral text-foreground border-border justify-between font-normal"
+                                >
+                                    <span className="truncate">{typeLevel2Label}</span>
+                                    <ChevronDown className="w-4 h-4 ml-2 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-0" align="start">
+                                <div className="p-3 border-b border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-foreground">Chọn mã cấp 2</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={onSelectAllTypeLevel2}
+                                                className="text-xs text-secondary hover:text-secondary/80"
+                                            >
+                                                {isAllTypeLevel2Selected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto p-2">
+                                    {typeLevel2Options.map((code) => (
+                                        <div
+                                            key={code}
+                                            className="flex items-center space-x-2 p-2 hover:bg-tertiary rounded-md cursor-pointer"
+                                            onClick={() => onTypeLevel2Toggle(code)}
+                                        >
+                                            <Checkbox
+                                                id={`type-level2-${code}`}
+                                                checked={selectedTypeLevel2.includes(code)}
+                                                onCheckedChange={() => onTypeLevel2Toggle(code)}
+                                            />
+                                            <label
+                                                htmlFor={`type-level2-${code}`}
+                                                className="text-sm text-foreground cursor-pointer flex-1"
+                                            >
+                                                {code}
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {typeLevel2Options.length === 0 && (
+                                        <div className="p-2 text-xs text-muted-foreground">Không có mã cấp 2</div>
+                                    )}
+                                </div>
+                                {selectedTypeLevel2.length > 0 && (
+                                    <div className="p-2 border-t border-border">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onClearTypeLevel2}
+                                            className="w-full text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="w-4 h-4 mr-2" />
+                                            Xóa bộ lọc
+                                        </Button>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+
                         <Popover open={supplierPopoverOpen} onOpenChange={onSupplierPopoverOpenChange}>
                             <PopoverTrigger asChild>
                                 <Button
@@ -408,7 +599,7 @@ const ForecastTable = ({
                         </Select>
                     </div>
 
-                    {(selectedCategories.length > 0 || selectedSuppliers.length > 0) && (
+                    {(selectedCategories.length > 0 || selectedSuppliers.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0) && (
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
                             <span className="text-sm text-muted-foreground">Đang lọc:</span>
                             {selectedCategories.map((category) => (
@@ -434,10 +625,34 @@ const ForecastTable = ({
                                     <X className="w-3 h-3 ml-1" />
                                 </Badge>
                             ))}
+                            {selectedTypeLevel1.map((code) => (
+                                <Badge
+                                    key={`type1-${code}`}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => onTypeLevel1Toggle(code)}
+                                >
+                                    Mã cấp 1: {code}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
+                            {selectedTypeLevel2.map((code) => (
+                                <Badge
+                                    key={`type2-${code}`}
+                                    variant="secondary"
+                                    className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20"
+                                    onClick={() => onTypeLevel2Toggle(code)}
+                                >
+                                    Mã cấp 2: {code}
+                                    <X className="w-3 h-3 ml-1" />
+                                </Badge>
+                            ))}
                             <button
                                 onClick={() => {
                                     onClearCategories();
                                     onClearSuppliers();
+                                    onClearTypeLevel1();
+                                    onClearTypeLevel2();
                                 }}
                                 className="text-xs text-muted-foreground hover:text-foreground underline"
                             >
@@ -473,10 +688,10 @@ const ForecastTable = ({
                     <Card className="bg-neutral border-border">
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
-                                <table className="w-full min-w-[1200px]">
+                                <table className="w-full table-fixed">
                             <thead className="bg-primary text-primary-foreground">
                                 <tr>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-10">
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap w-9">
                                         <Checkbox
                                             checked={allSelectableRowsSelected ? true : (someSelectableRowsSelected ? 'indeterminate' : false)}
                                             onCheckedChange={(checked) => onToggleSelectAllRows(checked === true)}
@@ -484,16 +699,16 @@ const ForecastTable = ({
                                             aria-label="Chọn tất cả vật tư chưa duyệt trên trang"
                                         />
                                     </th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-24">Mã VT</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium min-w-[300px]">Tên vật tư</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-32">Mã hiệu</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-24 bg-amber-600">Đơn giá</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Xuất</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Nhập</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-20">SL Tồn</th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap min-w-[160px]">Nhà thầu</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-24">Dự trù</th>
-                                    <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-20">Gọi hàng</th>
+                                    <th className="px-2 py-3 text-left text-xs font-medium whitespace-nowrap w-[80px]">Mã VT</th>
+                                    <th className="px-2 py-3 text-left text-xs font-medium w-[300px]">Tên vật tư</th>
+                                    <th className="px-2 py-3 text-left text-xs font-medium whitespace-nowrap w-[96px]">Mã hiệu</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap w-[80px] bg-amber-600">Đơn giá</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">SL Xuất</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">SL Nhập</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">SL Tồn</th>
+                                    <th className="px-2 py-3 text-left text-xs font-medium whitespace-nowrap w-[120px]">Nhà thầu</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-[80px]">Dự trù</th>
+                                    <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-green-600 w-[70px]">Gọi hàng</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -506,7 +721,7 @@ const ForecastTable = ({
                                                 className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
                                                 onClick={() => toggleExpand(group.key)}
                                             >
-                                                <td colSpan={11} className="px-3 py-3">
+                                                    <td colSpan={11} className="px-2 py-3">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             {isExpanded ? (
@@ -514,9 +729,14 @@ const ForecastTable = ({
                                                             ) : (
                                                                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                                                             )}
-                                                            <span className="font-medium text-sm text-foreground truncate" title={group.label}>
-                                                                Mã cấp 1: {group.label}
-                                                            </span>
+                                                            <div className="min-w-0">
+                                                                <p className="font-medium text-sm text-foreground truncate" title={group.code}>
+                                                                    {group.label}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted-foreground">
+                                                                    Mã cấp 1: {group.level1Code || '—'}
+                                                                </p>
+                                                            </div>
                                                             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                                                                 {group.items.length} vật tư
                                                             </Badge>
@@ -531,7 +751,7 @@ const ForecastTable = ({
                                                     className="hover:bg-tertiary transition-colors cursor-pointer"
                                                     onClick={() => onRowClick(item)}
                                                 >
-                                                    <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                    <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                                                         <Checkbox
                                                             checked={isRowSelected(item)}
                                                             disabled={!isRowSelectable(item)}
@@ -539,9 +759,9 @@ const ForecastTable = ({
                                                             aria-label={`Chọn vật tư ${item.tenVtytBv}`}
                                                         />
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
-                                                    <td className="px-3 py-3 text-xs text-foreground">
-                                                        <div className="max-w-[320px]">
+                                                    <td className="px-2 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
+                                                    <td className="px-2 py-3 text-xs text-foreground">
+                                                        <div className="max-w-[300px]">
                                                             <div className="flex items-center gap-1 min-w-0">
                                                                 <p className="font-semibold text-sm truncate" title={item.tenVtytBv}>{item.tenVtytBv}</p>
                                                                 {getStatusBadge(item)}
@@ -551,44 +771,45 @@ const ForecastTable = ({
                                                             </p>
                                                         </div>
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground">
-                                                        <div className="max-w-[220px] truncate font-mono" title={item.maHieu || ''}>
+                                                    <td className="px-2 py-3 text-xs text-foreground">
+                                                        <div className="max-w-[96px] truncate font-mono" title={item.maHieu || ''}>
                                                             {item.maHieu || '—'}
                                                         </div>
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap bg-amber-50 dark:bg-amber-950/30">
+                                                    <td className="px-2 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap bg-amber-50 dark:bg-amber-950/30">
                                                         <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
                                                             {item.donGia.toLocaleString('vi-VN')}
                                                         </Badge>
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                    <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
                                                         {item.slXuat}
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                    <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
                                                         {item.slNhap}
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
+                                                    <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
                                                         <Badge variant={item.slTon < 50 ? "destructive" : "secondary"} className="text-xs">
                                                             {item.slTon}
                                                         </Badge>
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground">
-                                                        <div className="w-full break-words" title={item.nhaThau}>
+                                                    <td className="px-2 py-3 text-xs text-foreground">
+                                                        <div className="max-w-[120px] break-words" title={item.nhaThau}>
                                                             {item.nhaThau}
                                                         </div>
                                                     </td>
-                                                    <td className="px-3 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
+                                                    <td className="px-2 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             value={item.duTru}
+                                                            disabled={!isForecastEditable(item)}
                                                             onChange={(e) => onForecastChange(item, e.target.value)}
                                                             onFocus={() => onForecastFocus(item, item.duTru)}
                                                             onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
                                                             className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
                                                         />
                                                     </td>
-                                                    <td className="px-3 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
+                                                    <td className="px-2 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
                                                         <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
                                                             {item.goiHang}
                                                         </Badge>
@@ -633,7 +854,7 @@ const ForecastTable = ({
                         />
                     )}
 
-                    {(isSearching || selectedCategories.length > 0 || selectedSuppliers.length > 0) && (
+                    {(isSearching || selectedCategories.length > 0 || selectedSuppliers.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0) && (
                         <div className="text-center text-sm text-muted-foreground">
                             Đang hiển thị {filteredData.length} / {totalOnPage} vật tư (đã filter)
                         </div>

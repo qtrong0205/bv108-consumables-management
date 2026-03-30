@@ -39,6 +39,8 @@ type MaterialForecastUiCache = {
     searchTerm: string;
     selectedCategories: string[];
     selectedSuppliers: string[];
+    selectedTypeLevel1: string[];
+    selectedTypeLevel2: string[];
     page: number;
     pageSize: number;
     activeTab: string;
@@ -50,6 +52,8 @@ const materialForecastUiCache: MaterialForecastUiCache = {
     searchTerm: '',
     selectedCategories: [],
     selectedSuppliers: [],
+    selectedTypeLevel1: [],
+    selectedTypeLevel2: [],
     page: 1,
     pageSize: 100,
     activeTab: 'forecast',
@@ -78,6 +82,24 @@ const extractPackQuantity = (quyCach: string): number => {
     if (!matched) return 1;
     const parsed = parseInt(matched[0], 10);
     return Number.isNaN(parsed) || parsed <= 0 ? 1 : parsed;
+};
+
+const getTypeLevel1 = (typeName?: string): string => {
+    if (!typeName) return '';
+    const parts = typeName
+        .split('-')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    return parts.length >= 1 ? parts[0] : '';
+};
+
+const getTypeLevel2 = (typeName?: string): string => {
+    if (!typeName) return '';
+    const parts = typeName
+        .split('-')
+        .map((part) => part.trim())
+        .filter(Boolean);
+    return parts.length >= 2 ? parts[1] : '';
 };
 
 const shouldShowInForecast = (item: ApiSupply): boolean => {
@@ -136,11 +158,39 @@ const mapApprovalRecordToState = (record: ApiForecastApproval): {
     thoiGian: record.thoiGianDuyet ? new Date(record.thoiGianDuyet) : undefined,
 });
 
+const applyEditedForecastValues = (rows: IVatTuDuTru[], records: ApiForecastApproval[]): IVatTuDuTru[] => {
+    const editedMap = new Map<string, number>();
+
+    records.forEach((record) => {
+        if (record.status !== 'edited' || typeof record.duTruSua !== 'number') {
+            return;
+        }
+        editedMap.set(record.maVtytCu, record.duTruSua);
+    });
+
+    return rows.map((row) => {
+        const editedDuTru = editedMap.get(row.maVtytCu);
+        if (typeof editedDuTru !== 'number') {
+            return row;
+        }
+
+        return {
+            ...row,
+            duTru: editedDuTru,
+            goiHang: Math.ceil(editedDuTru / row.slTrongQuyCach),
+        };
+    });
+};
+
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState(materialForecastUiCache.searchTerm);
     const [selectedCategories, setSelectedCategories] = useState<string[]>(materialForecastUiCache.selectedCategories);
     const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(materialForecastUiCache.selectedSuppliers);
+    const [selectedTypeLevel1, setSelectedTypeLevel1] = useState<string[]>(materialForecastUiCache.selectedTypeLevel1);
+    const [selectedTypeLevel2, setSelectedTypeLevel2] = useState<string[]>(materialForecastUiCache.selectedTypeLevel2);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+    const [typeLevel1PopoverOpen, setTypeLevel1PopoverOpen] = useState(false);
+    const [typeLevel2PopoverOpen, setTypeLevel2PopoverOpen] = useState(false);
     const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false);
     const [page, setPage] = useState(materialForecastUiCache.page);
     const [pageSize, setPageSize] = useState(materialForecastUiCache.pageSize);
@@ -151,6 +201,20 @@ export default function MaterialForecast() {
         () => [...new Set(data.map((item) => item.nhaThau).filter((supplier) => supplier && supplier.trim().length > 0))].sort((a, b) => a.localeCompare(b)),
         [data]
     );
+    const typeLevel1Options = useMemo(
+        () =>
+            [...new Set(data.map((item) => getTypeLevel1(item.typeName)).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b)
+            ),
+        [data]
+    );
+    const typeLevel2Options = useMemo(() => {
+        if (selectedTypeLevel1.length === 0) return [];
+        const base = data.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
+        return [...new Set(base.map((item) => getTypeLevel2(item.typeName)).filter(Boolean))].sort((a, b) =>
+            a.localeCompare(b)
+        );
+    }, [data, selectedTypeLevel1]);
     const filteredData = useMemo(() => {
         let filtered = data;
 
@@ -160,6 +224,14 @@ export default function MaterialForecast() {
 
         if (selectedSuppliers.length > 0) {
             filtered = filtered.filter((item) => selectedSuppliers.includes(item.nhaThau || ''));
+        }
+
+        if (selectedTypeLevel1.length > 0) {
+            filtered = filtered.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
+        }
+
+        if (selectedTypeLevel1.length > 0 && selectedTypeLevel2.length > 0) {
+            filtered = filtered.filter((item) => selectedTypeLevel2.includes(getTypeLevel2(item.typeName)));
         }
 
         // Đưa các dòng đã phê duyệt xuống cuối để dòng chưa phê duyệt nổi lên trên.
@@ -176,7 +248,35 @@ export default function MaterialForecast() {
 
             return a.stt - b.stt;
         });
-    }, [data, selectedCategories, selectedSuppliers, approvalStates]);
+    }, [data, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, approvalStates]);
+
+    useEffect(() => {
+        if (selectedTypeLevel1.length === 0) return;
+        const valid = selectedTypeLevel1.filter((code) => typeLevel1Options.includes(code));
+        if (valid.length !== selectedTypeLevel1.length) {
+            setSelectedTypeLevel1(valid);
+        }
+    }, [selectedTypeLevel1, typeLevel1Options]);
+
+    useEffect(() => {
+        if (selectedTypeLevel2.length === 0) return;
+        const valid = selectedTypeLevel2.filter((code) => typeLevel2Options.includes(code));
+        if (valid.length !== selectedTypeLevel2.length) {
+            setSelectedTypeLevel2(valid);
+        }
+    }, [selectedTypeLevel2, typeLevel2Options]);
+
+    useEffect(() => {
+        if (selectedTypeLevel1.length === 0 && selectedTypeLevel2.length > 0) {
+            setSelectedTypeLevel2([]);
+        }
+    }, [selectedTypeLevel1, selectedTypeLevel2]);
+
+    useEffect(() => {
+        if (selectedTypeLevel1.length === 0 && typeLevel2PopoverOpen) {
+            setTypeLevel2PopoverOpen(false);
+        }
+    }, [selectedTypeLevel1, typeLevel2PopoverOpen]);
     const total = filteredData.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const paginatedFilteredData = useMemo(() => {
@@ -205,6 +305,9 @@ export default function MaterialForecast() {
     // State cho lịch sử thay đổi
     const [historyLog, setHistoryLog] = useState<HistoryEntry[]>([]);
 
+    // Lưu các chỉnh sửa dự trù chưa bấm "Lưu dự trù"
+    const [pendingForecastEdits, setPendingForecastEdits] = useState<Record<string, { originalDuTru: number; updatedDuTru: number }>>({});
+
     // State cho dialog chi tiết lịch sử
     const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null);
     const [isHistoryDetailDialogOpen, setIsHistoryDetailDialogOpen] = useState(false);
@@ -222,11 +325,13 @@ export default function MaterialForecast() {
         materialForecastUiCache.searchTerm = searchTerm;
         materialForecastUiCache.selectedCategories = selectedCategories;
         materialForecastUiCache.selectedSuppliers = selectedSuppliers;
+        materialForecastUiCache.selectedTypeLevel1 = selectedTypeLevel1;
+        materialForecastUiCache.selectedTypeLevel2 = selectedTypeLevel2;
         materialForecastUiCache.page = page;
         materialForecastUiCache.pageSize = pageSize;
         materialForecastUiCache.activeTab = activeTab;
         materialForecastUiCache.selectedRowKeys = selectedRowKeys;
-    }, [searchTerm, selectedCategories, selectedSuppliers, page, pageSize, activeTab, selectedRowKeys]);
+    }, [searchTerm, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, page, pageSize, activeTab, selectedRowKeys]);
 
     const refreshApprovalRecords = async () => {
         const response = await apiService.getForecastApprovals(CURRENT_MONTH, CURRENT_YEAR);
@@ -239,19 +344,23 @@ export default function MaterialForecast() {
             apiService.getForecastMonthlyHistory(),
         ]);
 
-        setHistoryLog(historyResponse.data.map((entry) => ({
-            id: entry.id,
-            stt: entry.id,
-            maVtyt: entry.maVtytCu,
-            tenVtyt: entry.tenVtytBv,
-            actionType: entry.actionType,
-            nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
-            thoiGian: new Date(entry.thoiGianThucHien),
-            chiTiet: {
-                duTruGoc: entry.duTruGoc,
-                duTruMoi: entry.duTruSua,
-            },
-        })));
+        setHistoryLog(
+            historyResponse.data
+                .filter((entry) => entry.actionType === 'approve' || entry.actionType === 'edit')
+                .map((entry) => ({
+                    id: entry.id,
+                    stt: entry.id,
+                    maVtyt: entry.maVtytCu,
+                    tenVtyt: entry.tenVtytBv,
+                    actionType: entry.actionType,
+                    nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
+                    thoiGian: new Date(entry.thoiGianThucHien),
+                    chiTiet: {
+                        duTruGoc: entry.duTruGoc,
+                        duTruMoi: entry.duTruSua,
+                    },
+                }))
+        );
 
         setMonthlyForecastHistory(monthlyResponse.data.map((record) => ({
             id: record.id,
@@ -341,7 +450,9 @@ export default function MaterialForecast() {
                     .filter(shouldShowInForecast)
                     .map((item, index) => mapSupplyToForecastItem(item, index));
 
-                const forecastRowsWithOverrides = forecastRows.map((row) => {
+                const forecastRowsWithPersistedEdits = applyEditedForecastValues(forecastRows, approvalRecords);
+
+                const forecastRowsWithOverrides = forecastRowsWithPersistedEdits.map((row) => {
                     const rowKey = getMaterialKey(row);
                     const overrideDuTru = materialForecastUiCache.forecastOverrides[rowKey];
 
@@ -401,6 +512,14 @@ export default function MaterialForecast() {
         setApprovalStates(nextApprovalStates);
     }, [approvalRecords, data]);
 
+    useEffect(() => {
+        if (approvalRecords.length === 0) {
+            return;
+        }
+
+        setData((prevData) => applyEditedForecastValues(prevData, approvalRecords));
+    }, [approvalRecords]);
+
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
         setPage(1);
@@ -428,6 +547,58 @@ export default function MaterialForecast() {
 
     const handleClearCategories = () => {
         setSelectedCategories([]);
+        setPage(1);
+    };
+
+    const handleTypeLevel1Toggle = (code: string) => {
+        setSelectedTypeLevel1((prev) => {
+            if (prev.includes(code)) {
+                return prev.filter((item) => item !== code);
+            }
+            return [...prev, code];
+        });
+        setPage(1);
+    };
+
+    const handleSelectAllTypeLevel1 = () => {
+        if (selectedTypeLevel1.length === typeLevel1Options.length) {
+            setSelectedTypeLevel1([]);
+            setPage(1);
+            return;
+        }
+        setSelectedTypeLevel1([...typeLevel1Options]);
+        setPage(1);
+    };
+
+    const handleClearTypeLevel1 = () => {
+        setSelectedTypeLevel1([]);
+        setPage(1);
+    };
+
+    const handleTypeLevel2Toggle = (code: string) => {
+        if (selectedTypeLevel1.length === 0) return;
+        setSelectedTypeLevel2((prev) => {
+            if (prev.includes(code)) {
+                return prev.filter((item) => item !== code);
+            }
+            return [...prev, code];
+        });
+        setPage(1);
+    };
+
+    const handleSelectAllTypeLevel2 = () => {
+        if (selectedTypeLevel1.length === 0) return;
+        if (selectedTypeLevel2.length === typeLevel2Options.length) {
+            setSelectedTypeLevel2([]);
+            setPage(1);
+            return;
+        }
+        setSelectedTypeLevel2([...typeLevel2Options]);
+        setPage(1);
+    };
+
+    const handleClearTypeLevel2 = () => {
+        setSelectedTypeLevel2([]);
         setPage(1);
     };
 
@@ -519,19 +690,19 @@ export default function MaterialForecast() {
         duTruSua: options?.duTruSua,
     });
 
-    // Hàm thêm entry vào lịch sử
-    const addHistoryEntry = (entry: Omit<HistoryEntry, 'id'>) => {
-        setHistoryLog(prev => [{
-            ...entry,
-            id: Date.now() + prev.length,
-        }, ...prev]);
-    };
-
     // Lưu giá trị gốc khi focus vào input
     const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
 
+    const isForecastEditable = (item: IVatTuDuTru) => {
+        return approvalStates[getMaterialKey(item)]?.status !== 'approved';
+    };
+
     // Xử lý thay đổi giá trị dự trù
     const handleForecastChange = (item: IVatTuDuTru, value: string) => {
+        if (!isForecastEditable(item)) {
+            return;
+        }
+
         const numValue = parseInt(value) || 0;
         const rowKey = getMaterialKey(item);
 
@@ -550,29 +721,39 @@ export default function MaterialForecast() {
 
     // Lưu giá trị gốc khi focus
     const handleForecastFocus = (item: IVatTuDuTru, value: number) => {
+        if (!isForecastEditable(item)) {
+            return;
+        }
         setOriginalDuTru({ rowKey: getMaterialKey(item), value });
     };
 
     // Ghi lịch sử khi blur (nếu có thay đổi)
     const handleForecastBlur = (item: IVatTuDuTru, newValue: number) => {
+        if (!isForecastEditable(item)) {
+            setOriginalDuTru(null);
+            return;
+        }
+
         const rowKey = getMaterialKey(item);
 
         if (originalDuTru && originalDuTru.rowKey === rowKey && originalDuTru.value !== newValue) {
-            const foundItem = data.find((row) => getMaterialKey(row) === rowKey);
-            if (foundItem) {
-                addHistoryEntry({
-                    stt: foundItem.stt,
-                    maVtyt: foundItem.maVtytCu,
-                    tenVtyt: foundItem.tenVtytBv,
-                    actionType: 'edit_quantity',
-                    nguoiThucHien: currentUser,
-                    thoiGian: new Date(),
-                    chiTiet: {
-                        duTruGoc: originalDuTru.value,
-                        duTruMoi: newValue,
-                    },
-                });
-            }
+            setPendingForecastEdits((prev) => ({
+                ...prev,
+                [rowKey]: {
+                    originalDuTru: originalDuTru.value,
+                    updatedDuTru: newValue,
+                },
+            }));
+        } else {
+            setPendingForecastEdits((prev) => {
+                if (!prev[rowKey]) {
+                    return prev;
+                }
+
+                const next = { ...prev };
+                delete next[rowKey];
+                return next;
+            });
         }
 
         materialForecastUiCache.forecastOverrides[rowKey] = newValue;
@@ -771,11 +952,66 @@ export default function MaterialForecast() {
     const totalValue = filteredData.reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
 
     // Lưu dữ liệu
-    const handleSave = () => {
-        toast({
-            title: "Lưu thành công",
-            description: "Dữ liệu dự trù đã được cập nhật",
-        });
+    const handleSave = async () => {
+        const pendingEntries = Object.entries(pendingForecastEdits);
+
+        if (pendingEntries.length === 0) {
+            toast({
+                title: 'Không có thay đổi',
+                description: 'Bạn chưa chỉnh sửa dự trù nào để lưu',
+            });
+            return;
+        }
+
+        const payloadItems: SaveForecastApprovalRequest[] = pendingEntries
+            .map(([rowKey, edit]) => {
+                const item = data.find((row) => getMaterialKey(row) === rowKey);
+                if (!item || !isForecastEditable(item)) {
+                    return null;
+                }
+
+                return buildForecastApprovalPayload(item, 'edited', {
+                    duTruGoc: edit.originalDuTru,
+                    duTruSua: edit.updatedDuTru,
+                });
+            })
+            .filter((item): item is SaveForecastApprovalRequest => item !== null);
+
+        if (payloadItems.length === 0) {
+            toast({
+                title: 'Không thể lưu',
+                description: 'Không có chỉnh sửa hợp lệ để lưu',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        try {
+            await apiService.saveForecastApprovalsBulk({ items: payloadItems });
+            await refreshApprovalRecords();
+            await refreshHistoryTabs();
+
+            setPendingForecastEdits((prev) => {
+                const next = { ...prev };
+                payloadItems.forEach((item) => {
+                    const matchingRow = data.find((row) => row.maVtytCu === item.maVtytCu);
+                    if (!matchingRow) return;
+                    delete next[getMaterialKey(matchingRow)];
+                });
+                return next;
+            });
+
+            toast({
+                title: 'Lưu thành công',
+                description: `Đã lưu ${payloadItems.length} chỉnh sửa dự trù`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Lưu thất bại',
+                description: error instanceof Error ? error.message : 'Không thể lưu dữ liệu dự trù',
+                variant: 'destructive',
+            });
+        }
     };
 
     // Xuất Excel với thư viện xlsx
@@ -963,25 +1199,34 @@ export default function MaterialForecast() {
     };
 
     // Sửa và lưu
-    const handleEditAndSave = () => {
+    const handleEditAndSave = async () => {
         if (!selectedItem) return;
 
         const selectedItemKey = getMaterialKey(selectedItem);
         const goiHang = Math.ceil(editDuTru / selectedItem.slTrongQuyCach);
 
-        if (selectedItem.duTru !== editDuTru) {
-            addHistoryEntry({
-                stt: selectedItem.stt,
-                maVtyt: selectedItem.maVtytCu,
-                tenVtyt: selectedItem.tenVtytBv,
-                actionType: 'edit_quantity',
-                nguoiThucHien: currentUser,
-                thoiGian: new Date(),
-                chiTiet: {
+        if (selectedItem.duTru === editDuTru) {
+            setIsDialogOpen(false);
+            setIsEditMode(false);
+            return;
+        }
+
+        try {
+            await apiService.saveForecastApproval(
+                buildForecastApprovalPayload(selectedItem, 'edited', {
                     duTruGoc: selectedItem.duTru,
-                    duTruMoi: editDuTru,
-                },
+                    duTruSua: editDuTru,
+                })
+            );
+            await refreshApprovalRecords();
+            await refreshHistoryTabs();
+        } catch (error) {
+            toast({
+                title: 'Lưu chỉnh sửa thất bại',
+                description: error instanceof Error ? error.message : 'Không thể lưu chỉnh sửa dự trù',
+                variant: 'destructive',
             });
+            return;
         }
 
         setData(prevData =>
@@ -994,6 +1239,11 @@ export default function MaterialForecast() {
         );
 
         materialForecastUiCache.forecastOverrides[selectedItemKey] = editDuTru;
+        setPendingForecastEdits((prev) => {
+            const next = { ...prev };
+            delete next[selectedItemKey];
+            return next;
+        });
         setSelectedItem({ ...selectedItem, duTru: editDuTru, goiHang });
 
         toast({
@@ -1105,14 +1355,8 @@ export default function MaterialForecast() {
         switch (actionType) {
             case 'approve':
                 return <Badge className={`bg-green-100 text-green-700 border-green-300 ${baseClass}`}><CheckCircle2 className="w-3 h-3 mr-1" />Phê duyệt</Badge>;
-            case 'reject':
-                return <Badge className={`bg-red-100 text-red-700 border-red-300 ${baseClass}`}><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             case 'edit':
-                return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Sửa & Duyệt</Badge>;
-            case 'edit_quantity':
-                return <Badge className={`bg-blue-100 text-blue-700 border-blue-300 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Sửa SL</Badge>;
-            case 'approve_all':
-                return <Badge className={`bg-emerald-100 text-emerald-700 border-emerald-300 ${baseClass}`}><CheckCheck className="w-3 h-3 mr-1" />Duyệt tất cả</Badge>;
+                return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Sửa</Badge>;
             default:
                 return null;
         }
@@ -1183,6 +1427,12 @@ export default function MaterialForecast() {
                         isSearching: searchTerm.trim().length > 0,
                         categories,
                         selectedCategories,
+                        typeLevel1Options,
+                        typeLevel2Options,
+                        selectedTypeLevel1,
+                        selectedTypeLevel2,
+                        typeLevel1PopoverOpen,
+                        typeLevel2PopoverOpen,
                         suppliers,
                         selectedSuppliers,
                         categoryPopoverOpen,
@@ -1199,6 +1449,14 @@ export default function MaterialForecast() {
                         onCategoryToggle: handleCategoryToggle,
                         onSelectAllCategories: handleSelectAllCategories,
                         onClearCategories: handleClearCategories,
+                        onTypeLevel1PopoverOpenChange: setTypeLevel1PopoverOpen,
+                        onTypeLevel1Toggle: handleTypeLevel1Toggle,
+                        onSelectAllTypeLevel1: handleSelectAllTypeLevel1,
+                        onClearTypeLevel1: handleClearTypeLevel1,
+                        onTypeLevel2PopoverOpenChange: setTypeLevel2PopoverOpen,
+                        onTypeLevel2Toggle: handleTypeLevel2Toggle,
+                        onSelectAllTypeLevel2: handleSelectAllTypeLevel2,
+                        onClearTypeLevel2: handleClearTypeLevel2,
                         onSupplierPopoverOpenChange: setSupplierPopoverOpen,
                         onSupplierToggle: handleSupplierToggle,
                         onSelectAllSuppliers: handleSelectAllSuppliers,
@@ -1212,6 +1470,7 @@ export default function MaterialForecast() {
                     handlers={{
                         onRowClick: handleRowClick,
                         getStatusBadge,
+                        isForecastEditable,
                         onForecastChange: handleForecastChange,
                         onForecastFocus: handleForecastFocus,
                         onForecastBlur: handleForecastBlur,
