@@ -464,13 +464,25 @@ class ApiService {
     return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
   }
 
-  async getCompareGroups(): Promise<{ groups: string[]; total: number }> {
-    return this.request<{ groups: string[]; total: number }>('/supplies/compare-groups');
+  async getCompareLevel1Options(): Promise<{ groups: string[]; total: number }> {
+    return this.request<{ groups: string[]; total: number }>('/supplies/compare-level1');
   }
 
-  async getCompareCatalog(keyword: string = '', page: number = 1, pageSize: number = 20, groupFilter: string = ''): Promise<PaginationResponse<ApiCompareSupply>> {
+  async getCompareLevel2Options(level1: string = ''): Promise<{ groups: string[]; total: number }> {
+    return this.request<{ groups: string[]; total: number }>(
+      `/supplies/compare-level2?level1=${encodeURIComponent(level1)}`,
+    );
+  }
+
+  async getCompareCatalog(
+    keyword: string = '',
+    page: number = 1,
+    pageSize: number = 20,
+    level1Filter: string = '',
+    level2Filter: string = '',
+  ): Promise<PaginationResponse<ApiCompareSupply>> {
     return this.request<PaginationResponse<ApiCompareSupply>>(
-      `/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}&groupFilter=${encodeURIComponent(groupFilter)}`,
+      `/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}&level1Filter=${encodeURIComponent(level1Filter)}&level2Filter=${encodeURIComponent(level2Filter)}`,
     );
   }
 

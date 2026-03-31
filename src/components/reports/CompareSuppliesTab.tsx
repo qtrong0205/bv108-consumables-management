@@ -73,8 +73,10 @@ const COMPARE_FIELDS: Array<{
 
 export default function CompareSuppliesTab() {
   const [keyword, setKeyword] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('all');
-  const [compareGroups, setCompareGroups] = useState<string[]>([]);
+  const [selectedLevel1, setSelectedLevel1] = useState('all');
+  const [selectedLevel2, setSelectedLevel2] = useState('all');
+  const [level1Options, setLevel1Options] = useState<string[]>([]);
+  const [level2Options, setLevel2Options] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
@@ -86,9 +88,10 @@ export default function CompareSuppliesTab() {
 
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingCompare, setLoadingCompare] = useState(false);
-  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [loadingLevel1, setLoadingLevel1] = useState(false);
+  const [loadingLevel2, setLoadingLevel2] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [groupError, setGroupError] = useState<string | null>(null);
+  const [levelError, setLevelError] = useState<string | null>(null);
   const [collapsedRows, setCollapsedRows] = useState<string[]>([]);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -99,28 +102,58 @@ export default function CompareSuppliesTab() {
   const [columnOrder, setColumnOrder] = useState<number[]>([]);
 
   useEffect(() => {
-    const loadCompareGroups = async () => {
+    const loadLevel1Options = async () => {
       try {
-        setLoadingGroups(true);
-        setGroupError(null);
-        const res = await apiService.getCompareGroups();
-        setCompareGroups(res.groups || []);
+        setLoadingLevel1(true);
+        setLevelError(null);
+        const res = await apiService.getCompareLevel1Options();
+        setLevel1Options(res.groups || []);
       } catch (err) {
-        setGroupError(err instanceof Error ? err.message : 'Không tải được danh sách nhóm Thông tư 04');
+        setLevelError(err instanceof Error ? err.message : 'Không tải được danh sách mã cấp 1');
       } finally {
-        setLoadingGroups(false);
+        setLoadingLevel1(false);
       }
     };
 
-    void loadCompareGroups();
+    void loadLevel1Options();
   }, []);
+
+  useEffect(() => {
+    const loadLevel2Options = async () => {
+      if (selectedLevel1 === 'all') {
+        setLevel2Options([]);
+        setSelectedLevel2('all');
+        return;
+      }
+
+      try {
+        setLoadingLevel2(true);
+        setLevelError(null);
+        const res = await apiService.getCompareLevel2Options(selectedLevel1);
+        setLevel2Options(res.groups || []);
+      } catch (err) {
+        setLevelError(err instanceof Error ? err.message : 'Không tải được danh sách mã cấp 2');
+        setLevel2Options([]);
+      } finally {
+        setLoadingLevel2(false);
+      }
+    };
+
+    void loadLevel2Options();
+  }, [selectedLevel1]);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setLoadingCatalog(true);
         setError(null);
-        const res = await apiService.getCompareCatalog(keyword, page, pageSize, selectedGroup === 'all' ? '' : selectedGroup);
+        const res = await apiService.getCompareCatalog(
+          keyword,
+          page,
+          pageSize,
+          selectedLevel1 === 'all' ? '' : selectedLevel1,
+          selectedLevel2 === 'all' ? '' : selectedLevel2,
+        );
         setCatalog(res.data);
         setTotalPages(res.totalPages || 1);
         setTotalItems(res.total || 0);
@@ -132,7 +165,7 @@ export default function CompareSuppliesTab() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [keyword, page, pageSize, selectedGroup]);
+  }, [keyword, page, pageSize, selectedLevel1, selectedLevel2]);
 
   const selectedCount = selectedCodes.length;
 
@@ -360,19 +393,41 @@ export default function CompareSuppliesTab() {
               />
             </div>
             <Select
-              value={selectedGroup}
+              value={selectedLevel1}
               onValueChange={(value) => {
                 setPage(1);
-                setSelectedGroup(value);
+                setSelectedLevel1(value);
+                setSelectedLevel2('all');
               }}
-              disabled={loadingGroups}
+              disabled={loadingLevel1}
             >
-              <SelectTrigger className="w-full md:w-72 bg-neutral text-foreground border-border">
-                <SelectValue placeholder="Lọc nhóm TT04" />
+              <SelectTrigger className="w-full md:w-56 bg-neutral text-foreground border-border">
+                <SelectValue placeholder="Lọc mã cấp 1" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tất cả nhóm TT04</SelectItem>
-                {compareGroups.map((group) => (
+                <SelectItem value="all">Tất cả mã cấp 1</SelectItem>
+                {level1Options.map((group) => (
+                  <SelectItem key={group} value={group}>
+                    {group}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={selectedLevel2}
+              onValueChange={(value) => {
+                setPage(1);
+                setSelectedLevel2(value);
+              }}
+              disabled={selectedLevel1 === 'all' || loadingLevel2}
+            >
+              <SelectTrigger className="w-full md:w-56 bg-neutral text-foreground border-border">
+                <SelectValue placeholder="Lọc mã cấp 2" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả mã cấp 2</SelectItem>
+                {level2Options.map((group) => (
                   <SelectItem key={group} value={group}>
                     {group}
                   </SelectItem>
@@ -380,7 +435,7 @@ export default function CompareSuppliesTab() {
               </SelectContent>
             </Select>
           </div>
-          {groupError && <p className="text-sm text-red-600">{groupError}</p>}
+          {levelError && <p className="text-sm text-red-600">{levelError}</p>}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
