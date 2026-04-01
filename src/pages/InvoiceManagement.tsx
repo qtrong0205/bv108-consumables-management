@@ -65,7 +65,7 @@ export default function InvoiceManagement() {
         invoiceUiCache.tabStates = tabStates;
     }, [activeTab, tabStates]);
 
-    const { orderHistory, refreshOrders, loadingOrders } = useOrder();
+    const { orderHistory, refreshOrders, loadingOrders, realtimeEventVersion, lastRealtimeEvent } = useOrder();
     const { hoaDons, loading, error, refetch } = useHoaDonUBot();
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
@@ -140,6 +140,30 @@ export default function InvoiceManagement() {
         void loadMatchedInvoices();
         void loadMatchedOrders();
     }, [activeTab, tabStates.history.month, tabStates.history.year]);
+
+    useEffect(() => {
+        if (!lastRealtimeEvent) return;
+
+        if (lastRealtimeEvent.type === 'invoices.reconciliation_updated') {
+            void loadMatchedInvoices();
+            void loadMatchedOrders();
+            void loadInvoiceHistory();
+            return;
+        }
+
+        if (lastRealtimeEvent.type === 'invoices.data_refreshed') {
+            refetch();
+            void loadMatchedInvoices();
+            void loadMatchedOrders();
+            void loadInvoiceHistory();
+            return;
+        }
+
+        if (lastRealtimeEvent.type === 'orders.updated' || lastRealtimeEvent.type === 'orders.new_pending') {
+            void loadMatchedOrders();
+            void loadInvoiceHistory();
+        }
+    }, [realtimeEventVersion]);
 
     return (
         <div className="p-6 lg:p-8 space-y-6">

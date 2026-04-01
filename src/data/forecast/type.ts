@@ -1,4 +1,4 @@
-export type HistoryActionType = 'approve' | 'edit';
+export type HistoryActionType = 'approve' | 'reject' | 'edit';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
 
 export interface HistoryEntry {

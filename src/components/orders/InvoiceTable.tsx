@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
-import { ApiInvoiceReconciliationRecord, SaveInvoiceReconciliationItemRequest, apiService } from '@/services/api';
+import { ApiInvoiceReconciliationRecord, SaveInvoiceReconciliationItemRequest, apiService, getStoredAuth } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,7 @@ import {
     ChevronRight,
     Package,
 } from 'lucide-react';
+import { canEditInvoiceNotes, canManageInvoiceWorkflow } from '@/lib/auth';
 
 interface InvoiceTableProps {
     orders: OrderHistory[];
@@ -393,6 +394,11 @@ export default function InvoiceTable({
     onFilterSupplierStatusChange,
 }: InvoiceTableProps) {
     const { toast } = useToast();
+    const currentRole = useMemo(() => getStoredAuth()?.user.role ?? '', []);
+    const canSaveInvoiceNotes = canEditInvoiceNotes(currentRole);
+    const canUpdateInvoiceWorkflow = canManageInvoiceWorkflow(currentRole);
+    const invoiceNoteRoleTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được thực hiện thao tác này.';
+    const invoiceWorkflowRoleTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được thực hiện thao tác này.';
     // Use external state if provided, otherwise use internal state
     const [internalExpandedSuppliers, setInternalExpandedSuppliers] = useState<Set<string>>(new Set());
     const [internalSearchTerm, setInternalSearchTerm] = useState('');
@@ -451,6 +457,63 @@ export default function InvoiceTable({
         });
         return map;
     }, [matchedReconciliations]);
+
+    useEffect(() => {
+        if (matchedHistoryMap.size === 0) return;
+
+        setLocalMatchedMap((prev) => {
+            if (prev.size === 0) return prev;
+
+            let changed = false;
+            const next = new Map(prev);
+
+            matchedHistoryMap.forEach((serverRecord, orderHistoryId) => {
+                const localRecord = next.get(orderHistoryId);
+                if (!localRecord) return;
+
+                const serverTime = getReconciliationRecordTime(serverRecord);
+                const localTime = getReconciliationRecordTime(localRecord);
+
+                if (serverTime > localTime) {
+                    next.delete(orderHistoryId);
+                    changed = true;
+                }
+            });
+
+            return changed ? next : prev;
+        });
+    }, [matchedHistoryMap]);
+
+    useEffect(() => {
+        if (matchedHistoryMap.size === 0) return;
+
+        setNoteDrafts((prev) => {
+            const draftKeys = Object.keys(prev);
+            if (draftKeys.length === 0) return prev;
+
+            let changed = false;
+            const next = { ...prev };
+
+            draftKeys.forEach((key) => {
+                const orderHistoryId = Number(key);
+                if (noteEditor?.orderHistoryId === orderHistoryId) return;
+
+                const serverRecord = matchedHistoryMap.get(orderHistoryId);
+                if (!serverRecord) return;
+
+                const serverNote = (serverRecord.note || '').trim();
+                const draftNote = (next[orderHistoryId] || '').trim();
+
+                if (serverNote !== draftNote) {
+                    delete next[orderHistoryId];
+                    changed = true;
+                }
+            });
+
+            return changed ? next : prev;
+        });
+    }, [matchedHistoryMap, noteEditor]);
+
     const invoiceRowById = useMemo(() => {
         const map = new Map<number, HoaDonUBot>();
         hoaDons.forEach((hoaDon) => {
@@ -465,7 +528,17 @@ export default function InvoiceTable({
             map.set(key, record);
         });
         localMatchedMap.forEach((record, key) => {
-            map.set(key, record);
+            const serverRecord = map.get(key);
+            if (!serverRecord) {
+                map.set(key, record);
+                return;
+            }
+
+            const serverTime = getReconciliationRecordTime(serverRecord);
+            const localTime = getReconciliationRecordTime(record);
+            if (localTime >= serverTime) {
+                map.set(key, record);
+            }
         });
         return map;
     }, [matchedHistoryMap, localMatchedMap]);
@@ -804,6 +877,15 @@ export default function InvoiceTable({
     };
 
     const openNoteEditor = (result: ReconciliationResult) => {
+        if (!canSaveInvoiceNotes) {
+            toast({
+                title: 'Không có quyền sửa ghi chú',
+                description: 'Chỉ Nhân viên kế toán mới được chỉnh sửa ghi chú hóa đơn.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         setNoteEditor({
             orderHistoryId: Number(result.order.id),
         });
@@ -846,6 +928,24 @@ export default function InvoiceTable({
     };
 
     const persistGroup = async (group: SupplierGroup, status: WorkflowStatus) => {
+        if (status === WORKFLOW_STATUS_PENDING && !canSaveInvoiceNotes) {
+            toast({
+                title: 'Không có quyền lưu ghi chú',
+                description: 'Chỉ Nhân viên kế toán mới được lưu ghi chú trên trang hóa đơn.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (status === WORKFLOW_STATUS_DONE && !canUpdateInvoiceWorkflow) {
+            toast({
+                title: 'Không có quyền duyệt hóa đơn',
+                description: 'Bạn không có quyền chuyển nhóm hóa đơn này sang trạng thái đã duyệt.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const items = status === WORKFLOW_STATUS_DONE
             ? buildStatusUpdatePayload(group)
             : buildNoteUpdatePayload(group);
@@ -1417,23 +1517,33 @@ export default function InvoiceTable({
                                                             <div className="flex items-center gap-2 ml-auto">
                                                                 {group.stats.hasInvoice > 0 ? (
                                                                     <>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            disabled={isSavingGroup || isApprovingGroup}
-                                                                            onClick={() => void persistGroup(group, WORKFLOW_STATUS_PENDING)}
+                                                                        <span
+                                                                            className="inline-flex"
+                                                                            title={!canSaveInvoiceNotes ? invoiceNoteRoleTooltip : undefined}
                                                                         >
-                                                                            {isSavingGroup ? 'Đang lưu...' : 'Lưu'}
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="sm"
-                                                                            disabled={isSavingGroup || isApprovingGroup}
-                                                                            onClick={() => void persistGroup(group, WORKFLOW_STATUS_DONE)}
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                disabled={!canSaveInvoiceNotes || isSavingGroup || isApprovingGroup}
+                                                                                onClick={() => void persistGroup(group, WORKFLOW_STATUS_PENDING)}
+                                                                            >
+                                                                                {isSavingGroup ? 'Đang lưu...' : 'Lưu'}
+                                                                            </Button>
+                                                                        </span>
+                                                                        <span
+                                                                            className="inline-flex"
+                                                                            title={!canUpdateInvoiceWorkflow ? invoiceWorkflowRoleTooltip : undefined}
                                                                         >
-                                                                            {isApprovingGroup ? 'Đang duyệt...' : 'Duyệt'}
-                                                                        </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                size="sm"
+                                                                                disabled={!canUpdateInvoiceWorkflow || isSavingGroup || isApprovingGroup}
+                                                                                onClick={() => void persistGroup(group, WORKFLOW_STATUS_DONE)}
+                                                                            >
+                                                                                {isApprovingGroup ? 'Đang duyệt...' : 'Duyệt'}
+                                                                            </Button>
+                                                                        </span>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => openSupplierDetail(group)}
@@ -1557,22 +1667,28 @@ export default function InvoiceTable({
                                                                                         const hasNote = currentNote.length > 0;
 
                                                                                         return (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => openNoteEditor(result)}
-                                                                                                className={`w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
-                                                                                                    hasNote
-                                                                                                        ? 'border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70'
-                                                                                                        : 'border-amber-300 bg-amber-50/50 hover:bg-amber-100/70'
-                                                                                                }`}
+                                                                                            <span
+                                                                                                className="block"
+                                                                                                title={!canSaveInvoiceNotes ? invoiceNoteRoleTooltip : undefined}
                                                                                             >
-                                                                                                <div className="text-[11px] font-semibold">
-                                                                                                    {hasNote ? 'Đã có ghi chú' : 'Chưa có ghi chú'}
-                                                                                                </div>
-                                                                                                <div className="mt-0.5 max-w-[170px] truncate text-[11px] text-muted-foreground leading-snug">
-                                                                                                    {getNotePreview(result)}
-                                                                                                </div>
-                                                                                            </button>
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => openNoteEditor(result)}
+                                                                                                    disabled={!canSaveInvoiceNotes}
+                                                                                                    className={`w-full rounded-md border px-2 py-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                                                                                                        hasNote
+                                                                                                            ? 'border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70'
+                                                                                                            : 'border-amber-300 bg-amber-50/50 hover:bg-amber-100/70'
+                                                                                                    }`}
+                                                                                                >
+                                                                                                    <div className="text-[11px] font-semibold">
+                                                                                                        {hasNote ? 'Đã có ghi chú' : 'Chưa có ghi chú'}
+                                                                                                    </div>
+                                                                                                    <div className="mt-0.5 max-w-[170px] truncate text-[11px] text-muted-foreground leading-snug">
+                                                                                                        {getNotePreview(result)}
+                                                                                                    </div>
+                                                                                                </button>
+                                                                                            </span>
                                                                                         );
                                                                                     })()}
                                                                                 </td>
@@ -1610,26 +1726,31 @@ export default function InvoiceTable({
                                 const hasExistingNote = currentNote.length > 0;
 
                                 return (
-                            <Textarea
-                                value={getCurrentNoteByOrderId(noteEditor.orderHistoryId)}
-                                onChange={(e) => {
-                                    const orderHistoryId = noteEditor.orderHistoryId;
-                                    setNoteDrafts((prev) => ({
-                                        ...prev,
-                                        [orderHistoryId]: e.target.value,
-                                    }));
-                                }}
-                                placeholder="Nhập ghi chú chi tiết tại đây..."
-                                className={`mx-auto min-h-[220px] w-full max-w-[640px] text-sm ${
-                                    hasExistingNote
-                                        ? 'border-emerald-300 bg-emerald-50/35 font-medium text-slate-700'
-                                        : 'border-amber-200 font-normal placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/60'
-                                }`}
-                            />
+                            <div title={!canSaveInvoiceNotes ? invoiceNoteRoleTooltip : undefined}>
+                                <Textarea
+                                    value={getCurrentNoteByOrderId(noteEditor.orderHistoryId)}
+                                    disabled={!canSaveInvoiceNotes}
+                                    onChange={(e) => {
+                                        const orderHistoryId = noteEditor.orderHistoryId;
+                                        setNoteDrafts((prev) => ({
+                                            ...prev,
+                                            [orderHistoryId]: e.target.value,
+                                        }));
+                                    }}
+                                    placeholder="Nhập ghi chú chi tiết tại đây..."
+                                    className={`mx-auto min-h-[220px] w-full max-w-[640px] text-sm ${
+                                        hasExistingNote
+                                            ? 'border-emerald-300 bg-emerald-50/35 font-medium text-slate-700'
+                                            : 'border-amber-200 font-normal placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/60'
+                                    }`}
+                                />
+                            </div>
                                 );
                             })()}
                             <p className="text-xs text-muted-foreground">
-                                Ghi chú sẽ được lưu khi bấm nút Lưu ở nhóm nhà thầu.
+                                {canSaveInvoiceNotes
+                                    ? 'Ghi chú sẽ được lưu khi bấm nút Lưu ở nhóm nhà thầu.'
+                                    : 'Bạn chỉ có quyền xem ghi chú, không thể chỉnh sửa.'}
                             </p>
                         </div>
 

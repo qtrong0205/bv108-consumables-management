@@ -15,6 +15,7 @@ import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHi
 import { useOrder } from '@/context/OrderContext';
 import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
+import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
@@ -164,7 +165,7 @@ const getLatestForecastChangeValue = (record: ApiForecastChangeHistoryRecord): n
 
 const isHistoryActionType = (
     actionType: ApiForecastChangeHistoryRecord['actionType']
-): actionType is HistoryActionType => actionType === 'approve' || actionType === 'edit';
+): actionType is HistoryActionType => actionType === 'approve' || actionType === 'reject' || actionType === 'edit';
 
 const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastChangeHistoryRecord[]): IVatTuDuTru[] => {
     const latestRecordMap = new Map<string, ApiForecastChangeHistoryRecord>();
@@ -365,7 +366,7 @@ export default function MaterialForecast() {
     const [activeTab, setActiveTab] = useState(materialForecastUiCache.activeTab);
 
     // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
-    const { addApprovedOrder, addApprovedOrdersBulk } = useOrder();
+    const { addApprovedOrder, addApprovedOrdersBulk, realtimeEventVersion, lastRealtimeEvent } = useOrder();
 
     // State cho dialog phê duyệt
     const [selectedItem, setSelectedItem] = useState<IVatTuDuTru | null>(null);
@@ -392,7 +393,14 @@ export default function MaterialForecast() {
     // State cho lịch sử dự trù theo tháng
     const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
-    const currentUser = useMemo(() => getStoredAuth()?.user.username || 'Người dùng hệ thống', []);
+    const storedAuth = useMemo(() => getStoredAuth(), []);
+    const currentUser = storedAuth?.user.username || 'Người dùng hệ thống';
+    const currentRole = storedAuth?.user.role ?? '';
+    const canEditForecastValues = canEditForecast(currentRole);
+    const canApproveForecastItems = canApproveForecastRole(currentRole);
+    const canApproveAllForecastItems = canApproveAllForecast(currentRole);
+    const editForecastRoleTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
+    const approveAllRoleTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -440,6 +448,7 @@ export default function MaterialForecast() {
                     nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
                     thoiGian: new Date(entry.thoiGianThucHien),
                     chiTiet: {
+                        lyDo: entry.lyDo,
                         duTruGoc: entry.duTruGoc,
                         duTruMoi: entry.duTruSua,
                     },
@@ -500,6 +509,18 @@ export default function MaterialForecast() {
             });
         });
     }, [toast]);
+
+    useEffect(() => {
+        if (!lastRealtimeEvent || lastRealtimeEvent.type !== 'forecast.approvals_updated') {
+            return;
+        }
+
+        void Promise.all([
+            refreshApprovalRecords(),
+            refreshLatestForecastChanges(),
+            refreshHistoryTabs(),
+        ]).catch(() => undefined);
+    }, [realtimeEventVersion]);
 
     useEffect(() => {
         if (page <= totalPages) return;
@@ -729,6 +750,9 @@ export default function MaterialForecast() {
     const getRowSelectionKey = (item: IVatTuDuTru) => getMaterialKey(item);
 
     const isRowSelectable = (item: IVatTuDuTru) => {
+        if (!canApproveAllForecastItems) {
+            return false;
+        }
         const status = approvalStates[getMaterialKey(item)]?.status;
         return !status || status === 'edited';
     };
@@ -796,7 +820,7 @@ export default function MaterialForecast() {
     const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
 
     const isForecastEditable = (item: IVatTuDuTru) => {
-        return approvalStates[getMaterialKey(item)]?.status !== 'approved';
+        return canEditForecastValues && approvalStates[getMaterialKey(item)]?.status !== 'approved';
     };
 
     // Xử lý thay đổi giá trị dự trù
@@ -881,6 +905,15 @@ export default function MaterialForecast() {
 
     // Lưu dữ liệu
     const handleSave = async () => {
+        if (!canEditForecastValues) {
+            toast({
+                title: 'Không có quyền lưu dự trù',
+                description: 'Chỉ Nhân viên thầu mới được chỉnh sửa và lưu dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const pendingEntries = Object.entries(pendingForecastEdits);
 
         if (pendingEntries.length === 0) {
@@ -1029,6 +1062,14 @@ export default function MaterialForecast() {
     // Phê duyệt
     const handleApprove = async () => {
         if (!selectedItem) return;
+        if (!canApproveForecastItems) {
+            toast({
+                title: 'Không có quyền phê duyệt',
+                description: 'Chỉ Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
 
         const now = new Date();
 
@@ -1079,6 +1120,14 @@ export default function MaterialForecast() {
     // Từ chối
     const handleReject = async () => {
         if (!selectedItem) return;
+        if (!canApproveForecastItems) {
+            toast({
+                title: 'Không có quyền từ chối',
+                description: 'Chỉ Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
 
         if (!lyDoTuChoi.trim()) {
             toast({
@@ -1134,6 +1183,14 @@ export default function MaterialForecast() {
     // Sửa và lưu
     const handleEditAndSave = async () => {
         if (!selectedItem) return;
+        if (!canEditForecastValues) {
+            toast({
+                title: 'Không có quyền sửa dự trù',
+                description: 'Chỉ Nhân viên thầu mới được sửa và lưu số lượng dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
 
         const selectedItemKey = getMaterialKey(selectedItem);
         const goiHang = calculateOrderQuantity(editDuTru);
@@ -1224,6 +1281,15 @@ export default function MaterialForecast() {
 
     // Duyệt tất cả
     const handleApproveAll = async () => {
+        if (!canApproveAllForecastItems) {
+            toast({
+                title: 'Không có quyền duyệt tất cả',
+                description: 'Chỉ Thủ kho mới được bấm nút Duyệt tất cả.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const newApprovalStates: ApprovalState = { ...approvalStates };
         const now = new Date();
         const pendingItems = selectedPendingItems;
@@ -1292,6 +1358,8 @@ export default function MaterialForecast() {
         switch (actionType) {
             case 'approve':
                 return <Badge className={`bg-green-100 text-green-700 border-green-300 ${baseClass}`}><CheckCircle2 className="w-3 h-3 mr-1" />Phê duyệt</Badge>;
+            case 'reject':
+                return <Badge className={`bg-red-100 text-red-700 border-red-300 ${baseClass}`}><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             case 'edit':
                 return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Sửa</Badge>;
             default:
@@ -1316,21 +1384,35 @@ export default function MaterialForecast() {
                         <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
                         Xuất Excel
                     </Button>
-                    <Button
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-normal"
-                        onClick={handleSave}
+                    <span className="inline-flex" title={!canEditForecastValues ? editForecastRoleTooltip : undefined}>
+                        <Button
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 font-normal"
+                            onClick={handleSave}
+                            disabled={!canEditForecastValues}
+                        >
+                            <Save className="w-4 h-4 mr-2" strokeWidth={2} />
+                            Lưu dự trù
+                        </Button>
+                    </span>
+                    <span
+                        className="inline-flex"
+                        title={
+                            !canApproveAllForecastItems
+                                ? approveAllRoleTooltip
+                                : selectedPendingCount === 0
+                                    ? 'Vui lòng chọn ít nhất một vật tư đang chờ duyệt.'
+                                    : undefined
+                        }
                     >
-                        <Save className="w-4 h-4 mr-2" strokeWidth={2} />
-                        Lưu dự trù
-                    </Button>
-                    <Button
-                        className="bg-green-600 hover:bg-green-700 text-white font-normal"
-                        onClick={() => setIsApproveAllDialogOpen(true)}
-                        disabled={selectedPendingCount === 0}
-                    >
-                        <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
-                        Duyệt tất cả ({selectedPendingCount})
-                    </Button>
+                        <Button
+                            className="bg-green-600 hover:bg-green-700 text-white font-normal"
+                            onClick={() => setIsApproveAllDialogOpen(true)}
+                            disabled={!canApproveAllForecastItems || selectedPendingCount === 0}
+                        >
+                            <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
+                            Duyệt tất cả ({selectedPendingCount})
+                        </Button>
+                    </span>
                 </div>
             </div>
 
@@ -1347,7 +1429,7 @@ export default function MaterialForecast() {
                     </TabsTrigger>
                     <TabsTrigger value="monthly-history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                         <Calendar className="w-4 h-4 mr-2" />
-                        Lịch sử theo tháng
+                        Lịch sử duyệt theo tháng
                     </TabsTrigger>
                 </TabsList>
 
@@ -1408,11 +1490,13 @@ export default function MaterialForecast() {
                         onRowClick: handleRowClick,
                         getStatusBadge,
                         isForecastEditable,
+                        canEditForecastRole: canEditForecastValues,
                         onForecastChange: handleForecastChange,
                         onForecastFocus: handleForecastFocus,
                         onForecastBlur: handleForecastBlur,
                         isRowSelected,
                         isRowSelectable,
+                        canSelectRowsRole: canApproveAllForecastItems,
                         onRowSelectToggle: handleRowSelectToggle,
                         allSelectableRowsSelected,
                         someSelectableRowsSelected,
@@ -1457,6 +1541,10 @@ export default function MaterialForecast() {
                     onApprove: handleApprove,
                     onReject: handleReject,
                     onEditAndSave: handleEditAndSave,
+                }}
+                permissions={{
+                    canApproveReject: canApproveForecastItems,
+                    canEditForecast: canEditForecastValues,
                 }}
             />
 

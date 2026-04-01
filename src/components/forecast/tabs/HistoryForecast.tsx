@@ -32,7 +32,7 @@ const HistoryForecast = ({
                         <div className="text-center py-12 text-muted-foreground">
                             <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
                             <p>Chưa có thay đổi nào được ghi nhận</p>
-                            <p className="text-sm mt-2">Các thay đổi về phê duyệt và sửa dự trù sẽ được hiển thị ở đây</p>
+                            <p className="text-sm mt-2">Các thay đổi về phê duyệt, từ chối và sửa dự trù sẽ được hiển thị ở đây</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">

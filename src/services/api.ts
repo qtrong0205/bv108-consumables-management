@@ -1,4 +1,5 @@
 import { OrderHistory, OrderRequest } from '@/types';
+import { AssignableRole, AuthRole } from '@/lib/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
@@ -131,6 +132,7 @@ export interface ApiForecastChangeHistoryRecord {
   actionType: 'approve' | 'reject' | 'edit';
   statusBefore?: string;
   statusAfter?: 'approved' | 'rejected' | 'edited';
+  lyDo?: string;
   duTruGoc?: number;
   duTruSua?: number;
   nguoiThucHien: string;
@@ -267,7 +269,7 @@ export interface AuthUser {
   id: number;
   username: string;
   email: string;
-  role: 'nhan_vien' | 'truong_khoa';
+  role: AuthRole;
 }
 
 export interface AuthResponse {
@@ -285,7 +287,12 @@ export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
-  role: 'nhan_vien' | 'truong_khoa';
+  role: AssignableRole;
+}
+
+export interface RegisterResponse {
+  message: string;
+  user: AuthUser;
 }
 
 export interface UpdateProfileRequest {
@@ -402,11 +409,11 @@ class ApiService {
     });
   }
 
-  async register(payload: RegisterRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/register', {
+  async register(payload: RegisterRequest): Promise<RegisterResponse> {
+    return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
+    }, true);
   }
 
   async updateProfile(payload: UpdateProfileRequest): Promise<UpdateProfileResponse> {

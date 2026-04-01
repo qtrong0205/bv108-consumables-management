@@ -6,12 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getStoredAuth, apiService, updateStoredAuthUser } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
-
-const formatRoleLabel = (role: string): string => {
-    if (role === 'truong_khoa') return 'Trưởng khoa';
-    if (role === 'nhan_vien') return 'Nhân viên';
-    return role;
-};
+import { canCreateUsers, formatRoleLabel } from '@/lib/auth';
 
 const validateEmail = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -72,6 +67,9 @@ export default function ProfilePage() {
         return <Navigate to="/login" replace />;
     }
 
+    const canManageAccounts = canCreateUsers(storedAuth.user.role);
+    const createAccountRoleTooltip = 'Chỉ Admin mới được thực hiện thao tác này.';
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -126,11 +124,24 @@ export default function ProfilePage() {
     return (
         <div className="p-4 sm:p-6 lg:p-8">
             <Card className="max-w-2xl bg-neutral border-border">
-                <CardHeader>
-                    <CardTitle className="text-foreground">Hồ sơ tài khoản</CardTitle>
-                    <CardDescription className="text-muted-foreground">
-                        Xem và cập nhật thông tin người dùng của bạn
-                    </CardDescription>
+                <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1.5">
+                        <CardTitle className="text-foreground">Hồ sơ tài khoản</CardTitle>
+                        <CardDescription className="text-muted-foreground">
+                            Xem và cập nhật thông tin người dùng của bạn
+                        </CardDescription>
+                    </div>
+                    {canManageAccounts ? (
+                        <Button type="button" asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            <Link to="/register">Tạo tài khoản</Link>
+                        </Button>
+                    ) : (
+                        <span className="inline-flex" title={createAccountRoleTooltip}>
+                            <Button type="button" disabled className="bg-primary text-primary-foreground">
+                                Tạo tài khoản
+                            </Button>
+                        </span>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSave} className="space-y-5">

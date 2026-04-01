@@ -7,6 +7,12 @@ interface OrderContextType {
     approvedOrders: OrderRequest[];
     unreadGroupKeys: string[];
     hasSupplierNotification: boolean;
+    realtimeEventVersion: number;
+    lastRealtimeEvent: {
+        type: string;
+        payload?: unknown;
+        receivedAt: string;
+    } | null;
     clearSupplierNotification: () => void;
     markGroupsAsRead: (groupKeys: string[]) => void;
     addApprovedOrder: (item: IVatTuDuTru, duTruValue?: number) => Promise<void>;
@@ -66,6 +72,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const [approvedOrders, setApprovedOrders] = useState<OrderRequest[]>([]);
     const [unreadGroupKeys, setUnreadGroupKeys] = useState<string[]>([]);
     const [hasSupplierNotification, setHasSupplierNotification] = useState(false);
+    const [realtimeEventVersion, setRealtimeEventVersion] = useState(0);
+    const [lastRealtimeEvent, setLastRealtimeEvent] = useState<{
+        type: string;
+        payload?: unknown;
+        receivedAt: string;
+    } | null>(null);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
@@ -94,6 +106,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             return next;
         });
         setUnreadGroupKeys(uniqueStrings(snapshot.unreadGroupKeys || []));
+    };
+
+    const publishRealtimeEvent = (type: string, payload?: unknown) => {
+        const receivedAt = new Date().toISOString();
+        setLastRealtimeEvent({ type, payload, receivedAt });
+        setRealtimeEventVersion((prev) => prev + 1);
     };
 
     const refreshOrders = async () => {
@@ -163,10 +181,16 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             try {
                 const data = JSON.parse(event.data) as {
                     type?: string;
-                    payload?: OrderUnreadSnapshot | { groupKeys?: string[]; createdAt?: string };
+                    payload?: unknown;
                 };
+                const eventType = typeof data.type === 'string' ? data.type : '';
+                if (!eventType) {
+                    return;
+                }
 
-                if (data.type === 'orders.new_pending') {
+                publishRealtimeEvent(eventType, data.payload);
+
+                if (eventType === 'orders.new_pending') {
                     const payload = data.payload as { groupKeys?: string[] };
                     setHasSupplierNotification(true);
                     persistRedDotState(true);
@@ -175,8 +199,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
-                if (data.type === 'orders.unread_updated' || data.type === 'orders.unread_snapshot') {
+                if (eventType === 'orders.unread_updated' || eventType === 'orders.unread_snapshot') {
                     applyUnreadSnapshot(data.payload as OrderUnreadSnapshot);
+                    return;
+                }
+
+                if (eventType.startsWith('orders.')) {
+                    void refreshOrders();
                 }
             } catch {
                 // Ignore malformed realtime event payload.
@@ -291,6 +320,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 approvedOrders,
                 unreadGroupKeys,
                 hasSupplierNotification,
+                realtimeEventVersion,
+                lastRealtimeEvent,
                 clearSupplierNotification,
                 markGroupsAsRead,
                 addApprovedOrder,

@@ -21,7 +21,7 @@ export default function ApiDebug() {
     try {
       // Test health endpoint
       const healthUrl = apiUrl.replace('/api', '');
-      console.log('🧪 Testing:', `${healthUrl}/health`);
+      console.log('Testing:', `${healthUrl}/health`);
       
       const response = await fetch(`${healthUrl}/health`);
       
@@ -29,19 +29,19 @@ export default function ApiDebug() {
         const data = await response.json();
         setResult({ 
           success: true, 
-          message: `✅ Kết nối thành công! ${data.message || ''}` 
+          message: `Kết nối thành công! ${data.message || ''}` 
         });
       } else {
         setResult({ 
           success: false, 
-          message: `❌ Lỗi HTTP ${response.status}: ${response.statusText}` 
+          message: `Lỗi HTTP ${response.status}: ${response.statusText}` 
         });
       }
     } catch (error) {
-      console.error('❌ Lỗi test connection:', error);
+      console.error('Lỗi test connection:', error);
       setResult({ 
         success: false, 
-        message: `❌ Không thể kết nối: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        message: `Không thể kết nối: ${error instanceof Error ? error.message : 'Unknown error'}` 
       });
     } finally {
       setTesting(false);

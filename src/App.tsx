@@ -13,23 +13,18 @@ import InvoiceManagement from './pages/InvoiceManagement';
 import ProfilePage from './pages/ProfilePage';
 import { OrderProvider } from './context/OrderContext';
 import { AuthResponse, clearStoredAuth, getStoredAuth, storeAuth } from './services/api';
-
-const formatRoleLabel = (role: string): string => {
-    if (role === 'truong_khoa') return 'Trưởng khoa';
-    if (role === 'nhan_vien') return 'Nhân viên';
-    return role;
-};
+import { canCreateUsers, formatRoleLabel } from '@/lib/auth';
 
 function App() {
     const initialAuth = getStoredAuth();
     const [isAuthenticated, setIsAuthenticated] = useState(Boolean(initialAuth?.token));
-    const [userRole, setUserRole] = useState<string>(initialAuth ? formatRoleLabel(initialAuth.user.role) : '');
+    const [userRole, setUserRole] = useState<string>(initialAuth?.user.role ?? '');
     const [authSessionKey, setAuthSessionKey] = useState(initialAuth?.token ?? 'guest');
 
     const handleLogin = (auth: AuthResponse) => {
         storeAuth(auth);
         setIsAuthenticated(true);
-        setUserRole(formatRoleLabel(auth.user.role));
+        setUserRole(auth.user.role);
         setAuthSessionKey(auth.token);
     };
 
@@ -57,10 +52,12 @@ function App() {
                     <Route
                         path="/register"
                         element={
-                            isAuthenticated ? (
-                                <Navigate to="/dashboard" replace />
-                            ) : (
+                            !isAuthenticated ? (
+                                <Navigate to="/login" replace />
+                            ) : canCreateUsers(userRole) ? (
                                 <RegisterPage />
+                            ) : (
+                                <Navigate to="/profile" replace />
                             )
                         }
                     />
@@ -68,7 +65,7 @@ function App() {
                         path="/"
                         element={
                             isAuthenticated ? (
-                                <DashboardLayout userRole={userRole} onLogout={handleLogout} />
+                                <DashboardLayout userRole={formatRoleLabel(userRole)} onLogout={handleLogout} />
                             ) : (
                                 <Navigate to="/login" replace />
                             )

@@ -65,11 +65,13 @@ interface IForecastTableProps {
         onRowClick: (item: IVatTuDuTru) => void;
         getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
         isForecastEditable: (item: IVatTuDuTru) => boolean;
+        canEditForecastRole: boolean;
         onForecastChange: (item: IVatTuDuTru, value: string) => void;
         onForecastFocus: (item: IVatTuDuTru, value: number) => void;
         onForecastBlur: (item: IVatTuDuTru, newValue: number) => void;
         isRowSelected: (item: IVatTuDuTru) => boolean;
         isRowSelectable: (item: IVatTuDuTru) => boolean;
+        canSelectRowsRole: boolean;
         onRowSelectToggle: (item: IVatTuDuTru, checked: boolean) => void;
         allSelectableRowsSelected: boolean;
         someSelectableRowsSelected: boolean;
@@ -148,11 +150,13 @@ const ForecastTable = ({
         onRowClick,
         getStatusBadge,
         isForecastEditable,
+        canEditForecastRole,
         onForecastChange,
         onForecastFocus,
         onForecastBlur,
         isRowSelected,
         isRowSelectable,
+        canSelectRowsRole,
         onRowSelectToggle,
         allSelectableRowsSelected,
         someSelectableRowsSelected,
@@ -215,6 +219,14 @@ const ForecastTable = ({
     const isTypeLevel2Disabled = selectedTypeLevel1.length === 0;
     const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
     const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
+    const hasSelectableRows = filteredData.some((item) => isRowSelectable(item));
+    const approveRoleOnlyTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
+    const editForecastRoleOnlyTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
+    const selectAllDisabledTooltip = !canSelectRowsRole
+        ? approveRoleOnlyTooltip
+        : !hasSelectableRows
+            ? 'Không có vật tư nào đang chờ duyệt.'
+            : undefined;
     const typeLevel1Label = selectedTypeLevel1.length === 0
         ? 'Tất cả mã cấp 1'
         : selectedTypeLevel1.length === 1
@@ -692,12 +704,15 @@ const ForecastTable = ({
                             <thead className="bg-primary text-primary-foreground">
                                 <tr>
                                     <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap w-9">
-                                        <Checkbox
-                                            checked={allSelectableRowsSelected ? true : (someSelectableRowsSelected ? 'indeterminate' : false)}
-                                            onCheckedChange={(checked) => onToggleSelectAllRows(checked === true)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            aria-label="Chọn tất cả vật tư chưa duyệt trên trang"
-                                        />
+                                        <span className="inline-flex" title={selectAllDisabledTooltip}>
+                                            <Checkbox
+                                                checked={allSelectableRowsSelected ? true : (someSelectableRowsSelected ? 'indeterminate' : false)}
+                                                disabled={!hasSelectableRows}
+                                                onCheckedChange={(checked) => onToggleSelectAllRows(checked === true)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                aria-label="Chọn tất cả vật tư chưa duyệt trên trang"
+                                            />
+                                        </span>
                                     </th>
                                     <th className="px-2 py-3 text-left text-xs font-medium whitespace-nowrap w-[80px]">Mã VT</th>
                                     <th className="px-2 py-3 text-left text-xs font-medium w-[300px]">Tên vật tư</th>
@@ -752,12 +767,25 @@ const ForecastTable = ({
                                                     onClick={() => onRowClick(item)}
                                                 >
                                                     <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                        <Checkbox
-                                                            checked={isRowSelected(item)}
-                                                            disabled={!isRowSelectable(item)}
-                                                            onCheckedChange={(checked) => onRowSelectToggle(item, checked === true)}
-                                                            aria-label={`Chọn vật tư ${item.tenVtytBv}`}
-                                                        />
+                                                        {(() => {
+                                                            const rowSelectable = isRowSelectable(item);
+                                                            const rowSelectDisabledTooltip = !canSelectRowsRole
+                                                                ? approveRoleOnlyTooltip
+                                                                : !rowSelectable
+                                                                    ? 'Vật tư này không còn ở trạng thái chờ duyệt.'
+                                                                    : undefined;
+
+                                                            return (
+                                                                <span className="inline-flex" title={rowSelectDisabledTooltip}>
+                                                                    <Checkbox
+                                                                        checked={isRowSelected(item)}
+                                                                        disabled={!rowSelectable}
+                                                                        onCheckedChange={(checked) => onRowSelectToggle(item, checked === true)}
+                                                                        aria-label={`Chọn vật tư ${item.tenVtytBv}`}
+                                                                    />
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </td>
                                                     <td className="px-2 py-3 text-xs font-mono text-foreground whitespace-nowrap">{item.maVtytCu}</td>
                                                     <td className="px-2 py-3 text-xs text-foreground">
@@ -798,16 +826,29 @@ const ForecastTable = ({
                                                         </div>
                                                     </td>
                                                     <td className="px-2 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            value={item.duTru}
-                                                            disabled={!isForecastEditable(item)}
-                                                            onChange={(e) => onForecastChange(item, e.target.value)}
-                                                            onFocus={() => onForecastFocus(item, item.duTru)}
-                                                            onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
-                                                            className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
-                                                        />
+                                                        {(() => {
+                                                            const forecastEditable = isForecastEditable(item);
+                                                            const forecastInputDisabledTooltip = !canEditForecastRole
+                                                                ? editForecastRoleOnlyTooltip
+                                                                : !forecastEditable
+                                                                    ? 'Vật tư đã được duyệt, không thể chỉnh sửa dự trù.'
+                                                                    : undefined;
+
+                                                            return (
+                                                                <span className="inline-flex" title={forecastInputDisabledTooltip}>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        value={item.duTru}
+                                                                        disabled={!forecastEditable}
+                                                                        onChange={(e) => onForecastChange(item, e.target.value)}
+                                                                        onFocus={() => onForecastFocus(item, item.duTru)}
+                                                                        onBlur={(e) => onForecastBlur(item, parseInt(e.target.value) || 0)}
+                                                                        className="w-20 h-8 text-xs text-center bg-white dark:bg-neutral border-green-300 focus:border-green-500"
+                                                                    />
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </td>
                                                     <td className="px-2 py-3 text-xs text-foreground text-center font-semibold bg-green-50 dark:bg-green-950/30">
                                                         <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">

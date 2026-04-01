@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -123,13 +122,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                                 Quên mật khẩu?
                             </a>
                             <p className="text-sm text-muted-foreground">
-                                Chưa có tài khoản?{' '}
-                                <Link
-                                    to="/register"
-                                    className="text-secondary hover:text-secondary/80 transition-colors font-medium"
-                                >
-                                    Đăng ký ngay
-                                </Link>
+                                Tài khoản được cấp nội bộ. Liên hệ Admin để được tạo tài khoản.
                             </p>
                         </div>
                     </form>

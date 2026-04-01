@@ -39,6 +39,10 @@ interface IApproveDialogProps {
         onReject: () => void;
         onEditAndSave: () => void;
     };
+    permissions: {
+        canApproveReject: boolean;
+        canEditForecast: boolean;
+    };
 }
 
 const ApproveDialog = ({
@@ -46,11 +50,13 @@ const ApproveDialog = ({
     editMode,
     rejectMode,
     actions,
+    permissions,
 }: IApproveDialogProps) => {
     const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge } = dialog;
     const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
     const { onApprove, onReject, onEditAndSave } = actions;
+    const { canApproveReject, canEditForecast } = permissions;
 
     const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
         const maVtytCu = (item.maVtytCu || '').trim();
@@ -71,6 +77,8 @@ const ApproveDialog = ({
     const selectedItemApproval = selectedItem ? approvalStates[getMaterialKey(selectedItem)] : undefined;
     const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited';
     const currentGoiHang = isEditMode ? editDuTru : selectedItem?.goiHang ?? 0;
+    const approveRejectRoleTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
+    const editForecastRoleTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -222,32 +230,41 @@ const ApproveDialog = ({
                 <DialogFooter className="flex-col sm:flex-row gap-2">
                     {canShowActionButtons && !isEditMode && !isRejectMode && (
                         <>
-                            <Button
-                                onClick={onApprove}
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                                <CheckCircle2 className="w-4 h-4 mr-2" />
-                                Phê duyệt
-                            </Button>
-                            <Button
-                                onClick={() => setIsRejectMode(true)}
-                                variant="destructive"
-                            >
-                                <XCircle className="w-4 h-4 mr-2" />
-                                Từ chối
-                            </Button>
+                            <span className="inline-flex" title={!canApproveReject ? approveRejectRoleTooltip : undefined}>
+                                <Button
+                                    onClick={onApprove}
+                                    disabled={!canApproveReject}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                    Phê duyệt
+                                </Button>
+                            </span>
+                            <span className="inline-flex" title={!canApproveReject ? approveRejectRoleTooltip : undefined}>
+                                <Button
+                                    onClick={() => setIsRejectMode(true)}
+                                    disabled={!canApproveReject}
+                                    variant="destructive"
+                                >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Từ chối
+                                </Button>
+                            </span>
+                            <span className="inline-flex" title={!canEditForecast ? editForecastRoleTooltip : undefined}>
                                 <Button
                                     onClick={() => setIsEditMode(true)}
+                                    disabled={!canEditForecast}
                                     variant="outline"
                                     className="border-orange-300 text-orange-600 hover:bg-orange-50"
                                 >
                                     <FilePen className="w-4 h-4 mr-2" />
                                     Sửa và lưu
                                 </Button>
+                            </span>
                         </>
                     )}
 
-                    {isEditMode && (
+                    {isEditMode && canEditForecast && (
                         <>
                             <Button
                                 onClick={onEditAndSave}
@@ -269,7 +286,7 @@ const ApproveDialog = ({
                         </>
                     )}
 
-                    {isRejectMode && (
+                    {isRejectMode && canApproveReject && (
                         <>
                             <Button
                                 onClick={onReject}

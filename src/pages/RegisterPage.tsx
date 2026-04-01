@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
-import { apiService } from '@/services/api';
+import { apiService, getStoredAuth } from '@/services/api';
+import { ASSIGNABLE_ROLE_OPTIONS, AssignableRole, canCreateUsers } from '@/lib/auth';
 
 export default function RegisterPage() {
+    const storedAuth = useMemo(() => getStoredAuth(), []);
     const [staffName, setStaffName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -21,6 +23,14 @@ export default function RegisterPage() {
 
     const { toast } = useToast();
     const navigate = useNavigate();
+
+    if (!storedAuth) {
+        return <Navigate to="/login" replace />;
+    }
+
+    if (!canCreateUsers(storedAuth.user.role)) {
+        return <Navigate to="/profile" replace />;
+    }
 
     const validateEmail = (email: string) => {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -81,22 +91,22 @@ export default function RegisterPage() {
                 username: staffName.trim(),
                 email: email.trim().toLowerCase(),
                 password,
-                role: role as 'nhan_vien' | 'truong_khoa',
+                role: role as AssignableRole,
             });
 
-            setIsLoading(false);
             toast({
-                title: "Đăng ký thành công",
-                description: "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập.",
+                title: "Tạo tài khoản thành công",
+                description: "Tài khoản mới đã được thêm vào hệ thống.",
             });
-            navigate('/login');
+            navigate('/profile');
         } catch (error) {
-            setIsLoading(false);
             toast({
-                title: "Đăng ký thất bại",
+                title: "Tạo tài khoản thất bại",
                 description: error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định',
                 variant: "destructive",
             });
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -115,10 +125,10 @@ export default function RegisterPage() {
                 <CardHeader className="space-y-2 text-center">
                     <div className="flex items-center justify-center gap-3 mb-2">
                         <img src="./logo.jpg" alt="Logo" className="w-10 h-10 object-contain" />
-                        <CardTitle className="text-2xl font-semibold text-foreground">Đăng Ký</CardTitle>
+                        <CardTitle className="text-2xl font-semibold text-foreground">Tạo Tài Khoản</CardTitle>
                     </div>
                     <CardDescription className="text-muted-foreground">
-                        Tạo tài khoản mới cho Hệ Thống Quản Lý Vật Tư
+                        Admin tạo tài khoản nội bộ cho người dùng hệ thống
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -204,8 +214,11 @@ export default function RegisterPage() {
                                     <SelectValue placeholder="Chọn vai trò" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="truong_khoa">Trưởng khoa</SelectItem>
-                                    <SelectItem value="nhan_vien">Nhân viên</SelectItem>
+                                    {ASSIGNABLE_ROLE_OPTIONS.map((roleOption) => (
+                                        <SelectItem key={roleOption.value} value={roleOption.value}>
+                                            {roleOption.label}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -216,16 +229,16 @@ export default function RegisterPage() {
                             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-normal"
                             tabIndex={6}
                         >
-                            {isLoading ? "Đang xử lý..." : "Đăng ký"}
+                            {isLoading ? "Đang xử lý..." : "Tạo tài khoản"}
                         </Button>
 
                         <div className="text-center text-sm text-muted-foreground">
-                            Đã có tài khoản?{' '}
+                            Quay lại{' '}
                             <Link
-                                to="/login"
+                                to="/profile"
                                 className="text-secondary hover:text-secondary/80 transition-colors font-medium"
                             >
-                                Đăng nhập
+                                hồ sơ
                             </Link>
                         </div>
                     </form>

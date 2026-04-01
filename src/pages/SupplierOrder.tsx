@@ -18,9 +18,12 @@ import { buildOrderHistoryGroups } from '@/components/orders/orderHistoryUtils';
 import { OrderRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
+import { getStoredAuth } from '@/services/api';
+import { canCreateManualOrders, canPlaceOrders } from '@/lib/auth';
 
 export default function SupplierOrder() {
     const { toast } = useToast();
+    const currentRole = useMemo(() => getStoredAuth()?.user.role ?? '', []);
     const {
         approvedOrders,
         unreadGroupKeys,
@@ -33,11 +36,20 @@ export default function SupplierOrder() {
         loadingOrders,
         refreshOrders
     } = useOrder();
+    const canCreateOrders = canCreateManualOrders(currentRole);
+    const canSubmitOrders = canPlaceOrders(currentRole);
+    const createOrderRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
+    const placeOrderRoleTooltip = 'Chỉ Chỉ huy khoa mới được thực hiện thao tác này.';
 
     const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);
     const [selectedOrders, setSelectedOrders] = useState<number[]>(supplierOrderUiCache.selectedOrders);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const placeOrderDisabledTooltip = !canSubmitOrders
+        ? placeOrderRoleTooltip
+        : selectedOrders.length === 0
+            ? 'Vui lòng chọn ít nhất một vật tư để đặt hàng.'
+            : undefined;
 
     useEffect(() => {
         supplierOrderUiCache.activeTab = activeTab;
@@ -67,6 +79,15 @@ export default function SupplierOrder() {
     }, []);
 
     const handlePlaceOrder = async () => {
+        if (!canSubmitOrders) {
+            toast({
+                title: 'Không có quyền đặt hàng',
+                description: 'Chỉ huy khoa mới có quyền bấm nút Đặt hàng.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         if (selectedOrders.length === 0) {
             toast({
                 title: 'Chưa chọn đơn hàng',
@@ -97,6 +118,15 @@ export default function SupplierOrder() {
     };
 
     const handleCreateOrder = async (order: OrderRequest) => {
+        if (!canCreateOrders) {
+            toast({
+                title: 'Không có quyền tạo đơn hàng',
+                description: 'Chỉ Admin hoặc Chỉ huy khoa mới được tạo đơn hàng thủ công.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
             await addManualOrder(order);
@@ -126,13 +156,16 @@ export default function SupplierOrder() {
                         Danh sách vật tư chờ gọi (từ dự trù đã duyệt)
                     </p>
                 </div>
-                <Button
-                    onClick={() => setIsCreateDialogOpen(true)}
-                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
-                >
-                    <Plus className="w-4 h-4" />
-                    Tạo đơn hàng mới
-                </Button>
+                <span className="inline-flex" title={!canCreateOrders ? createOrderRoleTooltip : undefined}>
+                    <Button
+                        onClick={() => setIsCreateDialogOpen(true)}
+                        disabled={!canCreateOrders}
+                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Tạo đơn hàng mới
+                    </Button>
+                </span>
             </div>
 
             <Card>
@@ -148,14 +181,16 @@ export default function SupplierOrder() {
                                 </TabsTrigger>
                             </TabsList>
 
-                            <Button
-                                onClick={handlePlaceOrder}
-                                disabled={selectedOrders.length === 0 || isSubmitting}
-                                className="gap-2"
-                            >
-                                <Mail className="w-4 h-4" />
-                                {isSubmitting ? 'ĐANG XỬ LÝ...' : `ĐẶT HÀNG (${selectedOrders.length})`}
-                            </Button>
+                            <span className="inline-flex" title={placeOrderDisabledTooltip}>
+                                <Button
+                                    onClick={handlePlaceOrder}
+                                    disabled={!canSubmitOrders || selectedOrders.length === 0 || isSubmitting}
+                                    className="gap-2"
+                                >
+                                    <Mail className="w-4 h-4" />
+                                    {isSubmitting ? 'ĐANG XỬ LÝ...' : `ĐẶT HÀNG (${selectedOrders.length})`}
+                                </Button>
+                            </span>
                         </div>
 
                         <TabsContent value="active">

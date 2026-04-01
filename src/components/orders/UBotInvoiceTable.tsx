@@ -91,7 +91,7 @@ export default function UBotInvoiceTable({
             try {
                 const data = JSON.parse(text);
                 if (data.success) {
-                    alert(`✅ ${data.message}\n\nTổng: ${data.total} bản ghi`);
+                    alert(`${data.message}\n\nTổng: ${data.total} bản ghi`);
                     onRefresh();
                 } else {
                     console.error('Error details:', data);
