@@ -220,8 +220,8 @@ const ForecastTable = ({
     const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
     const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
     const hasSelectableRows = filteredData.some((item) => isRowSelectable(item));
-    const approveRoleOnlyTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
-    const editForecastRoleOnlyTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
+    const approveRoleOnlyTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
+    const editForecastRoleOnlyTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
     const selectAllDisabledTooltip = !canSelectRowsRole
         ? approveRoleOnlyTooltip
         : !hasSelectableRows

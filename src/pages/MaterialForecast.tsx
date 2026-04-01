@@ -416,8 +416,8 @@ export default function MaterialForecast() {
     const canEditForecastValues = canEditForecast(currentRole);
     const canApproveForecastItems = canApproveForecastRole(currentRole);
     const canApproveAllForecastItems = canApproveAllForecast(currentRole);
-    const editForecastRoleTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
-    const approveAllRoleTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
+    const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
+    const approveAllRoleTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -919,7 +919,7 @@ export default function MaterialForecast() {
         if (!canEditForecastValues) {
             toast({
                 title: 'Không có quyền lưu dự trù',
-                description: 'Chỉ Nhân viên thầu mới được chỉnh sửa và lưu dự trù.',
+                description: 'Chỉ Admin hoặc Nhân viên thầu mới được chỉnh sửa và lưu dự trù.',
                 variant: 'destructive',
             });
             return;
@@ -1076,7 +1076,7 @@ export default function MaterialForecast() {
         if (!canApproveForecastItems) {
             toast({
                 title: 'Không có quyền phê duyệt',
-                description: 'Chỉ Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                description: 'Chỉ Admin hoặc Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
                 variant: 'destructive',
             });
             return;
@@ -1134,7 +1134,7 @@ export default function MaterialForecast() {
         if (!canApproveForecastItems) {
             toast({
                 title: 'Không có quyền từ chối',
-                description: 'Chỉ Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                description: 'Chỉ Admin hoặc Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
                 variant: 'destructive',
             });
             return;
@@ -1197,7 +1197,7 @@ export default function MaterialForecast() {
         if (!canEditForecastValues) {
             toast({
                 title: 'Không có quyền sửa dự trù',
-                description: 'Chỉ Nhân viên thầu mới được sửa và lưu số lượng dự trù.',
+                description: 'Chỉ Admin hoặc Nhân viên thầu mới được sửa và lưu số lượng dự trù.',
                 variant: 'destructive',
             });
             return;
@@ -1295,7 +1295,7 @@ export default function MaterialForecast() {
         if (!canApproveAllForecastItems) {
             toast({
                 title: 'Không có quyền duyệt tất cả',
-                description: 'Chỉ Thủ kho mới được bấm nút Duyệt tất cả.',
+                description: 'Chỉ Admin hoặc Thủ kho mới được bấm nút Duyệt tất cả.',
                 variant: 'destructive',
             });
             return;

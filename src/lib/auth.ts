@@ -26,7 +26,8 @@ export const ASSIGNABLE_ROLE_OPTIONS: Array<{ value: AssignableRole; label: stri
 ];
 
 export const normalizeRole = (role?: string | null): AssignableRole | '' => {
-  switch (role) {
+  const normalizedInput = (role || '').trim().toLowerCase();
+  switch (normalizedInput) {
     case 'truong_khoa':
       return 'admin';
     case 'nhan_vien':
@@ -37,7 +38,7 @@ export const normalizeRole = (role?: string | null): AssignableRole | '' => {
     case 'thu_kho':
     case 'nhan_vien_ke_toan':
     case 'nhan_vien_thau':
-      return role;
+      return normalizedInput;
     default:
       return '';
   }
@@ -69,13 +70,25 @@ export const canCreateManualOrders = (role?: string | null): boolean => {
   return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
 };
 
-export const canPlaceOrders = (role?: string | null): boolean => normalizeRole(role) === 'chi_huy_khoa';
+export const canPlaceOrders = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
+};
 
-export const canEditForecast = (role?: string | null): boolean => normalizeRole(role) === 'nhan_vien_thau';
+export const canEditForecast = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'nhan_vien_thau';
+};
 
-export const canApproveForecast = (role?: string | null): boolean => normalizeRole(role) === 'thu_kho';
+export const canApproveForecast = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'thu_kho';
+};
 
-export const canApproveAllForecast = (role?: string | null): boolean => normalizeRole(role) === 'thu_kho';
+export const canApproveAllForecast = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'thu_kho';
+};
 
 export const canEditInvoiceNotes = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);

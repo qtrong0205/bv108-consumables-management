@@ -77,8 +77,8 @@ const ApproveDialog = ({
     const selectedItemApproval = selectedItem ? approvalStates[getMaterialKey(selectedItem)] : undefined;
     const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited';
     const currentGoiHang = isEditMode ? editDuTru : selectedItem?.goiHang ?? 0;
-    const approveRejectRoleTooltip = 'Chỉ Thủ kho mới được thực hiện thao tác này.';
-    const editForecastRoleTooltip = 'Chỉ Nhân viên thầu mới được thực hiện thao tác này.';
+    const approveRejectRoleTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
+    const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
