@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonthlyForecastRecord, MonthlyForecastItem } from "@/data/forecast/type";
 import { TabsContent } from "@radix-ui/react-tabs";
-import { Calendar, ChevronDown, ChevronRight, CheckCircle2, XCircle, FilePen, FileText, Clock, Package } from "lucide-react";
+import { Calendar, ChevronDown, ChevronRight, CheckCircle2, XCircle, FilePen, FileText, Package } from "lucide-react";
 import { useState } from "react";
 import {
     Dialog,
@@ -17,12 +17,29 @@ interface IMonthlyForecastHistoryProps {
     data: MonthlyForecastRecord[];
 }
 
+const formatDate = (value?: Date) => {
+    if (!value) {
+        return "-";
+    }
+
+    const parsedValue = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsedValue.getTime()) ? "-" : parsedValue.toLocaleDateString("vi-VN");
+};
+
+const formatDateTime = (value?: Date) => {
+    if (!value) {
+        return "-";
+    }
+
+    const parsedValue = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsedValue.getTime()) ? "-" : parsedValue.toLocaleString("vi-VN");
+};
+
 const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
     const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
     const [selectedRecord, setSelectedRecord] = useState<MonthlyForecastRecord | null>(null);
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
-    // Nhóm dữ liệu theo năm
     const groupedByYear = data.reduce((acc, record) => {
         const year = record.nam;
         if (!acc[year]) {
@@ -32,49 +49,46 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
         return acc;
     }, {} as Record<number, MonthlyForecastRecord[]>);
 
-    // Sắp xếp năm giảm dần
     const sortedYears = Object.keys(groupedByYear)
         .map(Number)
         .sort((a, b) => b - a);
 
     const toggleMonth = (id: string) => {
-        setExpandedMonths(prev =>
+        setExpandedMonths((prev) =>
             prev.includes(id)
-                ? prev.filter(m => m !== id)
-                : [...prev, id]
+                ? prev.filter((monthId) => monthId !== id)
+                : [...prev, id],
         );
     };
 
-    const getStatusBadge = (status: MonthlyForecastRecord['trangThai']) => {
+    const getStatusBadge = (status: MonthlyForecastRecord["trangThai"]) => {
         switch (status) {
-            case 'approved':
+            case "approved":
                 return <Badge className="bg-green-100 text-green-700 border-green-300"><CheckCircle2 className="w-3 h-3 mr-1" />Đã duyệt</Badge>;
-            case 'partial':
+            case "partial":
                 return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300"><FilePen className="w-3 h-3 mr-1" />Duyệt một phần</Badge>;
-            case 'rejected':
+            case "rejected":
                 return <Badge className="bg-red-100 text-red-700 border-red-300"><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             default:
                 return null;
         }
     };
 
-    const getItemStatusBadge = (status: MonthlyForecastItem['trangThai']) => {
+    const getItemStatusBadge = (status: MonthlyForecastItem["trangThai"]) => {
         const baseClass = "text-[10px]";
         switch (status) {
-            case 'approved':
+            case "approved":
                 return <Badge className={`bg-green-100 text-green-700 border-green-300 ${baseClass}`}>Duyệt</Badge>;
-            case 'edited':
+            case "edited":
                 return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 ${baseClass}`}>Đã sửa</Badge>;
-            case 'rejected':
+            case "rejected":
                 return <Badge className={`bg-red-100 text-red-700 border-red-300 ${baseClass}`}>Từ chối</Badge>;
             default:
                 return null;
         }
     };
 
-    const getMonthName = (month: number) => {
-        return `Tháng ${month}`;
-    };
+    const getMonthName = (month: number) => `Tháng ${month}`;
 
     const viewDetail = (record: MonthlyForecastRecord) => {
         setSelectedRecord(record);
@@ -98,21 +112,18 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            {sortedYears.map(year => (
+                            {sortedYears.map((year) => (
                                 <div key={year} className="space-y-3">
-                                    {/* Header năm */}
                                     <div className="flex items-center gap-2 text-lg font-semibold text-foreground border-b border-border pb-2">
                                         <Calendar className="w-5 h-5 text-primary" />
                                         Năm {year}
                                     </div>
 
-                                    {/* Danh sách tháng */}
                                     <div className="space-y-2 pl-4">
                                         {groupedByYear[year]
                                             .sort((a, b) => b.thang - a.thang)
-                                            .map(record => (
+                                            .map((record) => (
                                                 <div key={record.id} className="border border-border rounded-lg overflow-hidden">
-                                                    {/* Header tháng */}
                                                     <div
                                                         className="flex items-center justify-between p-4 bg-tertiary hover:bg-tertiary/80 cursor-pointer transition-colors"
                                                         onClick={() => toggleMonth(record.id)}
@@ -137,7 +148,7 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                                                 <span>{record.tongSoVatTu} vật tư</span>
                                                             </div>
                                                             <div className="text-foreground font-medium">
-                                                                {record.tongGiaTri.toLocaleString('vi-VN')}đ
+                                                                {record.tongGiaTri.toLocaleString("vi-VN")}đ
                                                             </div>
                                                             <Button
                                                                 variant="outline"
@@ -154,29 +165,23 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Nội dung mở rộng */}
                                                     {expandedMonths.includes(record.id) && (
                                                         <div className="p-4 bg-neutral border-t border-border">
-                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 text-sm">
                                                                 <div className="bg-tertiary p-3 rounded-lg">
                                                                     <p className="text-muted-foreground text-xs">Ngày tạo</p>
-                                                                    <p className="font-medium">{record.ngayTao.toLocaleDateString('vi-VN')}</p>
+                                                                    <p className="font-medium">{formatDate(record.ngayTao)}</p>
                                                                 </div>
                                                                 <div className="bg-tertiary p-3 rounded-lg">
                                                                     <p className="text-muted-foreground text-xs">Ngày duyệt</p>
-                                                                    <p className="font-medium">{record.ngayDuyet.toLocaleDateString('vi-VN')}</p>
+                                                                    <p className="font-medium">{formatDate(record.ngayDuyet)}</p>
                                                                 </div>
                                                                 <div className="bg-tertiary p-3 rounded-lg">
                                                                     <p className="text-muted-foreground text-xs">Người tạo</p>
                                                                     <p className="font-medium">{record.nguoiTao}</p>
                                                                 </div>
-                                                                <div className="bg-tertiary p-3 rounded-lg">
-                                                                    <p className="text-muted-foreground text-xs">Người duyệt</p>
-                                                                    <p className="font-medium">{record.nguoiDuyet}</p>
-                                                                </div>
                                                             </div>
 
-                                                            {/* Bảng vật tư preview */}
                                                             {record.danhSachVatTu.length > 0 && (
                                                                 <div className="overflow-x-auto">
                                                                     <table className="w-full text-sm">
@@ -188,6 +193,8 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                                                                 <th className="px-3 py-2 text-center text-xs font-medium">Dự trù</th>
                                                                                 <th className="px-3 py-2 text-right text-xs font-medium">Thành tiền</th>
                                                                                 <th className="px-3 py-2 text-center text-xs font-medium">Trạng thái</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium">Người duyệt</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium">Thời gian duyệt</th>
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody className="divide-y divide-border">
@@ -197,8 +204,10 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                                                                     <td className="px-3 py-2 text-xs font-mono">{item.maVtyt}</td>
                                                                                     <td className="px-3 py-2 text-xs">{item.tenVtyt}</td>
                                                                                     <td className="px-3 py-2 text-xs text-center">{item.duTru}</td>
-                                                                                    <td className="px-3 py-2 text-xs text-right">{item.thanhTien.toLocaleString('vi-VN')}đ</td>
+                                                                                    <td className="px-3 py-2 text-xs text-right">{item.thanhTien.toLocaleString("vi-VN")}đ</td>
                                                                                     <td className="px-3 py-2 text-center">{getItemStatusBadge(item.trangThai)}</td>
+                                                                                    <td className="px-3 py-2 text-xs">{item.nguoiDuyet || "-"}</td>
+                                                                                    <td className="px-3 py-2 text-xs whitespace-nowrap">{formatDateTime(item.ngayDuyet)}</td>
                                                                                 </tr>
                                                                             ))}
                                                                         </tbody>
@@ -222,9 +231,8 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                 </CardContent>
             </Card>
 
-            {/* Dialog chi tiết */}
             <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-                <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:w-[94vw] sm:max-w-[94vw] xl:w-[92vw] xl:max-w-[92vw] max-h-[92vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <FileText className="w-5 h-5" />
@@ -237,7 +245,6 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
 
                     {selectedRecord && (
                         <div className="space-y-4">
-                            {/* Thông tin tổng quan */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div className="bg-tertiary p-3 rounded-lg">
                                     <p className="text-muted-foreground text-xs">Tổng số vật tư</p>
@@ -245,19 +252,18 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                 </div>
                                 <div className="bg-tertiary p-3 rounded-lg">
                                     <p className="text-muted-foreground text-xs">Tổng giá trị</p>
-                                    <p className="text-xl font-semibold text-green-600">{selectedRecord.tongGiaTri.toLocaleString('vi-VN')}đ</p>
+                                    <p className="text-xl font-semibold text-green-600">{selectedRecord.tongGiaTri.toLocaleString("vi-VN")}đ</p>
                                 </div>
                                 <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">Người duyệt</p>
-                                    <p className="font-medium">{selectedRecord.nguoiDuyet}</p>
+                                    <p className="text-muted-foreground text-xs">Người tạo</p>
+                                    <p className="font-medium">{selectedRecord.nguoiTao}</p>
                                 </div>
                                 <div className="bg-tertiary p-3 rounded-lg">
-                                    <p className="text-muted-foreground text-xs">Ngày duyệt</p>
-                                    <p className="font-medium">{selectedRecord.ngayDuyet.toLocaleDateString('vi-VN')}</p>
+                                    <p className="text-muted-foreground text-xs">Ngày tạo</p>
+                                    <p className="font-medium">{formatDate(selectedRecord.ngayTao)}</p>
                                 </div>
                             </div>
 
-                            {/* Bảng chi tiết */}
                             <div className="overflow-x-auto border border-border rounded-lg">
                                 <table className="w-full">
                                     <thead className="bg-primary text-primary-foreground">
@@ -271,6 +277,8 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                             <th className="px-3 py-3 text-right text-xs font-medium">Đơn giá</th>
                                             <th className="px-3 py-3 text-right text-xs font-medium">Thành tiền</th>
                                             <th className="px-3 py-3 text-center text-xs font-medium">Trạng thái</th>
+                                            <th className="px-3 py-3 text-left text-xs font-medium">Người duyệt</th>
+                                            <th className="px-3 py-3 text-left text-xs font-medium">Thời gian duyệt</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border">
@@ -282,9 +290,11 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                                 <td className="px-3 py-2 text-xs">{item.quyCach}</td>
                                                 <td className="px-3 py-2 text-xs text-center font-medium">{item.duTru}</td>
                                                 <td className="px-3 py-2 text-xs text-center">{item.goiHang}</td>
-                                                <td className="px-3 py-2 text-xs text-right">{item.donGia.toLocaleString('vi-VN')}đ</td>
-                                                <td className="px-3 py-2 text-xs text-right font-medium">{item.thanhTien.toLocaleString('vi-VN')}đ</td>
+                                                <td className="px-3 py-2 text-xs text-right">{item.donGia.toLocaleString("vi-VN")}đ</td>
+                                                <td className="px-3 py-2 text-xs text-right font-medium">{item.thanhTien.toLocaleString("vi-VN")}đ</td>
                                                 <td className="px-3 py-2 text-center">{getItemStatusBadge(item.trangThai)}</td>
+                                                <td className="px-3 py-2 text-xs">{item.nguoiDuyet || "-"}</td>
+                                                <td className="px-3 py-2 text-xs whitespace-nowrap">{formatDateTime(item.ngayDuyet)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -292,8 +302,10 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                                         <tr>
                                             <td colSpan={7} className="px-3 py-3 text-sm font-semibold text-right">Tổng cộng:</td>
                                             <td className="px-3 py-3 text-sm font-semibold text-right text-green-600">
-                                                {selectedRecord.danhSachVatTu.reduce((sum, item) => sum + item.thanhTien, 0).toLocaleString('vi-VN')}đ
+                                                {selectedRecord.danhSachVatTu.reduce((sum, item) => sum + item.thanhTien, 0).toLocaleString("vi-VN")}đ
                                             </td>
+                                            <td></td>
+                                            <td></td>
                                             <td></td>
                                         </tr>
                                     </tfoot>
