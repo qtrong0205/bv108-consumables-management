@@ -130,7 +130,7 @@ export interface ApiForecastChangeHistoryRecord {
   tenVtytBv: string;
   actionType: 'approve' | 'reject' | 'edit';
   statusBefore?: string;
-  statusAfter: 'approved' | 'rejected' | 'edited';
+  statusAfter?: 'approved' | 'rejected' | 'edited';
   duTruGoc?: number;
   duTruSua?: number;
   nguoiThucHien: string;
@@ -617,6 +617,14 @@ class ApiService {
     return this.request<OrderListResponse<ApiForecastChangeHistoryRecord>>(`/forecast-approvals/history?limit=${limit}`, {
       method: 'GET',
     }, true);
+  }
+
+  async getLatestForecastChanges(month: number, year: number): Promise<OrderListResponse<ApiForecastChangeHistoryRecord>> {
+    return this.request<OrderListResponse<ApiForecastChangeHistoryRecord>>(
+      `/forecast-approvals/history?month=${month}&year=${year}&latestOnly=1&limit=0`,
+      { method: 'GET' },
+      true,
+    );
   }
 
   async getForecastMonthlyHistory(): Promise<OrderListResponse<ApiMonthlyForecastHistoryRecord>> {

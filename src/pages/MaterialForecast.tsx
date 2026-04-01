@@ -23,7 +23,7 @@ import ForecastTable from '@/components/forecast/tabs/ForecastTable';
 import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
 import { useOrder } from '@/context/OrderContext';
-import { apiService, ApiForecastApproval, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
+import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
 import * as XLSX from 'xlsx';
 
@@ -111,6 +111,10 @@ const shouldShowInForecast = (item: ApiSupply): boolean => {
     return !(tonDauKy === 0 && nhapTrongKy === 0 && xuatTrongKy === 0 && tongNhap === 0);
 };
 
+const calculateOrderQuantity = (duTru: number): number => duTru;
+
+const calculateEstimatedValue = (quantity: number, donGia: number): number => quantity * donGia;
+
 const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru => {
     const quyCach = getNullableString(item.quyCach);
     const slTrongQuyCach = extractPackQuantity(quyCach);
@@ -138,7 +142,7 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
         slTon: slTon, // SL tồn đầu kỳ
         nhaThau: getNullableString(item.nhaCungCap),
         duTru,
-        goiHang: Math.ceil(duTru / slTrongQuyCach),
+        goiHang: calculateOrderQuantity(duTru),
     };
 };
 
@@ -158,28 +162,106 @@ const mapApprovalRecordToState = (record: ApiForecastApproval): {
     thoiGian: record.thoiGianDuyet ? new Date(record.thoiGianDuyet) : undefined,
 });
 
-const applyEditedForecastValues = (rows: IVatTuDuTru[], records: ApiForecastApproval[]): IVatTuDuTru[] => {
-    const editedMap = new Map<string, number>();
+const getLatestForecastChangeValue = (record: ApiForecastChangeHistoryRecord): number | undefined => {
+    if (typeof record.duTruSua === 'number') {
+        return record.duTruSua;
+    }
+    if (typeof record.duTruGoc === 'number') {
+        return record.duTruGoc;
+    }
+    return undefined;
+};
+
+const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastChangeHistoryRecord[]): IVatTuDuTru[] => {
+    const latestRecordMap = new Map<string, ApiForecastChangeHistoryRecord>();
 
     records.forEach((record) => {
-        if (record.status !== 'edited' || typeof record.duTruSua !== 'number') {
-            return;
+        const materialKey = getMaterialKey({
+            stt: 0,
+            maQuanLy: record.maQuanLy,
+            maVtytCu: record.maVtytCu,
+        });
+        const fallbackKey = (record.maVtytCu || '').trim();
+
+        latestRecordMap.set(materialKey, record);
+        if (fallbackKey && fallbackKey !== materialKey) {
+            latestRecordMap.set(fallbackKey, record);
         }
-        editedMap.set(record.maVtytCu, record.duTruSua);
     });
 
     return rows.map((row) => {
-        const editedDuTru = editedMap.get(row.maVtytCu);
-        if (typeof editedDuTru !== 'number') {
+        const rowKey = getMaterialKey(row);
+        const fallbackKey = (row.maVtytCu || '').trim();
+        const latestRecord = latestRecordMap.get(rowKey) || (fallbackKey ? latestRecordMap.get(fallbackKey) : undefined);
+
+        if (!latestRecord) {
             return row;
         }
 
-        return {
+        const latestDuTru = getLatestForecastChangeValue(latestRecord);
+        const nextRow = {
             ...row,
-            duTru: editedDuTru,
-            goiHang: Math.ceil(editedDuTru / row.slTrongQuyCach),
+            maQuanLy: latestRecord.maQuanLy?.trim() || row.maQuanLy,
+            maVtytCu: latestRecord.maVtytCu?.trim() || row.maVtytCu,
+            tenVtytBv: latestRecord.tenVtytBv?.trim() || row.tenVtytBv,
+        };
+
+        if (typeof latestDuTru !== 'number') {
+            return nextRow;
+        }
+
+        return {
+            ...nextRow,
+            duTru: latestDuTru,
+            goiHang: calculateOrderQuantity(latestDuTru),
         };
     });
+};
+
+const dedupeForecastRows = (rows: IVatTuDuTru[]): IVatTuDuTru[] => {
+    const uniqueRows = new Map<string, IVatTuDuTru>();
+
+    rows.forEach((row) => {
+        const materialKey = getMaterialKey(row);
+        const fallbackKey = [
+            (row.tenVtytBv || '').trim().toLowerCase(),
+            (row.maHieu || '').trim().toLowerCase(),
+            (row.hangSx || '').trim().toLowerCase(),
+        ].join('::');
+        const dedupeKey = materialKey.startsWith('stt:') && fallbackKey !== '::::' ? fallbackKey : materialKey;
+
+        if (!dedupeKey) {
+            uniqueRows.set(`row-${row.stt}`, row);
+            return;
+        }
+
+        const existing = uniqueRows.get(dedupeKey);
+        if (!existing) {
+            uniqueRows.set(dedupeKey, row);
+            return;
+        }
+
+        uniqueRows.set(dedupeKey, {
+            ...existing,
+            ...row,
+            stt: existing.stt,
+            maQuanLy: existing.maQuanLy || row.maQuanLy,
+            maVtytCu: existing.maVtytCu || row.maVtytCu,
+            tenVtytBv: existing.tenVtytBv || row.tenVtytBv,
+            maHieu: existing.maHieu || row.maHieu,
+            hangSx: existing.hangSx || row.hangSx,
+            donViTinh: existing.donViTinh || row.donViTinh,
+            quyCach: existing.quyCach || row.quyCach,
+            typeName: existing.typeName || row.typeName,
+            tenNhom: existing.tenNhom || row.tenNhom,
+            nhaThau: existing.nhaThau || row.nhaThau,
+        });
+    });
+
+    return Array.from(uniqueRows.values()).map((row, index) => ({
+        ...row,
+        stt: index + 1,
+    }));
 };
 
 export default function MaterialForecast() {
@@ -299,6 +381,7 @@ export default function MaterialForecast() {
     const [lyDoTuChoi, setLyDoTuChoi] = useState('');
     const [isRejectMode, setIsRejectMode] = useState(false);
     const [approvalRecords, setApprovalRecords] = useState<ApiForecastApproval[]>([]);
+    const [latestForecastChanges, setLatestForecastChanges] = useState<ApiForecastChangeHistoryRecord[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>(materialForecastUiCache.selectedRowKeys);
 
@@ -338,6 +421,11 @@ export default function MaterialForecast() {
         setApprovalRecords(response.data);
     };
 
+    const refreshLatestForecastChanges = async () => {
+        const response = await apiService.getLatestForecastChanges(CURRENT_MONTH, CURRENT_YEAR);
+        setLatestForecastChanges(response.data);
+    };
+
     const refreshHistoryTabs = async () => {
         const [historyResponse, monthlyResponse] = await Promise.all([
             apiService.getForecastChangeHistory(1000),
@@ -360,6 +448,7 @@ export default function MaterialForecast() {
                         duTruMoi: entry.duTruSua,
                     },
                 }))
+                .sort((left, right) => right.thoiGian.getTime() - left.thoiGian.getTime())
         );
 
         setMonthlyForecastHistory(monthlyResponse.data.map((record) => ({
@@ -395,6 +484,14 @@ export default function MaterialForecast() {
             toast({
                 title: 'Lỗi tải phê duyệt',
                 description: fetchError instanceof Error ? fetchError.message : 'Không tải được trạng thái phê duyệt',
+                variant: 'destructive',
+            });
+        });
+
+        void refreshLatestForecastChanges().catch((fetchError) => {
+            toast({
+                title: 'Lá»—i táº£i thay Ä‘á»•i dá»± trÃ¹',
+                description: fetchError instanceof Error ? fetchError.message : 'KhÃ´ng táº£i Ä‘Æ°á»£c dá»¯ liá»‡u dá»± trÃ¹ Ä‘Ã£ sá»­a',
                 variant: 'destructive',
             });
         });
@@ -450,7 +547,7 @@ export default function MaterialForecast() {
                     .filter(shouldShowInForecast)
                     .map((item, index) => mapSupplyToForecastItem(item, index));
 
-                const forecastRowsWithPersistedEdits = applyEditedForecastValues(forecastRows, approvalRecords);
+                const forecastRowsWithPersistedEdits = applyForecastHistoryValues(forecastRows, latestForecastChanges);
 
                 const forecastRowsWithOverrides = forecastRowsWithPersistedEdits.map((row) => {
                     const rowKey = getMaterialKey(row);
@@ -463,12 +560,12 @@ export default function MaterialForecast() {
                     return {
                         ...row,
                         duTru: overrideDuTru,
-                        goiHang: Math.ceil(overrideDuTru / row.slTrongQuyCach),
+                        goiHang: calculateOrderQuantity(overrideDuTru),
                     };
                 });
 
                 if (isDisposed) return;
-                setData(forecastRowsWithOverrides);
+                setData(dedupeForecastRows(forecastRowsWithOverrides));
             } catch (fetchError) {
                 const message = fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu vật tư';
                 if (isDisposed) return;
@@ -485,7 +582,7 @@ export default function MaterialForecast() {
             isDisposed = true;
             clearTimeout(timeoutId);
         };
-    }, [searchTerm]);
+    }, [searchTerm, latestForecastChanges]);
 
     useEffect(() => {
         if (!error) return;
@@ -498,10 +595,24 @@ export default function MaterialForecast() {
 
     useEffect(() => {
         const nextApprovalStates: ApprovalState = {};
-        const approvalRecordMap = new Map(approvalRecords.map((record) => [record.maVtytCu, record]));
+        const approvalRecordMap = new Map<string, ApiForecastApproval>();
+
+        approvalRecords.forEach((record) => {
+            const materialKey = getMaterialKey({
+                stt: record.id,
+                maQuanLy: record.maQuanLy,
+                maVtytCu: record.maVtytCu,
+            });
+            const fallbackKey = (record.maVtytCu || '').trim();
+
+            approvalRecordMap.set(materialKey, record);
+            if (fallbackKey && fallbackKey !== materialKey) {
+                approvalRecordMap.set(fallbackKey, record);
+            }
+        });
 
         data.forEach((item) => {
-            const savedRecord = approvalRecordMap.get(item.maVtytCu);
+            const savedRecord = approvalRecordMap.get(getMaterialKey(item)) || approvalRecordMap.get((item.maVtytCu || '').trim());
             if (!savedRecord) {
                 return;
             }
@@ -511,14 +622,6 @@ export default function MaterialForecast() {
 
         setApprovalStates(nextApprovalStates);
     }, [approvalRecords, data]);
-
-    useEffect(() => {
-        if (approvalRecords.length === 0) {
-            return;
-        }
-
-        setData((prevData) => applyEditedForecastValues(prevData, approvalRecords));
-    }, [approvalRecords]);
 
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
@@ -629,7 +732,10 @@ export default function MaterialForecast() {
 
     const getRowSelectionKey = (item: IVatTuDuTru) => getMaterialKey(item);
 
-    const isRowSelectable = (item: IVatTuDuTru) => !approvalStates[getMaterialKey(item)];
+    const isRowSelectable = (item: IVatTuDuTru) => {
+        const status = approvalStates[getMaterialKey(item)]?.status;
+        return !status || status === 'edited';
+    };
 
     const selectableItems = useMemo(
         () => filteredData.filter((item) => isRowSelectable(item)),
@@ -711,7 +817,7 @@ export default function MaterialForecast() {
         setData(prevData =>
             prevData.map(item => {
                 if (getMaterialKey(item) === rowKey) {
-                    const goiHang = Math.ceil(numValue / item.slTrongQuyCach);
+                    const goiHang = calculateOrderQuantity(numValue);
                     return { ...item, duTru: numValue, goiHang };
                 }
                 return item;
@@ -764,7 +870,7 @@ export default function MaterialForecast() {
                     return dataItem;
                 }
 
-                const goiHang = Math.ceil(newValue / dataItem.slTrongQuyCach);
+                const goiHang = calculateOrderQuantity(newValue);
                 return { ...dataItem, duTru: newValue, goiHang };
             })
         );
@@ -782,8 +888,8 @@ export default function MaterialForecast() {
         const now = new Date();
         const currentMonthId = `forecast-${CURRENT_YEAR}-${CURRENT_MONTH.toString().padStart(2, '0')}`;
         const finalDuTru = duTruValue ?? item.duTru;
-        const goiHang = Math.ceil(finalDuTru / item.slTrongQuyCach);
-        const thanhTien = goiHang * item.donGia * item.slTrongQuyCach;
+        const goiHang = calculateOrderQuantity(finalDuTru);
+        const thanhTien = calculateEstimatedValue(goiHang, item.donGia);
 
         const newItem: MonthlyForecastItem = {
             stt: item.stt,
@@ -883,7 +989,7 @@ export default function MaterialForecast() {
             duTru: item.duTru,
             goiHang: item.goiHang,
             donGia: item.donGia,
-            thanhTien: item.goiHang * item.donGia * item.slTrongQuyCach,
+            thanhTien: calculateEstimatedValue(item.goiHang, item.donGia),
             trangThai: 'approved' as ApprovalStatus,
             nguoiDuyet: nguoiDuyet,
             ngayDuyet: now,
@@ -949,7 +1055,7 @@ export default function MaterialForecast() {
     // Tính toán tổng
     const totalForecast = filteredData.reduce((sum, item) => sum + item.duTru, 0);
     const totalOrder = filteredData.reduce((sum, item) => sum + item.goiHang, 0);
-    const totalValue = filteredData.reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
+    const totalValue = filteredData.reduce((sum, item) => sum + calculateEstimatedValue(item.goiHang, item.donGia), 0);
 
     // Lưu dữ liệu
     const handleSave = async () => {
@@ -989,12 +1095,17 @@ export default function MaterialForecast() {
         try {
             await apiService.saveForecastApprovalsBulk({ items: payloadItems });
             await refreshApprovalRecords();
+            await refreshLatestForecastChanges();
             await refreshHistoryTabs();
 
             setPendingForecastEdits((prev) => {
                 const next = { ...prev };
                 payloadItems.forEach((item) => {
-                    const matchingRow = data.find((row) => row.maVtytCu === item.maVtytCu);
+                    const matchingRow = data.find((row) => getMaterialKey(row) === getMaterialKey({
+                        stt: 0,
+                        maQuanLy: item.maQuanLy,
+                        maVtytCu: item.maVtytCu,
+                    }));
                     if (!matchingRow) return;
                     delete next[getMaterialKey(matchingRow)];
                 });
@@ -1203,7 +1314,7 @@ export default function MaterialForecast() {
         if (!selectedItem) return;
 
         const selectedItemKey = getMaterialKey(selectedItem);
-        const goiHang = Math.ceil(editDuTru / selectedItem.slTrongQuyCach);
+        const goiHang = calculateOrderQuantity(editDuTru);
 
         if (selectedItem.duTru === editDuTru) {
             setIsDialogOpen(false);
@@ -1219,6 +1330,7 @@ export default function MaterialForecast() {
                 })
             );
             await refreshApprovalRecords();
+            await refreshLatestForecastChanges();
             await refreshHistoryTabs();
         } catch (error) {
             toast({
@@ -1275,14 +1387,17 @@ export default function MaterialForecast() {
     };
 
     // Đếm số vật tư chưa duyệt
-    const pendingCount = filteredData.filter((item) => !approvalStates[getMaterialKey(item)]).length;
+    const pendingCount = filteredData.filter((item) => {
+        const status = approvalStates[getMaterialKey(item)]?.status;
+        return !status || status === 'edited';
+    }).length;
     const selectedPendingCount = selectedPendingItems.length;
     const selectedPendingVisibleCount = selectableItems.filter((item) => selectedRowKeys.includes(getRowSelectionKey(item))).length;
     const allSelectableRowsSelected = selectableItems.length > 0 && selectedPendingVisibleCount === selectableItems.length;
     const someSelectableRowsSelected = selectedPendingVisibleCount > 0 && selectedPendingVisibleCount < selectableItems.length;
     const approvedCount = filteredData.filter((item) => {
         const status = approvalStates[getMaterialKey(item)]?.status;
-        return status === 'approved' || status === 'edited';
+        return status === 'approved';
     }).length;
 
     // Duyệt tất cả
@@ -1347,7 +1462,7 @@ export default function MaterialForecast() {
 
     // Tính tổng giá trị của các vật tư đã chọn để duyệt
     const pendingTotalValue = selectedPendingItems
-        .reduce((sum, item) => sum + (item.goiHang * item.donGia * item.slTrongQuyCach), 0);
+        .reduce((sum, item) => sum + calculateEstimatedValue(item.goiHang, item.donGia), 0);
 
     // Lấy badge cho loại hành động trong lịch sử
     const getActionBadge = (actionType: HistoryActionType) => {

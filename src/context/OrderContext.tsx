@@ -24,7 +24,6 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderItemRequest => {
     const finalDuTru = duTruValue ?? item.duTru;
-    const goiHang = Math.ceil(finalDuTru / item.slTrongQuyCach);
 
     return {
         nhaThau: item.nhaThau,
@@ -35,7 +34,7 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderI
         hangSx: item.hangSx,
         donViTinh: item.donViTinh,
         quyCach: item.quyCach,
-        dotGoiHang: goiHang,
+        dotGoiHang: finalDuTru,
         email: '',
     };
 };

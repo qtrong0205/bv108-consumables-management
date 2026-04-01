@@ -69,6 +69,8 @@ const ApproveDialog = ({
     };
 
     const selectedItemApproval = selectedItem ? approvalStates[getMaterialKey(selectedItem)] : undefined;
+    const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited';
+    const currentGoiHang = isEditMode ? editDuTru : selectedItem?.goiHang ?? 0;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,12 +160,7 @@ const ApproveDialog = ({
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm text-muted-foreground">Gọi hàng</p>
-                                    <p className="text-2xl font-bold text-green-700">
-                                        {isEditMode
-                                            ? Math.ceil(editDuTru / selectedItem.slTrongQuyCach)
-                                            : selectedItem.goiHang
-                                        }
-                                    </p>
+                                    <p className="text-2xl font-bold text-green-700">{currentGoiHang}</p>
                                 </div>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
@@ -171,9 +168,9 @@ const ApproveDialog = ({
                                 <span className="font-semibold text-green-700">
                                     {(
                                         (isEditMode
-                                            ? Math.ceil(editDuTru / selectedItem.slTrongQuyCach)
+                                            ? currentGoiHang
                                             : selectedItem.goiHang
-                                        ) * selectedItem.donGia * selectedItem.slTrongQuyCach
+                                        ) * selectedItem.donGia
                                     ).toLocaleString('vi-VN')}đ
                                 </span>
                             </p>
@@ -223,7 +220,7 @@ const ApproveDialog = ({
                 )}
 
                 <DialogFooter className="flex-col sm:flex-row gap-2">
-                    {!selectedItemApproval && !isEditMode && !isRejectMode && (
+                    {canShowActionButtons && !isEditMode && !isRejectMode && (
                         <>
                             <Button
                                 onClick={onApprove}
@@ -292,7 +289,7 @@ const ApproveDialog = ({
                         </>
                     )}
 
-                    {approvalStates[selectedItem?.stt ?? 0] && !isEditMode && !isRejectMode && (
+                    {selectedItemApproval && selectedItemApproval.status !== 'edited' && !isEditMode && !isRejectMode && (
                         <Button
                             onClick={() => onOpenChange(false)}
                             variant="outline"
