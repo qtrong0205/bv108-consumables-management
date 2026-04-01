@@ -259,6 +259,23 @@ const dedupeForecastRows = (rows: IVatTuDuTru[]): IVatTuDuTru[] => {
     }));
 };
 
+const applyForecastOverrides = (rows: IVatTuDuTru[]): IVatTuDuTru[] => {
+    return rows.map((row) => {
+        const rowKey = getMaterialKey(row);
+        const overrideDuTru = materialForecastUiCache.forecastOverrides[rowKey];
+
+        if (typeof overrideDuTru !== 'number') {
+            return row;
+        }
+
+        return {
+            ...row,
+            duTru: overrideDuTru,
+            goiHang: calculateOrderQuantity(overrideDuTru),
+        };
+    });
+};
+
 export default function MaterialForecast() {
     const [searchTerm, setSearchTerm] = useState(materialForecastUiCache.searchTerm);
     const [selectedCategories, setSelectedCategories] = useState<string[]>(materialForecastUiCache.selectedCategories);
@@ -536,7 +553,7 @@ export default function MaterialForecast() {
                 setError(null);
 
                 const keyword = searchTerm.trim();
-                const apiPageSize = 500;
+                const apiPageSize = 1000;
                 const firstResponse = keyword
                     ? await apiService.searchSupplies(keyword, 1, apiPageSize)
                     : await apiService.getSupplies(1, apiPageSize);
@@ -563,23 +580,8 @@ export default function MaterialForecast() {
                 const forecastRows = allSupplies
                     .filter(shouldShowInForecast)
                     .map((item, index) => mapSupplyToForecastItem(item, index));
-
                 const forecastRowsWithPersistedEdits = applyForecastHistoryValues(forecastRows, latestForecastChanges);
-
-                const forecastRowsWithOverrides = forecastRowsWithPersistedEdits.map((row) => {
-                    const rowKey = getMaterialKey(row);
-                    const overrideDuTru = materialForecastUiCache.forecastOverrides[rowKey];
-
-                    if (typeof overrideDuTru !== 'number') {
-                        return row;
-                    }
-
-                    return {
-                        ...row,
-                        duTru: overrideDuTru,
-                        goiHang: calculateOrderQuantity(overrideDuTru),
-                    };
-                });
+                const forecastRowsWithOverrides = applyForecastOverrides(forecastRowsWithPersistedEdits);
 
                 if (isDisposed) return;
                 setData(dedupeForecastRows(forecastRowsWithOverrides));
@@ -599,7 +601,16 @@ export default function MaterialForecast() {
             isDisposed = true;
             clearTimeout(timeoutId);
         };
-    }, [searchTerm, latestForecastChanges]);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        if (latestForecastChanges.length === 0) return;
+        setData((prevData) => {
+            const withHistory = applyForecastHistoryValues(prevData, latestForecastChanges);
+            const withOverrides = applyForecastOverrides(withHistory);
+            return dedupeForecastRows(withOverrides);
+        });
+    }, [latestForecastChanges]);
 
     useEffect(() => {
         if (!error) return;
