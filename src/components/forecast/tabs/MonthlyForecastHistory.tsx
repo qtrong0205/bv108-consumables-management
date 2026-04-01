@@ -232,7 +232,7 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
             </Card>
 
             <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-                <DialogContent className="w-[96vw] max-w-[96vw] sm:w-[94vw] sm:max-w-[94vw] xl:w-[92vw] xl:max-w-[92vw] max-h-[92vh] overflow-y-auto">
+                <DialogContent className="w-[98vw] max-w-[98vw] sm:w-[96vw] sm:max-w-[96vw] xl:w-[95vw] xl:max-w-[95vw] 2xl:w-[92vw] 2xl:max-w-[92vw] max-h-[95vh] overflow-y-auto p-5 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <FileText className="w-5 h-5" />
@@ -244,7 +244,7 @@ const MonthlyForecastHistory = ({ data }: IMonthlyForecastHistoryProps) => {
                     </DialogHeader>
 
                     {selectedRecord && (
-                        <div className="space-y-4">
+                        <div className="space-y-5">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div className="bg-tertiary p-3 rounded-lg">
                                     <p className="text-muted-foreground text-xs">Tổng số vật tư</p>

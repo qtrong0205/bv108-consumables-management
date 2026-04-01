@@ -1,24 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Clock, Calendar } from 'lucide-react';
+import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Calendar } from 'lucide-react';
 import { IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ApproveDialog from '@/components/forecast/dialog/ApproveDialog';
 import ApproveAllDialog from '@/components/forecast/dialog/ApproveAllDialog';
 import RejectReasonDetailDialog from '@/components/forecast/dialog/RejectReasonDetailDialog';
-import { ApprovalState, HistoryEntry, HistoryActionType, MonthlyForecastRecord, MonthlyForecastItem } from '@/data/forecast/type';
+import { ApprovalState, HistoryEntry, HistoryActionType, MonthlyForecastRecord } from '@/data/forecast/type';
 import ForecastTable from '@/components/forecast/tabs/ForecastTable';
 import HistoryForecast from '@/components/forecast/tabs/HistoryForecast';
 import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHistory';
@@ -171,6 +161,10 @@ const getLatestForecastChangeValue = (record: ApiForecastChangeHistoryRecord): n
     }
     return undefined;
 };
+
+const isHistoryActionType = (
+    actionType: ApiForecastChangeHistoryRecord['actionType']
+): actionType is HistoryActionType => actionType === 'approve' || actionType === 'edit';
 
 const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastChangeHistoryRecord[]): IVatTuDuTru[] => {
     const latestRecordMap = new Map<string, ApiForecastChangeHistoryRecord>();
@@ -434,7 +428,9 @@ export default function MaterialForecast() {
 
         setHistoryLog(
             historyResponse.data
-                .filter((entry) => entry.actionType === 'approve' || entry.actionType === 'edit')
+                .filter((entry): entry is ApiForecastChangeHistoryRecord & { actionType: HistoryActionType } =>
+                    isHistoryActionType(entry.actionType)
+                )
                 .map((entry) => ({
                     id: entry.id,
                     stt: entry.id,
@@ -876,180 +872,6 @@ export default function MaterialForecast() {
         );
 
         setOriginalDuTru(null);
-    };
-
-    // Hàm cập nhật bản ghi tháng hiện tại
-    const updateCurrentMonthRecord = (
-        item: IVatTuDuTru,
-        status: ApprovalStatus,
-        nguoiDuyet: string,
-        duTruValue?: number
-    ) => {
-        const now = new Date();
-        const currentMonthId = `forecast-${CURRENT_YEAR}-${CURRENT_MONTH.toString().padStart(2, '0')}`;
-        const finalDuTru = duTruValue ?? item.duTru;
-        const goiHang = calculateOrderQuantity(finalDuTru);
-        const thanhTien = calculateEstimatedValue(goiHang, item.donGia);
-
-        const newItem: MonthlyForecastItem = {
-            stt: item.stt,
-            maVtyt: item.maVtytCu,
-            tenVtyt: item.tenVtytBv,
-            quyCach: item.quyCach,
-            donViTinh: item.donViTinh,
-            duTru: finalDuTru,
-            goiHang: goiHang,
-            donGia: item.donGia,
-            thanhTien: thanhTien,
-            trangThai: status,
-            nguoiDuyet: nguoiDuyet,
-            ngayDuyet: now,
-        };
-
-        setMonthlyForecastHistory(prev => {
-            // Kiểm tra xem bản ghi tháng hiện tại đã tồn tại chưa
-            const existingRecordIndex = prev.findIndex(record => record.id === currentMonthId);
-
-            if (existingRecordIndex === -1) {
-                // Tạo bản ghi mới cho tháng hiện tại
-                const newRecord: MonthlyForecastRecord = {
-                    id: currentMonthId,
-                    thang: CURRENT_MONTH,
-                    nam: CURRENT_YEAR,
-                    ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
-                    ngayDuyet: now,
-                    nguoiTao: currentUser,
-                    nguoiDuyet: nguoiDuyet,
-                    tongSoVatTu: 1,
-                    tongGiaTri: thanhTien,
-                    trangThai: status === 'rejected' ? 'rejected' : (status === 'approved' || status === 'edited' ? 'approved' : 'partial'),
-                    danhSachVatTu: [newItem],
-                };
-                // Thêm vào đầu danh sách
-                return [newRecord, ...prev];
-            }
-
-            // Cập nhật bản ghi đã có
-            return prev.map(record => {
-                if (record.id === currentMonthId) {
-                    // Kiểm tra xem vật tư đã có trong danh sách chưa
-                    const existingIndex = record.danhSachVatTu.findIndex(vt => vt.stt === item.stt);
-                    let updatedList: MonthlyForecastItem[];
-
-                    if (existingIndex >= 0) {
-                        // Cập nhật vật tư đã có
-                        updatedList = [...record.danhSachVatTu];
-                        updatedList[existingIndex] = newItem;
-                    } else {
-                        // Thêm vật tư mới
-                        updatedList = [...record.danhSachVatTu, newItem];
-                    }
-
-                    // Tính lại tổng
-                    const tongGiaTri = updatedList.reduce((sum, vt) => sum + vt.thanhTien, 0);
-                    const approvedOrEdited = updatedList.filter(vt => vt.trangThai === 'approved' || vt.trangThai === 'edited').length;
-                    const rejected = updatedList.filter(vt => vt.trangThai === 'rejected').length;
-
-                    // Xác định trạng thái tổng
-                    let trangThai: 'approved' | 'partial' | 'rejected' = 'partial';
-                    if (rejected === updatedList.length) {
-                        trangThai = 'rejected';
-                    } else if (approvedOrEdited === updatedList.length) {
-                        trangThai = 'approved';
-                    }
-
-                    return {
-                        ...record,
-                        danhSachVatTu: updatedList,
-                        tongSoVatTu: updatedList.length,
-                        tongGiaTri: tongGiaTri,
-                        nguoiDuyet: nguoiDuyet,
-                        ngayDuyet: now,
-                        trangThai: trangThai,
-                    };
-                }
-                return record;
-            });
-        });
-    };
-
-    // Hàm cập nhật hàng loạt vào bản ghi tháng
-    const updateCurrentMonthRecordBulk = (items: IVatTuDuTru[], nguoiDuyet: string) => {
-        if (items.length === 0) return;
-
-        const now = new Date();
-        const currentMonthId = `forecast-${CURRENT_YEAR}-${CURRENT_MONTH.toString().padStart(2, '0')}`;
-
-        const newItems: MonthlyForecastItem[] = items.map(item => ({
-            stt: item.stt,
-            maVtyt: item.maVtytCu,
-            tenVtyt: item.tenVtytBv,
-            quyCach: item.quyCach,
-            donViTinh: item.donViTinh,
-            duTru: item.duTru,
-            goiHang: item.goiHang,
-            donGia: item.donGia,
-            thanhTien: calculateEstimatedValue(item.goiHang, item.donGia),
-            trangThai: 'approved' as ApprovalStatus,
-            nguoiDuyet: nguoiDuyet,
-            ngayDuyet: now,
-        }));
-
-        setMonthlyForecastHistory(prev => {
-            // Kiểm tra xem bản ghi tháng hiện tại đã tồn tại chưa
-            const existingRecordIndex = prev.findIndex(record => record.id === currentMonthId);
-
-            if (existingRecordIndex === -1) {
-                // Tạo bản ghi mới cho tháng hiện tại
-                const tongGiaTri = newItems.reduce((sum, vt) => sum + vt.thanhTien, 0);
-                const newRecord: MonthlyForecastRecord = {
-                    id: currentMonthId,
-                    thang: CURRENT_MONTH,
-                    nam: CURRENT_YEAR,
-                    ngayTao: new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1),
-                    ngayDuyet: now,
-                    nguoiTao: currentUser,
-                    nguoiDuyet: nguoiDuyet,
-                    tongSoVatTu: newItems.length,
-                    tongGiaTri: tongGiaTri,
-                    trangThai: 'approved',
-                    danhSachVatTu: newItems,
-                };
-                // Thêm vào đầu danh sách
-                return [newRecord, ...prev];
-            }
-
-            // Cập nhật bản ghi đã có
-            return prev.map(record => {
-                if (record.id === currentMonthId) {
-                    // Merge danh sách - cập nhật hoặc thêm mới
-                    const updatedList = [...record.danhSachVatTu];
-
-                    newItems.forEach(newItem => {
-                        const existingIndex = updatedList.findIndex(vt => vt.stt === newItem.stt);
-                        if (existingIndex >= 0) {
-                            updatedList[existingIndex] = newItem;
-                        } else {
-                            updatedList.push(newItem);
-                        }
-                    });
-
-                    const tongGiaTri = updatedList.reduce((sum, vt) => sum + vt.thanhTien, 0);
-                    const approvedOrEdited = updatedList.filter(vt => vt.trangThai === 'approved' || vt.trangThai === 'edited').length;
-
-                    return {
-                        ...record,
-                        danhSachVatTu: updatedList,
-                        tongSoVatTu: updatedList.length,
-                        tongGiaTri: tongGiaTri,
-                        nguoiDuyet: nguoiDuyet,
-                        ngayDuyet: now,
-                        trangThai: approvedOrEdited === updatedList.length ? 'approved' : 'partial',
-                    };
-                }
-                return record;
-            });
-        });
     };
 
     // Tính toán tổng
@@ -1642,7 +1464,7 @@ export default function MaterialForecast() {
             <ApproveAllDialog
                 isApproveAllDialogOpen={isApproveAllDialogOpen}
                 setIsApproveAllDialogOpen={setIsApproveAllDialogOpen}
-                pendingCount={selectedPendingCount}
+                pendingCount={pendingCount}
                 pendingTotalValue={pendingTotalValue}
                 handleApproveAll={handleApproveAll}
             />

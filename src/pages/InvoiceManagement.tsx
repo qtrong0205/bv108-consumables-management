@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { ApiInvoiceReconciliationRecord, apiService } from '@/services/api';
 import InvoiceMatchHistoryTable from '@/components/orders/InvoiceMatchHistoryTable';
 
@@ -72,6 +72,7 @@ export default function InvoiceManagement() {
     const [historyRecords, setHistoryRecords] = useState<ApiInvoiceReconciliationRecord[]>([]);
     const [matchedInvoiceNumbers, setMatchedInvoiceNumbers] = useState<Set<string>>(new Set());
     const [matchedOrderRecords, setMatchedOrderRecords] = useState<ApiInvoiceReconciliationRecord[]>([]);
+    const [matchedOrdersLoaded, setMatchedOrdersLoaded] = useState(false);
 
     const loadInvoiceHistory = async () => {
         try {
@@ -102,10 +103,13 @@ export default function InvoiceManagement() {
 
     const loadMatchedOrders = async () => {
         try {
+            setMatchedOrdersLoaded(false);
             const response = await apiService.getMatchedOrderReconciliations();
             setMatchedOrderRecords(response.data || []);
         } catch (fetchError) {
             console.error('Không tải được lịch sử đơn hàng đã khớp:', fetchError);
+        } finally {
+            setMatchedOrdersLoaded(true);
         }
     };
 
@@ -157,7 +161,7 @@ export default function InvoiceManagement() {
                 <TabsContent value="reconcile" className="mt-6">
                     <Card>
                         <CardContent className="pt-6">
-                            {loadingOrders ? (
+                            {loadingOrders || !matchedOrdersLoaded ? (
                                 <div className="text-center py-8 text-muted-foreground">
                                     Đang tải lịch sử đơn hàng...
                                 </div>
@@ -231,3 +235,4 @@ export default function InvoiceManagement() {
         </div>
     );
 }
+

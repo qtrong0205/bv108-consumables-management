@@ -198,6 +198,8 @@ export interface ApiInvoiceReconciliationRecord {
   matchedAt: string;
   createdAt: string;
   updatedAt: string;
+  note?: string;
+  status: 'waiting' | 'done';
 }
 
 export interface MatchedInvoiceNumbersResponse {
@@ -208,30 +210,10 @@ export interface MatchedInvoiceNumbersResponse {
 }
 
 export interface SaveInvoiceReconciliationItemRequest {
-  orderHistoryId: number;
-  orderBatchKey: string;
-  companyContactId?: number;
-  nhaThau: string;
-  maQuanLy: string;
-  maVtytCu: string;
-  tenVtytBv: string;
-  orderedQty: number;
-  orderTime?: string;
-  invoiceNumber: string;
-  invoiceIdHoaDon?: string;
-  invoiceRowId?: number;
-  invoiceCompanyContactId?: number;
-  invoiceCompanyName?: string;
-  invoiceItemCode?: string;
-  invoiceItemName?: string;
-  invoiceQty: number;
-  invoiceTime?: string;
-  hasInvoice: boolean;
-  detailStatus: string;
-  detailNote?: string;
-  matchScore: number;
-  quantityDiff: number;
-  matchedAt?: string;
+  id: number;
+  action: 'note' | 'status';
+  note?: string;
+  status?: 'waiting' | 'done';
 }
 
 export interface SaveInvoiceReconciliationsBulkRequest {

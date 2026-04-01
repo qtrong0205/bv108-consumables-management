@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
 import { ApiInvoiceReconciliationRecord, SaveInvoiceReconciliationItemRequest, apiService } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -10,6 +11,8 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import {
     Building2,
     Calendar,
@@ -33,6 +36,9 @@ interface InvoiceTableProps {
 }
 
 type DetailStatus = 'matched' | 'enough' | 'shortage' | 'surplus' | 'material-mismatch' | 'no-invoice';
+type WorkflowStatus = 'waiting' | 'done';
+const WORKFLOW_STATUS_PENDING: WorkflowStatus = 'waiting';
+const WORKFLOW_STATUS_DONE: WorkflowStatus = 'done';
 
 interface ReconciliationResult {
     order: OrderHistory;
@@ -43,6 +49,8 @@ interface ReconciliationResult {
     detailNote?: string;
     matchScore?: number;
     matchedInvoiceNumber?: string;
+    note?: string;
+    workflowStatus?: WorkflowStatus;
     isFromHistory?: boolean;
 }
 
@@ -88,6 +96,10 @@ interface ModalPairRow {
     right?: HoaDonUBot;
 }
 
+interface NoteEditorState {
+    orderHistoryId: number;
+}
+
 const normalize = (value?: string | null) => {
     if (!value) return '';
     return value
@@ -117,6 +129,16 @@ const coerceDetailStatus = (value?: string | null): DetailStatus => {
 const parseDate = (value: string | Date) => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getReconciliationRecordTime = (record: Pick<ApiInvoiceReconciliationRecord, 'updatedAt' | 'matchedAt'>) => {
+    const updatedAt = new Date(record.updatedAt || '').getTime();
+    if (!Number.isNaN(updatedAt)) {
+        return updatedAt;
+    }
+
+    const matchedAt = new Date(record.matchedAt || '').getTime();
+    return Number.isNaN(matchedAt) ? 0 : matchedAt;
 };
 
 const EMPTY_MATCHED_INVOICE_SET = new Set<string>();
@@ -370,6 +392,7 @@ export default function InvoiceTable({
     filterSupplierStatus: externalFilterSupplierStatus,
     onFilterSupplierStatusChange,
 }: InvoiceTableProps) {
+    const { toast } = useToast();
     // Use external state if provided, otherwise use internal state
     const [internalExpandedSuppliers, setInternalExpandedSuppliers] = useState<Set<string>>(new Set());
     const [internalSearchTerm, setInternalSearchTerm] = useState('');
@@ -406,8 +429,10 @@ export default function InvoiceTable({
     };
     
     const [selectedDetail, setSelectedDetail] = useState<SupplierDetailModalData | null>(null);
-    const latestPersistedSignatureRef = useRef('');
-    const [localMatchedMap, setLocalMatchedMap] = useState<Map<number, SaveInvoiceReconciliationItemRequest>>(new Map());
+    const [noteEditor, setNoteEditor] = useState<NoteEditorState | null>(null);
+    const [localMatchedMap, setLocalMatchedMap] = useState<Map<number, ApiInvoiceReconciliationRecord>>(new Map());
+    const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+    const [groupActionState, setGroupActionState] = useState<Record<string, 'saving' | 'approving'>>({});
     const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
     const matchedHistoryMap = useMemo(() => {
         const map = new Map<number, ApiInvoiceReconciliationRecord>();
@@ -418,8 +443,8 @@ export default function InvoiceTable({
                 map.set(record.orderHistoryId, record);
                 return;
             }
-            const existingTime = new Date(existing.matchedAt).getTime();
-            const nextTime = new Date(record.matchedAt).getTime();
+            const existingTime = getReconciliationRecordTime(existing);
+            const nextTime = getReconciliationRecordTime(record);
             if (nextTime > existingTime) {
                 map.set(record.orderHistoryId, record);
             }
@@ -433,6 +458,27 @@ export default function InvoiceTable({
         });
         return map;
     }, [hoaDons]);
+
+    const persistedReconciliationMap = useMemo(() => {
+        const map = new Map<number, ApiInvoiceReconciliationRecord>();
+        matchedHistoryMap.forEach((record, key) => {
+            map.set(key, record);
+        });
+        localMatchedMap.forEach((record, key) => {
+            map.set(key, record);
+        });
+        return map;
+    }, [matchedHistoryMap, localMatchedMap]);
+
+    const approvedOrderIdSet = useMemo(() => {
+        const ids = new Set<number>();
+        persistedReconciliationMap.forEach((record, key) => {
+            if ((record.status || '').trim() === WORKFLOW_STATUS_DONE) {
+                ids.add(key);
+            }
+        });
+        return ids;
+    }, [persistedReconciliationMap]);
 
     const resolveInvoiceLine = (invoiceNumber?: string | null, invoiceRowId?: number | null): HoaDonUBot | undefined => {
         if (invoiceRowId) {
@@ -615,38 +661,24 @@ export default function InvoiceTable({
     }, [orders, invoiceDocumentsBySupplier]);
 
     const reconciliations = useMemo((): ReconciliationResult[] => {
-        const emailSentOrders = orders.filter((o) => o.emailSent === true);
+        const emailSentOrders = orders.filter((order) => order.emailSent === true && !approvedOrderIdSet.has(Number(order.id)));
         const usedInvoiceRowsByBatch = new Map<string, Set<number>>();
 
         return emailSentOrders.map((order) => {
-            const localRecord = localMatchedMap.get(Number(order.id));
-            if (localRecord) {
-                const invoiceFromLocal = resolveInvoiceLine(localRecord.invoiceNumber, localRecord.invoiceRowId);
+            const persistedRecord = persistedReconciliationMap.get(Number(order.id));
+            if (persistedRecord) {
+                const invoiceFromLocal = resolveInvoiceLine(persistedRecord.invoiceNumber, persistedRecord.invoiceRowId);
                 return {
                     order,
                     invoice: invoiceFromLocal,
-                    hasInvoice: true,
-                    quantityDiff: localRecord.quantityDiff,
-                    detailStatus: coerceDetailStatus(localRecord.detailStatus),
-                    detailNote: localRecord.detailNote,
-                    matchScore: localRecord.matchScore,
-                    matchedInvoiceNumber: localRecord.invoiceNumber,
-                    isFromHistory: true,
-                };
-            }
-
-            const historyRecord = matchedHistoryMap.get(Number(order.id));
-            if (historyRecord) {
-                const invoiceFromHistory = resolveInvoiceLine(historyRecord.invoiceNumber, historyRecord.invoiceRowId);
-                return {
-                    order,
-                    invoice: invoiceFromHistory,
-                    hasInvoice: true,
-                    quantityDiff: historyRecord.quantityDiff,
-                    detailStatus: coerceDetailStatus(historyRecord.detailStatus),
-                    detailNote: historyRecord.detailNote,
-                    matchScore: historyRecord.matchScore,
-                    matchedInvoiceNumber: historyRecord.invoiceNumber,
+                    hasInvoice: persistedRecord.hasInvoice,
+                    quantityDiff: persistedRecord.quantityDiff,
+                    detailStatus: coerceDetailStatus(persistedRecord.detailStatus),
+                    detailNote: persistedRecord.detailNote,
+                    matchScore: persistedRecord.matchScore,
+                    matchedInvoiceNumber: persistedRecord.invoiceNumber,
+                    note: persistedRecord.note,
+                    workflowStatus: persistedRecord.status,
                     isFromHistory: true,
                 };
             }
@@ -733,107 +765,180 @@ export default function InvoiceTable({
                 matchedInvoiceNumber: selectedDoc?.invoiceNumber,
             };
         });
-    }, [orders, bestInvoiceDocumentByBatch, matchedHistoryMap, localMatchedMap, hoaDons, invoiceRowById]);
+    }, [orders, approvedOrderIdSet, bestInvoiceDocumentByBatch, persistedReconciliationMap, hoaDons, invoiceRowById]);
 
-    const reconciliationPayloadItems = useMemo(() => {
-        return reconciliations
-            .filter((item) => !item.isFromHistory && item.hasInvoice && !!item.matchedInvoiceNumber)
-            .map((item) => ({
-                orderHistoryId: Number(item.order.id),
-                orderBatchKey: getOrderBatchKey(item.order),
-                companyContactId: item.order.companyContactId,
-                nhaThau: item.order.nhaThau,
-                maQuanLy: item.order.maQuanLy,
-                maVtytCu: item.order.maVtytCu,
-                tenVtytBv: item.order.tenVtytBv,
-                orderedQty: Number(item.order.dotGoiHang) || 0,
-                orderTime: item.order.ngayDatHang ? new Date(item.order.ngayDatHang).toISOString() : undefined,
-                invoiceNumber: item.matchedInvoiceNumber as string,
-                invoiceIdHoaDon: item.invoice?.idHoaDon,
-                invoiceRowId: item.invoice?.id,
-                invoiceCompanyContactId: item.invoice?.companyContactId,
-                invoiceCompanyName: item.invoice?.congTy,
-                invoiceItemCode: item.invoice?.maHangHoa,
-                invoiceItemName: item.invoice?.tenHangHoa,
-                invoiceQty: Number(item.invoice?.soLuong) || 0,
-                invoiceTime: item.invoice?.ngayHoaDon ? new Date(item.invoice.ngayHoaDon).toISOString() : undefined,
-                hasInvoice: item.hasInvoice,
-                detailStatus: item.detailStatus,
-                detailNote: item.detailNote,
-                matchScore: Number(item.matchScore) || 0,
-                quantityDiff: Number(item.quantityDiff) || 0,
-                matchedAt: new Date().toISOString(),
-            }))
-            .filter((item) => item.orderHistoryId > 0 && item.invoiceNumber.trim().length > 0)
-            .sort((a, b) => {
-                if (a.orderHistoryId !== b.orderHistoryId) return a.orderHistoryId - b.orderHistoryId;
-                return a.invoiceNumber.localeCompare(b.invoiceNumber);
-            });
-    }, [reconciliations]);
+    const getPersistedNote = (result: ReconciliationResult) => {
+        return (result.note || '').trim();
+    };
 
-    useEffect(() => {
-        if (reconciliationPayloadItems.length === 0) {
-            latestPersistedSignatureRef.current = '';
-            return;
+    const getCurrentNoteByOrderId = (orderHistoryId: number) => {
+        if (Object.prototype.hasOwnProperty.call(noteDrafts, orderHistoryId)) {
+            return noteDrafts[orderHistoryId] || '';
         }
 
-        const signature = JSON.stringify(reconciliationPayloadItems.map((item) => ({
-            orderHistoryId: item.orderHistoryId,
-            orderBatchKey: item.orderBatchKey,
-            invoiceNumber: item.invoiceNumber,
-            hasInvoice: item.hasInvoice,
-            detailStatus: item.detailStatus,
-            matchScore: item.matchScore,
-            quantityDiff: item.quantityDiff,
-            invoiceRowId: item.invoiceRowId,
-        })));
+        const persisted = persistedReconciliationMap.get(orderHistoryId);
+        return (persisted?.note || '').trim();
+    };
 
-        if (signature === latestPersistedSignatureRef.current) {
-            return;
+    const getCurrentNote = (result: ReconciliationResult) => {
+        return getCurrentNoteByOrderId(Number(result.order.id));
+    };
+
+    const getNotePreview = (result: ReconciliationResult, maxLength: number = 28) => {
+        const note = getCurrentNote(result).trim();
+        if (!note) return 'Bấm để thêm ghi chú';
+        if (note.length <= maxLength) return note;
+        return `${note.slice(0, maxLength)}...`;
+    };
+
+    const getDraftNote = (result: ReconciliationResult) => {
+        const orderHistoryId = Number(result.order.id);
+        if (Object.prototype.hasOwnProperty.call(noteDrafts, orderHistoryId)) {
+            return noteDrafts[orderHistoryId] || '';
         }
+        return '';
+    };
 
-        latestPersistedSignatureRef.current = signature;
+    const getPersistedRecord = (result: ReconciliationResult) => {
+        return persistedReconciliationMap.get(Number(result.order.id));
+    };
 
-        void apiService.saveInvoiceReconciliationsBulk({
-            items: reconciliationPayloadItems,
-        })
-            .then(() => {
-                if (reconciliationPayloadItems.length > 0) {
-                    setLocalMatchedMap((prev) => {
-                        const next = new Map(prev);
-                        reconciliationPayloadItems.forEach((item) => {
-                            next.set(item.orderHistoryId, item);
-                        });
-                        return next;
-                    });
-                }
-                if (onMatchedInvoicesSaved) {
-                    const uniqueNumbers = Array.from(new Set(reconciliationPayloadItems.map((item) => item.invoiceNumber)));
-                    onMatchedInvoicesSaved(uniqueNumbers);
-                }
+    const openNoteEditor = (result: ReconciliationResult) => {
+        setNoteEditor({
+            orderHistoryId: Number(result.order.id),
+        });
+    };
+
+    const buildNoteUpdatePayload = (group: SupplierGroup): SaveInvoiceReconciliationItemRequest[] => {
+        return group.results
+            .map((item) => {
+                const persistedRecord = getPersistedRecord(item);
+                if (!persistedRecord?.id) return null;
+                if (!Object.prototype.hasOwnProperty.call(noteDrafts, Number(item.order.id))) return null;
+
+                const nextNote = getDraftNote(item).trim();
+                const persistedNote = getPersistedNote(item);
+                if (nextNote === persistedNote) return null;
+
+                return {
+                    id: persistedRecord.id,
+                    action: 'note' as const,
+                    note: nextNote,
+                };
             })
-            .catch((error) => {
-                console.error('Khong luu duoc lich su doi chieu hoa don:', error);
-                latestPersistedSignatureRef.current = '';
+            .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
+    };
+
+    const buildStatusUpdatePayload = (group: SupplierGroup): SaveInvoiceReconciliationItemRequest[] => {
+        return group.results
+            .map((item) => {
+                const persistedRecord = getPersistedRecord(item);
+                if (!persistedRecord?.id) return null;
+                if ((persistedRecord.status || '').trim() === WORKFLOW_STATUS_DONE) return null;
+
+                return {
+                    id: persistedRecord.id,
+                    action: 'status' as const,
+                    status: WORKFLOW_STATUS_DONE,
+                };
+            })
+            .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
+    };
+
+    const persistGroup = async (group: SupplierGroup, status: WorkflowStatus) => {
+        const items = status === WORKFLOW_STATUS_DONE
+            ? buildStatusUpdatePayload(group)
+            : buildNoteUpdatePayload(group);
+
+        if (items.length === 0) {
+            toast({
+                title: status === WORKFLOW_STATUS_DONE ? 'Không có dữ liệu để duyệt' : 'Không có ghi chú thay đổi để lưu',
+                description: status === WORKFLOW_STATUS_DONE
+                    ? 'Nhóm đối chiếu này chưa có bản ghi tương ứng trong bảng order_invoice_reconciliation để cập nhật.'
+                    : 'Hiện chưa có dòng ghi chú nào thay đổi để cập nhật vào bảng order_invoice_reconciliation.',
+                variant: 'destructive',
             });
-    }, [reconciliationPayloadItems, onMatchedInvoicesSaved]);
-
-    const supplierGroups = useMemo(() => {
-        let filtered = reconciliations;
-
-        // Filter by search term
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(r =>
-                r.order.maQuanLy.toLowerCase().includes(term) ||
-                r.order.tenVtytBv.toLowerCase().includes(term) ||
-                r.order.nhaThau.toLowerCase().includes(term) ||
-                (r.invoice?.soHoaDon || r.matchedInvoiceNumber || '').toLowerCase().includes(term)
-            );
+            return;
         }
 
+        const actionState = status === WORKFLOW_STATUS_DONE ? 'approving' : 'saving';
+        setGroupActionState((prev) => ({ ...prev, [group.groupId]: actionState }));
+
+        try {
+            await apiService.saveInvoiceReconciliationsBulk({ items });
+            const updatedRecordIds = new Set(items.map((item) => item.id));
+
+            setLocalMatchedMap((prev) => {
+                const next = new Map(prev);
+
+                group.results.forEach((item) => {
+                    const orderHistoryId = Number(item.order.id);
+                    const persistedRecord = getPersistedRecord(item);
+                    if (!persistedRecord?.id) return;
+                    if (!updatedRecordIds.has(persistedRecord.id)) return;
+
+                    next.set(orderHistoryId, {
+                        ...persistedRecord,
+                        note: status === WORKFLOW_STATUS_DONE
+                            ? persistedRecord.note
+                            : getDraftNote(item).trim(),
+                        status: status === WORKFLOW_STATUS_DONE
+                            ? WORKFLOW_STATUS_DONE
+                            : persistedRecord.status,
+                    });
+                });
+
+                return next;
+            });
+
+            if (status !== WORKFLOW_STATUS_DONE) {
+                setNoteDrafts((prev) => {
+                    const next = { ...prev };
+                    group.results.forEach((item) => {
+                        const persistedRecord = getPersistedRecord(item);
+                        if (!persistedRecord?.id) return;
+                        if (!updatedRecordIds.has(persistedRecord.id)) return;
+                        delete next[Number(item.order.id)];
+                    });
+                    return next;
+                });
+            }
+
+            if (status === WORKFLOW_STATUS_DONE && onMatchedInvoicesSaved) {
+                const approvedInvoiceNumbers = Array.from(
+                    new Set(
+                        group.results
+                            .map((item) => getPersistedRecord(item)?.invoiceNumber || item.matchedInvoiceNumber || '')
+                            .filter((value) => value.trim().length > 0),
+                    ),
+                );
+                onMatchedInvoicesSaved(approvedInvoiceNumbers);
+            }
+
+            toast({
+                title: status === WORKFLOW_STATUS_DONE ? 'Duyệt hóa đơn thành công' : 'Lưu ghi chú thành công',
+                description: status === WORKFLOW_STATUS_DONE
+                    ? `Hóa đơn của ${group.nhaThau} đã được chuyển sang lịch sử đã khớp.`
+                    : `Đã cập nhật ghi chú cho hóa đơn của ${group.nhaThau}.`,
+            });
+        } catch (error) {
+            toast({
+                title: status === WORKFLOW_STATUS_DONE ? 'Duyệt hóa đơn thất bại' : 'Lưu ghi chú thất bại',
+                description: error instanceof Error ? error.message : 'Không thể cập nhật đối chiếu hóa đơn.',
+                variant: 'destructive',
+            });
+        } finally {
+            setGroupActionState((prev) => {
+                const next = { ...prev };
+                delete next[group.groupId];
+                return next;
+            });
+        }
+    };
+
+    const rawSupplierGroups = useMemo(() => {
         const groups: { [key: string]: ReconciliationResult[] } = {};
-        filtered.forEach(r => {
+        reconciliations.forEach(r => {
             const batchKey = getOrderBatchKey(r.order);
             if (!groups[batchKey]) {
                 groups[batchKey] = [];
@@ -869,22 +974,42 @@ export default function InvoiceTable({
                     matchedInvoiceLineCount: undefined,
                 },
             };
-        }).filter((group) => {
-            if (filterSupplierStatus === 'hasInvoice') {
-                return group.stats.hasInvoice > 0;
-            } else if (filterSupplierStatus === 'noInvoice') {
-                return group.stats.hasInvoice === 0;
-            }
-            return true;
         }).sort((a, b) => {
             const aHas = a.stats.hasInvoice > 0 ? 1 : 0;
             const bHas = b.stats.hasInvoice > 0 ? 1 : 0;
             if (aHas !== bHas) return aHas - bHas;
             return b.latestDate.getTime() - a.latestDate.getTime();
         });
-    }, [reconciliations, searchTerm, filterSupplierStatus]);
+    }, [reconciliations]);
 
-    const toggleExpand = (groupId: string) => {
+    const allSupplierGroups = useMemo(() => {
+        return rawSupplierGroups.filter((group) => {
+            if (filterSupplierStatus === 'hasInvoice') {
+                return group.stats.hasInvoice > 0;
+            } else if (filterSupplierStatus === 'noInvoice') {
+                return group.stats.hasInvoice === 0;
+            }
+            return true;
+        });
+    }, [filterSupplierStatus, rawSupplierGroups]);
+
+    const supplierGroups = useMemo(() => {
+        if (!searchTerm) return allSupplierGroups;
+
+        const term = searchTerm.toLowerCase();
+        return allSupplierGroups.filter((group) =>
+            group.results.some((result) =>
+                result.order.maQuanLy.toLowerCase().includes(term) ||
+                result.order.tenVtytBv.toLowerCase().includes(term) ||
+                result.order.nhaThau.toLowerCase().includes(term) ||
+                (result.invoice?.soHoaDon || result.matchedInvoiceNumber || '').toLowerCase().includes(term),
+            ),
+        );
+    }, [allSupplierGroups, searchTerm]);
+
+    const toggleExpand = (groupId: string, anchorElement?: HTMLElement | null) => {
+        const beforeTop = anchorElement?.getBoundingClientRect().top;
+
         setExpandedSuppliers(prev => {
             const newSet = new Set(prev);
             if (newSet.has(groupId)) {
@@ -893,6 +1018,18 @@ export default function InvoiceTable({
                 newSet.add(groupId);
             }
             return newSet;
+        });
+
+        if (!anchorElement || beforeTop === undefined) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            const afterTop = anchorElement.getBoundingClientRect().top;
+            const delta = afterTop - beforeTop;
+            if (Math.abs(delta) > 1) {
+                window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+            }
         });
     };
 
@@ -936,6 +1073,24 @@ export default function InvoiceTable({
             return { label: 'Thiếu', className: 'bg-amber-100 text-amber-700 border-amber-300' };
         }
         return { label: 'Khớp', className: 'bg-gray-100 text-gray-700 border-gray-300' };
+    };
+
+    const getGroupWorkflowBadge = (group: SupplierGroup) => {
+        const statuses = Array.from(new Set(
+            group.results
+                .map((item) => item.workflowStatus || persistedReconciliationMap.get(Number(item.order.id))?.status)
+                .filter(Boolean),
+        ));
+
+        if (statuses.includes(WORKFLOW_STATUS_DONE)) {
+            return { label: 'Đã duyệt', className: 'bg-green-100 text-green-700 border-green-300' };
+        }
+
+        if (statuses.includes(WORKFLOW_STATUS_PENDING)) {
+            return { label: 'Chờ', className: 'bg-amber-100 text-amber-700 border-amber-300' };
+        }
+
+        return { label: 'Chưa lưu', className: 'bg-slate-100 text-slate-700 border-slate-300' };
     };
 
     const openSupplierDetail = (group: SupplierGroup) => {
@@ -1166,13 +1321,16 @@ export default function InvoiceTable({
                         <tbody>
                             {supplierGroups.map((group) => {
                                 const isExpanded = expandedSuppliers.has(group.groupId);
+                                const workflowBadge = getGroupWorkflowBadge(group);
+                                const isSavingGroup = groupActionState[group.groupId] === 'saving';
+                                const isApprovingGroup = groupActionState[group.groupId] === 'approving';
 
                                 return (
                                     <React.Fragment key={group.groupId}>
                                         {/* Dòng nhà thầu */}
                                         <tr
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
-                                            onClick={() => toggleExpand(group.groupId)}
+                                            onClick={(e) => toggleExpand(group.groupId, e.currentTarget)}
                                         >
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center text-muted-foreground">
@@ -1226,8 +1384,8 @@ export default function InvoiceTable({
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {group.stats.hasInvoice > 0 ? (
-                                                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 font-semibold">
-                                                        Đã có
+                                                    <Badge variant="outline" className={`${workflowBadge.className} font-semibold`}>
+                                                        {workflowBadge.label}
                                                     </Badge>
                                                 ) : (
                                                     <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-semibold">
@@ -1242,18 +1400,52 @@ export default function InvoiceTable({
                                             <tr>
                                                 <td colSpan={6} className="p-0">
                                                     <div className="bg-background border-l-4 border-blue-400 overflow-x-auto">
-                                                        <div className="flex justify-end px-3 py-2 border-b border-blue-100 bg-blue-50/30">
-                                                            {group.stats.hasInvoice > 0 ? (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => openSupplierDetail(group)}
-                                                                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2"
-                                                                >
-                                                                    Chi tiết
-                                                                </button>
-                                                            ) : (
-                                                                <span className="text-xs text-muted-foreground">Không có hóa đơn để xem chi tiết</span>
-                                                            )}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 border-b border-blue-100 bg-blue-50/30">
+                                                            <div className="flex items-center gap-2">
+                                                                <Badge variant="outline" className={`${workflowBadge.className} font-semibold`}>
+                                                                    {workflowBadge.label}
+                                                                </Badge>
+                                                                {group.stats.hasInvoice > 0 ? (
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        Lưu chỉ cập nhật ghi chú, duyệt chỉ cập nhật trạng thái sang đã duyệt.
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground">Không có hóa đơn để lưu hoặc duyệt.</span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 ml-auto">
+                                                                {group.stats.hasInvoice > 0 ? (
+                                                                    <>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            disabled={isSavingGroup || isApprovingGroup}
+                                                                            onClick={() => void persistGroup(group, WORKFLOW_STATUS_PENDING)}
+                                                                        >
+                                                                            {isSavingGroup ? 'Đang lưu...' : 'Lưu'}
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            disabled={isSavingGroup || isApprovingGroup}
+                                                                            onClick={() => void persistGroup(group, WORKFLOW_STATUS_DONE)}
+                                                                        >
+                                                                            {isApprovingGroup ? 'Đang duyệt...' : 'Duyệt'}
+                                                                        </Button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openSupplierDetail(group)}
+                                                                            className="text-xs font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2"
+                                                                        >
+                                                                            Chi tiết
+                                                                        </button>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-xs text-muted-foreground">Không có hóa đơn để xem chi tiết</span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                         <table className="w-full min-w-[1500px]" style={{ tableLayout: 'fixed' }}>
                                                             <colgroup>
@@ -1263,7 +1455,8 @@ export default function InvoiceTable({
                                                                 <col style={{ width: '130px' }} />
                                                                 <col style={{ width: '140px' }} />
                                                                 <col style={{ width: '200px' }} />
-                                                                <col style={{ width: '220px' }} />
+                                                                <col style={{ width: '180px' }} />
+                                                                <col style={{ width: '140px' }} />
                                                             </colgroup>
                                                             <thead className="bg-blue-50 border-b border-blue-200">
                                                                 <tr className="text-xs">
@@ -1273,6 +1466,7 @@ export default function InvoiceTable({
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL HĐ</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">Chênh lệch</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">Kết luận chi tiết</th>
+                                                                    <th className="px-3 py-2 text-center font-medium text-muted-foreground">Ghi chú</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">Ngày đặt</th>
                                                                 </tr>
                                                             </thead>
@@ -1357,6 +1551,31 @@ export default function InvoiceTable({
                                                                                         )}
                                                                                     </div>
                                                                                 </td>
+                                                                                <td className="px-3 py-2 align-top">
+                                                                                    {(() => {
+                                                                                        const currentNote = getCurrentNote(result).trim();
+                                                                                        const hasNote = currentNote.length > 0;
+
+                                                                                        return (
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={() => openNoteEditor(result)}
+                                                                                                className={`w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
+                                                                                                    hasNote
+                                                                                                        ? 'border-emerald-300 bg-emerald-50/60 hover:bg-emerald-100/70'
+                                                                                                        : 'border-amber-300 bg-amber-50/50 hover:bg-amber-100/70'
+                                                                                                }`}
+                                                                                            >
+                                                                                                <div className="text-[11px] font-semibold">
+                                                                                                    {hasNote ? 'Đã có ghi chú' : 'Chưa có ghi chú'}
+                                                                                                </div>
+                                                                                                <div className="mt-0.5 max-w-[170px] truncate text-[11px] text-muted-foreground leading-snug">
+                                                                                                    {getNotePreview(result)}
+                                                                                                </div>
+                                                                                            </button>
+                                                                                        );
+                                                                                    })()}
+                                                                                </td>
                                                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                                                     {formatDate(result.order.ngayDatHang)}
                                                                                 </td>
@@ -1377,6 +1596,51 @@ export default function InvoiceTable({
                     </table>
                 </div>
             </div>
+
+            <Dialog open={!!noteEditor} onOpenChange={(open) => { if (!open) setNoteEditor(null); }}>
+                {noteEditor ? (
+                    <DialogContent className="sm:max-w-xl">
+                        <DialogHeader>
+                            <DialogTitle>Ghi chú đối chiếu</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="space-y-3">
+                            {(() => {
+                                const currentNote = getCurrentNoteByOrderId(noteEditor.orderHistoryId).trim();
+                                const hasExistingNote = currentNote.length > 0;
+
+                                return (
+                            <Textarea
+                                value={getCurrentNoteByOrderId(noteEditor.orderHistoryId)}
+                                onChange={(e) => {
+                                    const orderHistoryId = noteEditor.orderHistoryId;
+                                    setNoteDrafts((prev) => ({
+                                        ...prev,
+                                        [orderHistoryId]: e.target.value,
+                                    }));
+                                }}
+                                placeholder="Nhập ghi chú chi tiết tại đây..."
+                                className={`mx-auto min-h-[220px] w-full max-w-[640px] text-sm ${
+                                    hasExistingNote
+                                        ? 'border-emerald-300 bg-emerald-50/35 font-medium text-slate-700'
+                                        : 'border-amber-200 font-normal placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/60'
+                                }`}
+                            />
+                                );
+                            })()}
+                            <p className="text-xs text-muted-foreground">
+                                Ghi chú sẽ được lưu khi bấm nút Lưu ở nhóm nhà thầu.
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <Button type="button" variant="outline" onClick={() => setNoteEditor(null)}>
+                                Đóng
+                            </Button>
+                        </div>
+                    </DialogContent>
+                ) : null}
+            </Dialog>
 
             <Dialog open={!!selectedDetail} onOpenChange={(open) => { if (!open) setSelectedDetail(null); }}>
                 {selectedDetail && (

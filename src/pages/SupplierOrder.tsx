@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -13,6 +13,7 @@ import { Mail, Plus } from 'lucide-react';
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
 import CreateOrderDialog from '@/components/orders/CreateOrderDialog';
+import { buildOrderHistoryGroups } from '@/components/orders/orderHistoryUtils';
 
 import { OrderRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -54,6 +55,7 @@ export default function SupplierOrder() {
     }, [hasSupplierNotification, clearSupplierNotification]);
 
     const activeOrders = approvedOrders;
+    const historyOrderCount = useMemo(() => buildOrderHistoryGroups(orderHistory).length, [orderHistory]);
 
     useEffect(() => {
         const validIds = new Set(activeOrders.map((order) => order.id));
@@ -142,7 +144,7 @@ export default function SupplierOrder() {
                                     Đơn cần gọi ({activeOrders.length})
                                 </TabsTrigger>
                                 <TabsTrigger value="history">
-                                    Lịch sử ({orderHistory.length})
+                                    Lịch sử ({historyOrderCount})
                                 </TabsTrigger>
                             </TabsList>
 

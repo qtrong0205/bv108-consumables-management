@@ -170,7 +170,9 @@ export default function UBotInvoiceTable({
         setCurrentPage(1);
     }, [searchTerm]);
 
-    const toggleExpand = (idHoaDon: string) => {
+    const toggleExpand = (idHoaDon: string, anchorElement?: HTMLElement | null) => {
+        const beforeTop = anchorElement?.getBoundingClientRect().top;
+
         setExpandedInvoices(prev => {
             const newSet = new Set(prev);
             if (newSet.has(idHoaDon)) {
@@ -179,6 +181,18 @@ export default function UBotInvoiceTable({
                 newSet.add(idHoaDon);
             }
             return newSet;
+        });
+
+        if (!anchorElement || beforeTop === undefined) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            const afterTop = anchorElement.getBoundingClientRect().top;
+            const delta = afterTop - beforeTop;
+            if (Math.abs(delta) > 1) {
+                window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+            }
         });
     };
 
@@ -275,7 +289,7 @@ export default function UBotInvoiceTable({
                                         {/* Dòng hóa đơn */}
                                         <tr
                                             className={rowClassName}
-                                            onClick={() => toggleExpand(group.idHoaDon)}
+                                            onClick={(e) => toggleExpand(group.idHoaDon, e.currentTarget)}
                                         >
                                             <td className="px-4 py-2">
                                                 <svg
