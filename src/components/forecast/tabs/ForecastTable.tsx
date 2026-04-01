@@ -41,6 +41,8 @@ interface IForecastTableProps {
         totalPages: number;
         error: string | null;
         loading: boolean;
+        statusFilter: 'all' | 'edited' | 'approved' | 'rejected';
+        onStatusFilterChange: (value: 'all' | 'edited' | 'approved' | 'rejected') => void;
         onSearchChange: (value: string) => void;
         onCategoryPopoverOpenChange: (open: boolean) => void;
         onCategoryToggle: (category: string) => void;
@@ -102,7 +104,7 @@ const ForecastTable = ({
     handlers,
 }: IForecastTableProps) => {
     const [supplierSearchTerm, setSupplierSearchTerm] = React.useState('');
-    const { totalForecast, totalOrder, totalValue, approvedCount } = statistics;
+    const { totalForecast, totalValue, approvedCount } = statistics;
     const {
         filteredData,
         totalOnPage,
@@ -126,6 +128,8 @@ const ForecastTable = ({
         totalPages,
         error,
         loading,
+        statusFilter,
+        onStatusFilterChange,
         onSearchChange,
         onCategoryPopoverOpenChange,
         onCategoryToggle,
@@ -248,8 +252,8 @@ const ForecastTable = ({
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Tổng số lượng dự trù</p>
-                                <p className="text-2xl font-semibold text-foreground">{totalForecast.toLocaleString('vi-VN')}</p>
+                                <p className="text-sm text-muted-foreground">Số vật tư</p>
+                                <p className="text-2xl font-semibold text-foreground">{totalOnPage.toLocaleString('vi-VN')}</p>
                             </div>
                             <Calculator className="w-8 h-8 text-primary opacity-50" />
                         </div>
@@ -259,8 +263,8 @@ const ForecastTable = ({
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Tổng số gói hàng</p>
-                                <p className="text-2xl font-semibold text-foreground">{totalOrder.toLocaleString('vi-VN')}</p>
+                                <p className="text-sm text-muted-foreground">Tổng số lượng dự trù</p>
+                                <p className="text-2xl font-semibold text-foreground">{totalForecast.toLocaleString('vi-VN')}</p>
                             </div>
                             <Calculator className="w-8 h-8 text-secondary opacity-50" />
                         </div>
@@ -611,6 +615,42 @@ const ForecastTable = ({
                         </Select>
                     </div>
 
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onStatusFilterChange(statusFilter === 'edited' ? 'all' : 'edited')}
+                            className={statusFilter === 'edited'
+                                ? 'border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-200'
+                                : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'}
+                        >
+                            Đã sửa
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onStatusFilterChange(statusFilter === 'approved' ? 'all' : 'approved')}
+                            className={statusFilter === 'approved'
+                                ? 'border-green-300 bg-green-100 text-green-800 hover:bg-green-200'
+                                : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}
+                        >
+                            Đã duyệt
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onStatusFilterChange(statusFilter === 'rejected' ? 'all' : 'rejected')}
+                            className={statusFilter === 'rejected'
+                                ? 'border-red-300 bg-red-100 text-red-800 hover:bg-red-200'
+                                : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'}
+                        >
+                            Từ chối
+                        </Button>
+                    </div>
+
                     {(selectedCategories.length > 0 || selectedSuppliers.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0) && (
                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
                             <span className="text-sm text-muted-foreground">Đang lọc:</span>
@@ -867,10 +907,10 @@ const ForecastTable = ({
                                         Tổng cộng:
                                     </td>
                                     <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">
-                                        {totalForecast}
+                                        {filteredData.reduce((sum, item) => sum + item.duTru, 0)}
                                     </td>
                                     <td className="px-3 py-3 text-sm font-semibold text-foreground text-center bg-green-100 dark:bg-green-950/50">
-                                        {totalOrder}
+                                        {filteredData.reduce((sum, item) => sum + item.goiHang, 0)}
                                     </td>
                                 </tr>
                             </tfoot>

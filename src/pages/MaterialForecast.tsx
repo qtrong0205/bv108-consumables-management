@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Calendar } from 'lucide-react';
 import { IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
+type ForecastQuickStatusFilter = 'all' | 'edited' | 'approved' | 'rejected';
 
 // Lấy tháng và năm hiện tại
 const CURRENT_DATE = new Date();
@@ -37,6 +38,7 @@ type MaterialForecastUiCache = {
     activeTab: string;
     selectedRowKeys: string[];
     forecastOverrides: Record<string, number>;
+    statusFilter: ForecastQuickStatusFilter;
 };
 
 const materialForecastUiCache: MaterialForecastUiCache = {
@@ -50,6 +52,7 @@ const materialForecastUiCache: MaterialForecastUiCache = {
     activeTab: 'forecast',
     selectedRowKeys: [],
     forecastOverrides: {},
+    statusFilter: 'all',
 };
 
 const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
@@ -163,9 +166,18 @@ const getLatestForecastChangeValue = (record: ApiForecastChangeHistoryRecord): n
     return undefined;
 };
 
+const getForecastChangeHistoryTime = (record: ApiForecastChangeHistoryRecord): number => {
+    const parsedTime = new Date(record.thoiGianThucHien || '').getTime();
+    return Number.isNaN(parsedTime) ? 0 : parsedTime;
+};
+
 const isHistoryActionType = (
     actionType: ApiForecastChangeHistoryRecord['actionType']
 ): actionType is HistoryActionType => actionType === 'approve' || actionType === 'reject' || actionType === 'edit';
+
+const isForecastEditAction = (
+    actionType: ApiForecastChangeHistoryRecord['actionType']
+): actionType is Extract<HistoryActionType, 'edit'> => actionType === 'edit';
 
 const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastChangeHistoryRecord[]): IVatTuDuTru[] => {
     const latestRecordMap = new Map<string, ApiForecastChangeHistoryRecord>();
@@ -177,10 +189,17 @@ const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastCha
             maVtytCu: record.maVtytCu,
         });
         const fallbackKey = (record.maVtytCu || '').trim();
+        const currentRecordTime = getForecastChangeHistoryTime(record);
 
-        latestRecordMap.set(materialKey, record);
+        const existingRecord = latestRecordMap.get(materialKey);
+        if (!existingRecord || currentRecordTime >= getForecastChangeHistoryTime(existingRecord)) {
+            latestRecordMap.set(materialKey, record);
+        }
         if (fallbackKey && fallbackKey !== materialKey) {
-            latestRecordMap.set(fallbackKey, record);
+            const existingFallbackRecord = latestRecordMap.get(fallbackKey);
+            if (!existingFallbackRecord || currentRecordTime >= getForecastChangeHistoryTime(existingFallbackRecord)) {
+                latestRecordMap.set(fallbackKey, record);
+            }
         }
     });
 
@@ -282,6 +301,7 @@ export default function MaterialForecast() {
     const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(materialForecastUiCache.selectedSuppliers);
     const [selectedTypeLevel1, setSelectedTypeLevel1] = useState<string[]>(materialForecastUiCache.selectedTypeLevel1);
     const [selectedTypeLevel2, setSelectedTypeLevel2] = useState<string[]>(materialForecastUiCache.selectedTypeLevel2);
+    const [statusFilter, setStatusFilter] = useState<ForecastQuickStatusFilter>(materialForecastUiCache.statusFilter);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
     const [typeLevel1PopoverOpen, setTypeLevel1PopoverOpen] = useState(false);
     const [typeLevel2PopoverOpen, setTypeLevel2PopoverOpen] = useState(false);
@@ -328,6 +348,10 @@ export default function MaterialForecast() {
             filtered = filtered.filter((item) => selectedTypeLevel2.includes(getTypeLevel2(item.typeName)));
         }
 
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter((item) => approvalStates[getMaterialKey(item)]?.status === statusFilter);
+        }
+
         // Đưa các dòng đã phê duyệt xuống cuối để dòng chưa phê duyệt nổi lên trên.
         return [...filtered].sort((a, b) => {
             const aStatus = approvalStates[getMaterialKey(a)]?.status;
@@ -342,7 +366,7 @@ export default function MaterialForecast() {
 
             return a.stt - b.stt;
         });
-    }, [data, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, approvalStates]);
+    }, [data, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, statusFilter, approvalStates]);
 
     useEffect(() => {
         if (selectedTypeLevel1.length === 0) return;
@@ -394,6 +418,7 @@ export default function MaterialForecast() {
     const [isRejectMode, setIsRejectMode] = useState(false);
     const [approvalRecords, setApprovalRecords] = useState<ApiForecastApproval[]>([]);
     const [latestForecastChanges, setLatestForecastChanges] = useState<ApiForecastChangeHistoryRecord[]>([]);
+    const latestForecastChangesRef = useRef<ApiForecastChangeHistoryRecord[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>(materialForecastUiCache.selectedRowKeys);
 
@@ -433,7 +458,12 @@ export default function MaterialForecast() {
         materialForecastUiCache.pageSize = pageSize;
         materialForecastUiCache.activeTab = activeTab;
         materialForecastUiCache.selectedRowKeys = selectedRowKeys;
-    }, [searchTerm, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, page, pageSize, activeTab, selectedRowKeys]);
+        materialForecastUiCache.statusFilter = statusFilter;
+    }, [searchTerm, selectedCategories, selectedSuppliers, selectedTypeLevel1, selectedTypeLevel2, page, pageSize, activeTab, selectedRowKeys, statusFilter]);
+
+    useEffect(() => {
+        latestForecastChangesRef.current = latestForecastChanges;
+    }, [latestForecastChanges]);
 
     const refreshApprovalRecords = async () => {
         const response = await apiService.getForecastApprovals(CURRENT_MONTH, CURRENT_YEAR);
@@ -441,8 +471,12 @@ export default function MaterialForecast() {
     };
 
     const refreshLatestForecastChanges = async () => {
-        const response = await apiService.getLatestForecastChanges(CURRENT_MONTH, CURRENT_YEAR);
-        setLatestForecastChanges(response.data);
+        const response = await apiService.getForecastChangeHistory(1000);
+        setLatestForecastChanges(
+            response.data.filter((entry): entry is ApiForecastChangeHistoryRecord & { actionType: 'edit' } =>
+                isForecastEditAction(entry.actionType)
+            )
+        );
     };
 
     const refreshHistoryTabs = async () => {
@@ -580,7 +614,7 @@ export default function MaterialForecast() {
                 const forecastRows = allSupplies
                     .filter(shouldShowInForecast)
                     .map((item, index) => mapSupplyToForecastItem(item, index));
-                const forecastRowsWithPersistedEdits = applyForecastHistoryValues(forecastRows, latestForecastChanges);
+                const forecastRowsWithPersistedEdits = applyForecastHistoryValues(forecastRows, latestForecastChangesRef.current);
                 const forecastRowsWithOverrides = applyForecastOverrides(forecastRowsWithPersistedEdits);
 
                 if (isDisposed) return;
@@ -653,6 +687,11 @@ export default function MaterialForecast() {
 
     const handleSearchChange = (value: string) => {
         setSearchTerm(value);
+        setPage(1);
+    };
+
+    const handleStatusFilterChange = (nextFilter: ForecastQuickStatusFilter) => {
+        setStatusFilter(nextFilter);
         setPage(1);
     };
 
@@ -1474,6 +1513,8 @@ export default function MaterialForecast() {
                         error,
                         totalOnPage: total,
                         loading: loadingSupplies,
+                        statusFilter,
+                        onStatusFilterChange: handleStatusFilterChange,
                         onSearchChange: handleSearchChange,
                         onCategoryPopoverOpenChange: setCategoryPopoverOpen,
                         onCategoryToggle: handleCategoryToggle,
