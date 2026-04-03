@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, AlertTriangle, FileDown, FileUp, ChevronDown, X, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import InventoryTable from '@/components/inventory/InventoryTable';
 import ItemDetailModal from '@/components/inventory/ItemDetailModal';
 import { MedicalSupply } from '@/types';
@@ -303,6 +304,73 @@ export default function InventoryCatalog() {
         }
     };
 
+    const handleExport = () => {
+        // Chuẩn bị dữ liệu cho Excel
+        const excelData = filteredItems.map((item, index) => ({
+            'STT': index + 1,
+            'Mã VT': item.maVtyt,
+            'Mã quản lý': item.id,
+            'Tên vật tư': item.tenVtyt,
+            'Tên thương mại': item.tenThuongMai,
+            'Mã hiệu': item.maHieu,
+            'Hãng sản xuất': item.hangSanXuat,
+            'Nước sản xuất': item.nuocSanXuat,
+            'Mã nhóm': item.maNhom,
+            'Nhóm vật tư': item.tenNhom,
+            'Loại': item.typeName,
+            'Đơn vị tính': item.donViTinh,
+            'Quy cách': item.quyCach,
+            'Đơn giá': item.donGia,
+            'Số lượng kế hoạch': item.soLuongKeHoach,
+            'Tổng thầu': item.tongThau,
+            'Nhà thầu': item.nhaThau,
+            'Quyết định': item.quyetDinh,
+            'Tồn tối thiểu': item.soLuongToiThieu,
+            'Tồn hiện tại': item.soLuongTon,
+            'Số lượng tiêu hao': item.soLuongTieuHao,
+        }));
+
+        // Tạo workbook và worksheet
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Danh mục tồn kho');
+
+        // Điều chỉnh độ rộng cột
+        const colWidths = [
+            { wch: 5 },    // STT
+            { wch: 12 },   // Mã VT
+            { wch: 20 },   // Mã quản lý
+            { wch: 90 },   // Tên vật tư
+            { wch: 90 },   // Tên thương mại
+            { wch: 10 },   // Mã hiệu
+            { wch: 20 },   // Hãng sản xuất
+            { wch: 12 },   // Nước sản xuất
+            { wch: 10 },   // Mã nhóm
+            { wch: 60 },   // Nhóm vật tư
+            { wch: 15 },   // Loại
+            { wch: 10 },   // Đơn vị tính
+            { wch: 12 },   // Quy cách
+            { wch: 12 },   // Đơn giá
+            { wch: 12 },   // Số lượng kế hoạch
+            { wch: 10 },   // Tổng thầu
+            { wch: 70 },   // Nhà thầu
+            { wch: 20 },   // Quyết định
+            { wch: 12 },   // Tồn tối thiểu
+            { wch: 12 },   // Tồn hiện tại
+            { wch: 12 },   // Số lượng tiêu hao
+        ];
+        ws['!cols'] = colWidths;
+
+        // Xuất file
+        const fileName = `danh_muc_ton_kho_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        toast({
+            title: "Xuất file thành công",
+            description: `File "${fileName}" đã được tải xuống`,
+        });
+    };
+
     return (
         <div className="p-6 lg:p-8 space-y-6">
             {/* Debug Component */}
@@ -339,6 +407,7 @@ export default function InventoryCatalog() {
                     <Button
                         variant="outline"
                         className="bg-neutral text-foreground border-border hover:bg-tertiary font-normal"
+                        onClick={handleExport}
                     >
                         <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
                         Xuất file Excel
