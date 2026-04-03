@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompareSuppliesTab from '@/components/reports/CompareSuppliesTab';
 import { FileDown, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { useToast } from '@/hooks/use-toast';
 
 const categoryData = [
     { name: 'Đồ bảo hộ', value: 450 },
@@ -32,6 +33,10 @@ export default function Reports() {
     const [category, setCategory] = useState('all');
     const [supplier, setSupplier] = useState('all');
     const [activeTab, setActiveTab] = useState(reportsUiCache.activeTab);
+    const { toast } = useToast();
+    const pieChartRef = useRef<HTMLDivElement>(null);
+    const barChartRef = useRef<HTMLDivElement>(null);
+    const supplierTableRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -40,6 +45,214 @@ export default function Reports() {
     useEffect(() => {
         reportsUiCache.activeTab = activeTab;
     }, [activeTab]);
+
+    const escapeHtml = (input: string): string =>
+        input
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+
+    const generateCategoryChartHtml = (): string => {
+        const rows = categoryData
+            .map(
+                (item) =>
+                    `<tr>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td style="text-align: right;">${item.value.toLocaleString('vi-VN')}</td>
+                        <td style="text-align: right;">${((item.value / categoryData.reduce((sum, d) => sum + d.value, 0)) * 100).toFixed(1)}%</td>
+                    </tr>`
+            )
+            .join('');
+
+        return `
+            <h3 style="margin-top: 20px; margin-bottom: 12px;">Sử dụng theo danh mục</h3>
+            <table style="border-collapse: collapse; width: 100%; margin-bottom: 16px;">
+                <thead>
+                    <tr style="background: #0f3a68; color: white;">
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Danh mục</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: right;">Số lượng</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: right;">Tỷ lệ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
+    };
+
+    const generateSupplierChartHtml = (): string => {
+        const rows = supplierData
+            .map(
+                (item) =>
+                    `<tr>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td style="text-align: right;">${item.orders}</td>
+                        <td style="text-align: right;">$${item.value.toLocaleString()}</td>
+                    </tr>`
+            )
+            .join('');
+
+        return `
+            <h3 style="margin-top: 20px; margin-bottom: 12px;">Đơn hàng theo nhà cung cấp</h3>
+            <table style="border-collapse: collapse; width: 100%; margin-bottom: 16px;">
+                <thead>
+                    <tr style="background: #0f3a68; color: white;">
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Nhà cung cấp</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: right;">Số đơn hàng</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: right;">Giá trị</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
+    };
+
+    const generateSupplierPerformanceHtml = (): string => {
+        const rows = supplierData
+            .map(
+                (item) =>
+                    `<tr>
+                        <td style="background: #f3f4f6;">${escapeHtml(item.name)}</td>
+                        <td style="text-align: center;">${item.orders}</td>
+                        <td style="text-align: right;">$${item.value.toLocaleString()}</td>
+                        <td style="text-align: center;">7-10 ngày</td>
+                        <td style="text-align: center; color: #16a34a; font-weight: bold;">95%</td>
+                    </tr>`
+            )
+            .join('');
+
+        return `
+            <h3 style="margin-top: 20px; margin-bottom: 12px;">Tổng hợp hiệu suất nhà cung cấp</h3>
+            <table style="border-collapse: collapse; width: 100%; margin-bottom: 16px;">
+                <thead>
+                    <tr style="background: #0f3a68; color: white;">
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Nhà cung cấp</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">Tổng đơn hàng</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: right;">Tổng giá trị</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">Thời gian giao TB</th>
+                        <th style="border: 1px solid #d1d5db; padding: 8px; text-align: center;">Tỷ lệ đúng hạn</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
+    };
+
+    const handleExportPdf = () => {
+        const categoryChart = generateCategoryChartHtml();
+        const supplierChart = generateSupplierChartHtml();
+        const performanceTable = generateSupplierPerformanceHtml();
+
+        const html = `
+            <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Báo cáo Danh sách vật tư</title>
+                    <style>
+                        body {
+                            font-family: 'Arial', sans-serif;
+                            padding: 20px;
+                            color: #1f2937;
+                            line-height: 1.6;
+                        }
+                        h1 {
+                            text-align: center;
+                            margin-bottom: 8px;
+                            font-size: 24px;
+                            color: #0f3a68;
+                        }
+                        h2 {
+                            margin-top: 24px;
+                            margin-bottom: 12px;
+                            font-size: 16px;
+                            color: #0f3a68;
+                            border-bottom: 2px solid #0f3a68;
+                            padding-bottom: 8px;
+                        }
+                        h3 {
+                            margin-top: 16px;
+                            margin-bottom: 8px;
+                            font-size: 14px;
+                            color: #0f3a68;
+                        }
+                        .metadata {
+                            text-align: center;
+                            color: #6b7280;
+                            margin-bottom: 20px;
+                            font-size: 12px;
+                        }
+                        table {
+                            border-collapse: collapse;
+                            width: 100%;
+                            margin-bottom: 16px;
+                        }
+                        th, td {
+                            border: 1px solid #d1d5db;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        th {
+                            background: #0f3a68;
+                            color: white;
+                            font-weight: bold;
+                        }
+                        tbody tr:nth-child(even) {
+                            background: #f9fafb;
+                        }
+                        .page-break {
+                            page-break-after: always;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>BÁO CÁO DANH SÁCH VẬT TƯ</h1>
+                    <div class="metadata">
+                        <p>Ngày báo cáo: ${new Date().toLocaleDateString('vi-VN')}</p>
+                    </div>
+
+                    <h2>Phân tích tổng hợp</h2>
+
+                    ${categoryChart}
+                    ${supplierChart}
+                    ${performanceTable}
+
+                    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #d1d5db; text-align: center; font-size: 12px; color: #6b7280;">
+                        <p>Báo cáo được tạo tự động bởi hệ thống quản lý vật tư y tế</p>
+                        <p>${new Date().toLocaleString('vi-VN')}</p>
+                    </div>
+                </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast({
+                title: "Lỗi",
+                description: "Không thể mở cửa sổ in PDF. Hãy kiểm tra popup blocker.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+        }, 250);
+
+        toast({
+            title: "Xuất PDF thành công",
+            description: "Vui lòng hoàn thành quá trình in để lưu file PDF",
+        });
+    };
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -53,6 +266,7 @@ export default function Reports() {
                         <Button
                             variant="outline"
                             className="bg-neutral text-foreground border-border hover:bg-tertiary font-normal"
+                            onClick={handleExportPdf}
                         >
                             <FileDown className="w-4 h-4 mr-2" strokeWidth={2} />
                             Xuất PDF
@@ -135,7 +349,7 @@ export default function Reports() {
                     </Card>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card className="bg-neutral border-border">
+                        <Card ref={pieChartRef} className="bg-neutral border-border">
                             <CardHeader>
                                 <CardTitle className="text-foreground">Sử dụng theo danh mục</CardTitle>
                             </CardHeader>
@@ -207,7 +421,7 @@ export default function Reports() {
                             <CardTitle className="text-foreground">Tổng hợp hiệu suất nhà cung cấp</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto" ref={supplierTableRef}>
                                 <table className="w-full">
                                     <thead className="bg-primary text-primary-foreground">
                                         <tr>
