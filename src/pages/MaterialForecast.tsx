@@ -587,29 +587,8 @@ export default function MaterialForecast() {
                 setError(null);
 
                 const keyword = searchTerm.trim();
-                const apiPageSize = 1000;
-                const firstResponse = keyword
-                    ? await apiService.searchSupplies(keyword, 1, apiPageSize)
-                    : await apiService.getSupplies(1, apiPageSize);
-
-                let allSupplies = [...firstResponse.data];
-                const apiTotalPages = firstResponse.totalPages || 1;
-
-                if (apiTotalPages > 1) {
-                    const pendingRequests: Promise<{ data: ApiSupply[] }>[] = [];
-                    for (let current = 2; current <= apiTotalPages; current += 1) {
-                        pendingRequests.push(
-                            keyword
-                                ? apiService.searchSupplies(keyword, current, apiPageSize)
-                                : apiService.getSupplies(current, apiPageSize)
-                        );
-                    }
-
-                    const remainingResponses = await Promise.all(pendingRequests);
-                    remainingResponses.forEach((response) => {
-                        allSupplies = allSupplies.concat(response.data);
-                    });
-                }
+                const response = await apiService.getForecastCatalog(keyword);
+                const allSupplies = response.data;
 
                 const forecastRows = allSupplies
                     .filter(shouldShowInForecast)

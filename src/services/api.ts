@@ -578,6 +578,12 @@ class ApiService {
     );
   }
 
+  async getForecastCatalog(keyword: string = ''): Promise<{ data: ApiSupply[]; total: number }> {
+    return this.request<{ data: ApiSupply[]; total: number }>(
+      `/supplies/forecast-catalog?keyword=${encodeURIComponent(keyword)}`
+    );
+  }
+
   async compareSupplies(maThuVien: string[]): Promise<CompareSuppliesResponse> {
     return this.request<CompareSuppliesResponse>('/supplies/compare', {
       method: 'POST',
