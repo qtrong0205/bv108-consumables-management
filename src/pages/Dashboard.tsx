@@ -3,6 +3,8 @@ import MetricCard from '@/components/dashboard/MetricCard';
 import UsageChart from '@/components/dashboard/UsageChart';
 import TopItemsTable from '@/components/dashboard/TopItemsTable';
 import InventoryByGroupChart from '@/components/dashboard/InventoryByGroupChart';
+import LowStockChart from '@/components/dashboard/LowStockChart';
+import PriceUsageScatterChart from '@/components/dashboard/PriceUsageScatterChart';
 import { Package, AlertTriangle, ShoppingCart, CheckCircle } from 'lucide-react';
 import { useSupplies } from '@/hooks/use-supplies';
 import { useOrder } from '@/context/OrderContext';
@@ -17,9 +19,18 @@ export default function Dashboard() {
 
     // Tính toán thống kê từ dữ liệu API
     const totalItems = total;
+
+    // Tìm top 5 vật tư có tồn kho thấp nhất (low stock)
+    const lowStockTop5 = supplies
+        .filter(item => item.soLuongTon >= 0) // Lọc bỏ số âm
+        .sort((a, b) => (a.soLuongTon || 0) - (b.soLuongTon || 0))
+        .slice(0, 5);
+
+    // Đếm số vật tư sắp hết (soLuongTon < soLuongToiThieu)
     const lowStockItems = supplies.filter(
-        item => item.soLuongTon < item.soLuongToiThieu
+        item => item.soLuongTon >= 0 && item.soLuongTon < item.soLuongToiThieu
     ).length;
+
     const pendingOrders = 8; // Mock data cho đơn hàng chờ xử lý
     const approvedRequests = 15; // Mock data cho yêu cầu đã duyệt
 
@@ -70,6 +81,11 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <UsageChart supplies={supplies} orderHistory={orderHistory} />
                 <InventoryByGroupChart supplies={supplies} loading={loading} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <LowStockChart supplies={supplies} loading={loading} />
+                <PriceUsageScatterChart supplies={supplies} loading={loading} />
             </div>
 
             <div className="grid grid-cols-1 gap-6">

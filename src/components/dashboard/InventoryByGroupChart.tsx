@@ -12,6 +12,7 @@ interface InventoryByGroupChartProps {
 
 export default function InventoryByGroupChart({ supplies, loading }: InventoryByGroupChartProps) {
     // Tính tổng số lượng tồn theo nhóm (sử dụng trường tenNhom)
+    console.log(supplies)
     const groupData = supplies.reduce((acc, item) => {
         const groupName = item.tenNhom || 'Chưa phân loại';
         const existing = acc.find(g => g.name === groupName);
