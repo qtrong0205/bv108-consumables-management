@@ -3,8 +3,11 @@ import { AssignableRole, AuthRole } from '@/lib/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-const AUTH_TOKEN_KEY = 'bv108_auth_token';
-const AUTH_USER_KEY = 'bv108_auth_user';
+export const AUTH_TOKEN_KEY = 'bv108_auth_token';
+export const AUTH_USER_KEY = 'bv108_auth_user';
+export const AUTH_EXPIRES_AT_KEY = 'bv108_auth_expires_at';
+export const AUTH_LAST_ACTIVITY_AT_KEY = 'bv108_auth_last_activity_at';
+export const AUTH_SESSION_INVALID_EVENT = 'bv108:auth-session-invalid';
 
 export interface ApiSupply {
   idx1: number;
@@ -311,8 +314,65 @@ export interface GetProfileResponse {
 
 export interface StoredAuth {
   token: string;
+  expiresAt: string;
   user: AuthUser;
 }
+
+const parseStoredTimestamp = (value: string | null | undefined): number => {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const getNumericClaim = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split('.');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const decoded = atob(padded);
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const deriveExpiresAtFromToken = (token: string): string | null => {
+  const payload = decodeJwtPayload(token);
+  const exp = getNumericClaim(payload?.exp);
+  if (exp <= 0) {
+    return null;
+  }
+
+  return new Date(exp * 1000).toISOString();
+};
+
+const dispatchAuthSessionInvalidEvent = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_SESSION_INVALID_EVENT));
+};
 
 export const getNullableString = (value: { String: string; Valid: boolean } | null | undefined): string => {
   return value?.Valid ? value.String : '';
@@ -326,24 +386,60 @@ export const getNullableNumber = (value: { Int32: number; Valid: boolean } | { F
 export const storeAuth = (auth: AuthResponse): void => {
   localStorage.setItem(AUTH_TOKEN_KEY, auth.token);
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(auth.user));
+  localStorage.setItem(AUTH_EXPIRES_AT_KEY, auth.expiresAt);
+  localStorage.setItem(AUTH_LAST_ACTIVITY_AT_KEY, new Date().toISOString());
 };
 
 export const clearStoredAuth = (): void => {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_USER_KEY);
+  localStorage.removeItem(AUTH_EXPIRES_AT_KEY);
+  localStorage.removeItem(AUTH_LAST_ACTIVITY_AT_KEY);
+};
+
+export const recordAuthActivity = (activityAt: string = new Date().toISOString()): void => {
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    return;
+  }
+
+  localStorage.setItem(AUTH_LAST_ACTIVITY_AT_KEY, activityAt);
+};
+
+export const getStoredAuthLastActivityAt = (): string => {
+  const activityAt = localStorage.getItem(AUTH_LAST_ACTIVITY_AT_KEY);
+  return parseStoredTimestamp(activityAt) > 0 ? activityAt || '' : '';
 };
 
 export const getStoredAuth = (): StoredAuth | null => {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   const rawUser = localStorage.getItem(AUTH_USER_KEY);
+  const rawExpiresAt = localStorage.getItem(AUTH_EXPIRES_AT_KEY);
 
   if (!token || !rawUser) {
     return null;
   }
 
+  const expiresAt = parseStoredTimestamp(rawExpiresAt) > 0
+    ? rawExpiresAt || ''
+    : deriveExpiresAtFromToken(token);
+  const expiresAtTimestamp = parseStoredTimestamp(expiresAt);
+
+  if (!expiresAt || expiresAtTimestamp <= 0 || expiresAtTimestamp <= Date.now()) {
+    clearStoredAuth();
+    return null;
+  }
+
+  if (rawExpiresAt !== expiresAt) {
+    localStorage.setItem(AUTH_EXPIRES_AT_KEY, expiresAt);
+  }
+
   try {
     const user = JSON.parse(rawUser) as AuthUser;
-    return { token, user };
+    if (parseStoredTimestamp(localStorage.getItem(AUTH_LAST_ACTIVITY_AT_KEY)) <= 0) {
+      recordAuthActivity();
+    }
+
+    return { token, expiresAt, user };
   } catch {
     clearStoredAuth();
     return null;
@@ -358,6 +454,7 @@ export const updateStoredAuthUser = (updatedUser: AuthUser): StoredAuth | null =
 
   const nextAuth: StoredAuth = {
     token: currentAuth.token,
+    expiresAt: currentAuth.expiresAt,
     user: updatedUser,
   };
 
@@ -396,6 +493,12 @@ class ApiService {
       } catch {
         message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
       }
+
+      if (includeAuth && response.status === 401) {
+        clearStoredAuth();
+        dispatchAuthSessionInvalidEvent();
+      }
+
       throw new Error(message);
     }
 
