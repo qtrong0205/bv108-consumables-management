@@ -15,12 +15,12 @@ import MonthlyForecastHistory from '@/components/forecast/tabs/MonthlyForecastHi
 import { useOrder } from '@/context/OrderContext';
 import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
-import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast } from '@/lib/auth';
+import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast, canSubmitForecast, normalizeRole } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
-type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
-type ForecastQuickStatusFilter = 'all' | 'edited' | 'approved' | 'rejected';
+type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'submitted';
+type ForecastQuickStatusFilter = 'all' | 'edited' | 'submitted' | 'approved' | 'rejected';
 
 // Lấy tháng và năm hiện tại
 const CURRENT_DATE = new Date();
@@ -173,7 +173,8 @@ const getForecastChangeHistoryTime = (record: ApiForecastChangeHistoryRecord): n
 
 const isHistoryActionType = (
     actionType: ApiForecastChangeHistoryRecord['actionType']
-): actionType is HistoryActionType => actionType === 'approve' || actionType === 'reject' || actionType === 'edit';
+): actionType is Extract<HistoryActionType, 'approve' | 'reject' | 'edit' | 'submit'> =>
+    actionType === 'approve' || actionType === 'reject' || actionType === 'edit' || actionType === 'submit';
 
 const isForecastEditAction = (
     actionType: ApiForecastChangeHistoryRecord['actionType']
@@ -438,11 +439,15 @@ export default function MaterialForecast() {
     const storedAuth = useMemo(() => getStoredAuth(), []);
     const currentUser = storedAuth?.user.username || 'Người dùng hệ thống';
     const currentRole = storedAuth?.user.role ?? '';
+    const normalizedCurrentRole = normalizeRole(currentRole);
+    const isThuKhoRole = normalizedCurrentRole === 'thu_kho';
     const canEditForecastValues = canEditForecast(currentRole);
+    const canSubmitForecastItems = canSubmitForecast(currentRole);
     const canApproveForecastItems = canApproveForecastRole(currentRole);
     const canApproveAllForecastItems = canApproveAllForecast(currentRole);
     const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
-    const approveAllRoleTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
+    const approveAllRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
+    const approveRejectDialogTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được thực hiện thao tác này.';
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -490,20 +495,30 @@ export default function MaterialForecast() {
                 .filter((entry): entry is ApiForecastChangeHistoryRecord & { actionType: HistoryActionType } =>
                     isHistoryActionType(entry.actionType)
                 )
-                .map((entry) => ({
-                    id: entry.id,
-                    stt: entry.id,
-                    maVtyt: entry.maVtytCu,
-                    tenVtyt: entry.tenVtytBv,
-                    actionType: entry.actionType,
-                    nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
-                    thoiGian: new Date(entry.thoiGianThucHien),
-                    chiTiet: {
-                        lyDo: entry.lyDo,
-                        duTruGoc: entry.duTruGoc,
-                        duTruMoi: entry.duTruSua,
-                    },
-                }))
+                .map((entry) => {
+                    const isThuKhoUnsubmitAction = entry.actionType === 'edit'
+                        && typeof entry.duTruGoc !== 'number'
+                        && typeof entry.duTruSua !== 'number';
+
+                    const mappedActionType: HistoryActionType = isThuKhoUnsubmitAction
+                        ? 'unsubmit'
+                        : entry.actionType;
+
+                    return {
+                        id: entry.id,
+                        stt: entry.id,
+                        maVtyt: entry.maVtytCu,
+                        tenVtyt: entry.tenVtytBv,
+                        actionType: mappedActionType,
+                        nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
+                        thoiGian: new Date(entry.thoiGianThucHien),
+                        chiTiet: {
+                            lyDo: entry.lyDo,
+                            duTruGoc: entry.duTruGoc,
+                            duTruMoi: entry.duTruSua,
+                        },
+                    };
+                })
                 .sort((left, right) => right.thoiGian.getTime() - left.thoiGian.getTime())
         );
 
@@ -562,7 +577,24 @@ export default function MaterialForecast() {
     }, [toast]);
 
     useEffect(() => {
-        if (!lastRealtimeEvent || lastRealtimeEvent.type !== 'forecast.approvals_updated') {
+        if (!lastRealtimeEvent) {
+            return;
+        }
+
+        const eventType = lastRealtimeEvent.type;
+        let shouldRefresh = eventType === 'forecast.approvals_updated';
+
+        if (!shouldRefresh && eventType === 'notifications.activity') {
+            const payload = (lastRealtimeEvent.payload || {}) as {
+                category?: unknown;
+                action?: unknown;
+            };
+            const category = typeof payload.category === 'string' ? payload.category : '';
+            const action = typeof payload.action === 'string' ? payload.action : '';
+            shouldRefresh = category === 'forecast' || action.startsWith('forecast.');
+        }
+
+        if (!shouldRefresh) {
             return;
         }
 
@@ -778,12 +810,21 @@ export default function MaterialForecast() {
 
     const getRowSelectionKey = (item: IVatTuDuTru) => getMaterialKey(item);
 
+    const getApprovalStatus = (item: IVatTuDuTru): ApprovalStatus => {
+        return approvalStates[getMaterialKey(item)]?.status ?? 'pending';
+    };
+
     const isRowSelectable = (item: IVatTuDuTru) => {
-        if (!canApproveAllForecastItems) {
-            return false;
+        const status = getApprovalStatus(item);
+
+        if (canSubmitForecastItems) {
+            return status === 'pending' || status === 'edited' || status === 'submitted';
         }
-        const status = approvalStates[getMaterialKey(item)]?.status;
-        return !status || status === 'edited';
+
+        if (canApproveAllForecastItems) {
+            return status === 'submitted';
+        }
+        return false;
     };
 
     const selectableItems = useMemo(
@@ -791,11 +832,24 @@ export default function MaterialForecast() {
         [filteredData, approvalStates]
     );
 
-    const selectedPendingItems = useMemo(() => {
+    const selectedWorkflowItems = useMemo(() => {
         if (selectedRowKeys.length === 0) return [];
         const selectedKeySet = new Set(selectedRowKeys);
         return data.filter((item) => selectedKeySet.has(getRowSelectionKey(item)) && isRowSelectable(item));
     }, [data, selectedRowKeys, approvalStates]);
+
+    const selectedSendableItems = useMemo(
+        () => selectedWorkflowItems.filter((item) => {
+            const status = getApprovalStatus(item);
+            return status === 'pending' || status === 'edited';
+        }),
+        [selectedWorkflowItems, approvalStates]
+    );
+
+    const selectedSubmittedItems = useMemo(
+        () => selectedWorkflowItems.filter((item) => getApprovalStatus(item) === 'submitted'),
+        [selectedWorkflowItems, approvalStates]
+    );
 
     const isRowSelected = (item: IVatTuDuTru) => selectedRowKeys.includes(getRowSelectionKey(item));
 
@@ -827,7 +881,7 @@ export default function MaterialForecast() {
 
     const buildForecastApprovalPayload = (
         item: IVatTuDuTru,
-        status: 'approved' | 'rejected' | 'edited',
+        status: 'approved' | 'rejected' | 'edited' | 'submitted',
         options?: {
             lyDo?: string;
             duTruGoc?: number;
@@ -849,7 +903,8 @@ export default function MaterialForecast() {
     const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
 
     const isForecastEditable = (item: IVatTuDuTru) => {
-        return canEditForecastValues && approvalStates[getMaterialKey(item)]?.status !== 'approved';
+        const status = getApprovalStatus(item);
+        return canEditForecastValues && status !== 'approved' && status !== 'submitted';
     };
 
     // Xử lý thay đổi giá trị dự trù
@@ -1091,10 +1146,39 @@ export default function MaterialForecast() {
     // Phê duyệt
     const handleApprove = async () => {
         if (!selectedItem) return;
-        if (!canApproveForecastItems) {
+        if (!canApproveForecastItems && !canSubmitForecastItems) {
             toast({
-                title: 'Không có quyền phê duyệt',
-                description: 'Chỉ Admin hoặc Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                title: 'Không có quyền xử lý',
+                description: 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được xử lý dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const selectedStatus = getApprovalStatus(selectedItem);
+        const isSubmitAction = isThuKhoRole;
+
+        if (isSubmitAction && selectedStatus === 'submitted') {
+            toast({
+                title: 'Vật tư đã được gửi CHK',
+                description: 'Vật tư này đã ở trạng thái Đã gửi CHK.',
+            });
+            return;
+        }
+
+        if (isSubmitAction && selectedStatus === 'approved') {
+            toast({
+                title: 'Không thể gửi duyệt',
+                description: 'Vật tư đã được phê duyệt cuối, không thể gửi lại.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (!isSubmitAction && selectedStatus !== 'submitted') {
+            toast({
+                title: 'Không thể phê duyệt',
+                description: 'Chỉ có thể phê duyệt khi vật tư đang ở trạng thái Đã gửi CHK.',
                 variant: 'destructive',
             });
             return;
@@ -1104,33 +1188,37 @@ export default function MaterialForecast() {
 
         try {
             await apiService.saveForecastApproval(
-                buildForecastApprovalPayload(selectedItem, 'approved')
+                buildForecastApprovalPayload(selectedItem, isSubmitAction ? 'submitted' : 'approved')
             );
             await refreshApprovalRecords();
             await refreshHistoryTabs();
         } catch (error) {
             toast({
-                title: "Phê duyệt thất bại",
-                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
+                title: isSubmitAction ? 'Gửi duyệt thất bại' : 'Phê duyệt thất bại',
+                description: error instanceof Error
+                    ? error.message
+                    : (isSubmitAction ? 'Không thể lưu trạng thái gửi duyệt' : 'Không thể lưu trạng thái phê duyệt'),
                 variant: "destructive",
             });
             return;
         }
 
-        try {
-            await addApprovedOrder(selectedItem);
-        } catch (error) {
-            toast({
-                title: "Đã lưu phê duyệt",
-                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
-                variant: "destructive",
-            });
+        if (!isSubmitAction) {
+            try {
+                await addApprovedOrder(selectedItem);
+            } catch (error) {
+                toast({
+                    title: "Đã lưu phê duyệt",
+                    description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
+                    variant: "destructive",
+                });
+            }
         }
 
         setApprovalStates(prev => ({
             ...prev,
             [getMaterialKey(selectedItem)]: {
-                status: 'approved',
+                status: isSubmitAction ? 'submitted' : 'approved',
                 nguoiDuyet: currentUser,
                 thoiGian: now,
             }
@@ -1139,8 +1227,10 @@ export default function MaterialForecast() {
         // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
 
         toast({
-            title: "Phê duyệt thành công",
-            description: `Vật tư "${selectedItem.tenVtytBv}" đã được phê duyệt`,
+            title: isSubmitAction ? 'Gửi duyệt thành công' : 'Phê duyệt thành công',
+            description: isSubmitAction
+                ? `Vật tư "${selectedItem.tenVtytBv}" đã được gửi lên chỉ huy khoa`
+                : `Vật tư "${selectedItem.tenVtytBv}" đã được phê duyệt`,
         });
 
         setIsDialogOpen(false);
@@ -1149,10 +1239,40 @@ export default function MaterialForecast() {
     // Từ chối
     const handleReject = async () => {
         if (!selectedItem) return;
-        if (!canApproveForecastItems) {
+        if (!canApproveForecastItems && !canSubmitForecastItems) {
             toast({
                 title: 'Không có quyền từ chối',
-                description: 'Chỉ Admin hoặc Thủ kho mới được phê duyệt hoặc từ chối dự trù.',
+                description: 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được từ chối dự trù.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const selectedStatus = getApprovalStatus(selectedItem);
+        const isThuKhoReject = isThuKhoRole;
+
+        if (isThuKhoReject && selectedStatus === 'submitted') {
+            toast({
+                title: 'Không thể từ chối trong chi tiết',
+                description: 'Vật tư đã gửi CHK. Thủ kho chỉ có thể chọn ở danh sách và bấm Hủy duyệt gửi.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (!isThuKhoReject && selectedStatus !== 'submitted') {
+            toast({
+                title: 'Không thể từ chối',
+                description: 'Chỉ có thể từ chối khi vật tư đang ở trạng thái Đã gửi CHK.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (isThuKhoReject && selectedStatus === 'approved') {
+            toast({
+                title: 'Không thể từ chối',
+                description: 'Vật tư đã được chỉ huy khoa phê duyệt, không thể từ chối lại.',
                 variant: 'destructive',
             });
             return;
@@ -1288,32 +1408,113 @@ export default function MaterialForecast() {
             case 'rejected':
                 return <Badge className={`bg-red-100 text-red-700 border-red-300 hover:bg-red-200 hover:border-red-400 ${baseClass}`}><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             case 'edited':
+                if (typeof state.duTruGoc !== 'number' && typeof state.duTruSua !== 'number') {
+                    return <Badge className={`bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 hover:border-slate-400 ${baseClass}`}>Thủ kho hủy duyệt</Badge>;
+                }
                 return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200 hover:border-orange-400 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Đã sửa</Badge>;
+            case 'submitted':
+                return <Badge className={`bg-cyan-100 text-cyan-700 border-cyan-300 hover:bg-cyan-200 hover:border-cyan-400 ${baseClass}`}>Đã gửi CHK</Badge>;
             default:
                 return null;
         }
     };
 
-    // Đếm số vật tư chưa duyệt
-    const pendingCount = filteredData.filter((item) => {
-        const status = approvalStates[getMaterialKey(item)]?.status;
-        return !status || status === 'edited';
-    }).length;
-    const selectedPendingCount = selectedPendingItems.length;
+    // Đếm số vật tư theo trạng thái lựa chọn
+    const selectedSendableCount = selectedSendableItems.length;
+    const selectedSubmittedCount = selectedSubmittedItems.length;
     const selectedPendingVisibleCount = selectableItems.filter((item) => selectedRowKeys.includes(getRowSelectionKey(item))).length;
     const allSelectableRowsSelected = selectableItems.length > 0 && selectedPendingVisibleCount === selectableItems.length;
     const someSelectableRowsSelected = selectedPendingVisibleCount > 0 && selectedPendingVisibleCount < selectableItems.length;
     const approvedCount = filteredData.filter((item) => {
-        const status = approvalStates[getMaterialKey(item)]?.status;
-        return status === 'approved';
+        return getApprovalStatus(item) === 'approved';
     }).length;
+
+    const handleSubmitToChief = async () => {
+        if (!canSubmitForecastItems) {
+            toast({
+                title: 'Không có quyền gửi duyệt',
+                description: 'Chỉ Admin hoặc Thủ kho mới được gửi lên chỉ huy khoa.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (selectedSendableItems.length === 0) {
+            toast({
+                title: 'Chưa chọn vật tư đã sửa',
+                description: 'Vui lòng chọn ít nhất 1 vật tư ở trạng thái chờ gửi để gửi duyệt.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        try {
+            await apiService.saveForecastApprovalsBulk({
+                items: selectedSendableItems.map((item) => buildForecastApprovalPayload(item, 'submitted')),
+            });
+            await refreshApprovalRecords();
+            await refreshHistoryTabs();
+            setSelectedRowKeys([]);
+
+            toast({
+                title: 'Gửi duyệt thành công',
+                description: `Đã gửi ${selectedSendableItems.length} vật tư lên chỉ huy khoa`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Gửi duyệt thất bại',
+                description: error instanceof Error ? error.message : 'Không thể gửi dữ liệu lên chỉ huy khoa',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const handleUnsubmitToChief = async () => {
+        if (!canSubmitForecastItems) {
+            toast({
+                title: 'Không có quyền hủy duyệt gửi',
+                description: 'Chỉ Admin hoặc Thủ kho mới được hủy duyệt gửi.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        if (selectedSubmittedItems.length === 0) {
+            toast({
+                title: 'Chưa chọn vật tư đã gửi',
+                description: 'Vui lòng chọn ít nhất 1 vật tư ở trạng thái Đã gửi CHK để hủy gửi.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        try {
+            await apiService.saveForecastApprovalsBulk({
+                items: selectedSubmittedItems.map((item) => buildForecastApprovalPayload(item, 'edited')),
+            });
+            await refreshApprovalRecords();
+            await refreshHistoryTabs();
+            setSelectedRowKeys([]);
+
+            toast({
+                title: 'Hủy duyệt gửi thành công',
+                description: `Đã chuyển ${selectedSubmittedItems.length} vật tư về trạng thái Đã sửa`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Hủy duyệt gửi thất bại',
+                description: error instanceof Error ? error.message : 'Không thể hủy duyệt gửi',
+                variant: 'destructive',
+            });
+        }
+    };
 
     // Duyệt tất cả
     const handleApproveAll = async () => {
         if (!canApproveAllForecastItems) {
             toast({
                 title: 'Không có quyền duyệt tất cả',
-                description: 'Chỉ Admin hoặc Thủ kho mới được bấm nút Duyệt tất cả.',
+                description: 'Chỉ Admin hoặc Chỉ huy khoa mới được bấm nút Duyệt tất cả.',
                 variant: 'destructive',
             });
             return;
@@ -1321,12 +1522,12 @@ export default function MaterialForecast() {
 
         const newApprovalStates: ApprovalState = { ...approvalStates };
         const now = new Date();
-        const pendingItems = selectedPendingItems;
+        const pendingItems = selectedSubmittedItems;
 
         if (pendingItems.length === 0) {
             toast({
                 title: "Chưa chọn vật tư",
-                description: "Vui lòng tick chọn ít nhất 1 vật tư để duyệt.",
+                description: "Vui lòng tick chọn ít nhất 1 vật tư ở trạng thái Đã gửi CHK để duyệt.",
                 variant: "destructive",
             });
             return;
@@ -1378,7 +1579,7 @@ export default function MaterialForecast() {
     };
 
     // Tính tổng giá trị của các vật tư đã chọn để duyệt
-    const pendingTotalValue = selectedPendingItems
+    const pendingTotalValue = selectedSubmittedItems
         .reduce((sum, item) => sum + calculateEstimatedValue(item.goiHang, item.donGia), 0);
 
     // Lấy badge cho loại hành động trong lịch sử
@@ -1391,6 +1592,10 @@ export default function MaterialForecast() {
                 return <Badge className={`bg-red-100 text-red-700 border-red-300 ${baseClass}`}><XCircle className="w-3 h-3 mr-1" />Từ chối</Badge>;
             case 'edit':
                 return <Badge className={`bg-orange-100 text-orange-700 border-orange-300 ${baseClass}`}><FilePen className="w-3 h-3 mr-1" />Sửa</Badge>;
+            case 'submit':
+                return <Badge className={`bg-cyan-100 text-cyan-700 border-cyan-300 ${baseClass}`}>Gửi CHK</Badge>;
+            case 'unsubmit':
+                return <Badge className={`bg-slate-100 text-slate-700 border-slate-300 ${baseClass}`}>Thủ kho hủy duyệt</Badge>;
             default:
                 return null;
         }
@@ -1404,7 +1609,7 @@ export default function MaterialForecast() {
                     <h1 className="text-2xl font-semibold text-foreground mb-2">Dự trù vật tư</h1>
                     <p className="text-muted-foreground">Lập kế hoạch dự trù và gọi hàng vật tư y tế</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
                     <Button
                         variant="outline"
                         className="bg-neutral text-foreground border-border hover:bg-tertiary font-normal"
@@ -1423,23 +1628,52 @@ export default function MaterialForecast() {
                             Lưu dự trù
                         </Button>
                     </span>
+                    {canSubmitForecastItems && (
+                        <span
+                            className="inline-flex"
+                            title={selectedSendableCount === 0 ? 'Vui lòng chọn ít nhất một vật tư ở trạng thái chờ gửi.' : undefined}
+                        >
+                            <Button
+                                className="bg-cyan-600 hover:bg-cyan-700 text-white font-normal"
+                                onClick={handleSubmitToChief}
+                                disabled={selectedSendableCount === 0}
+                            >
+                                Duyệt & gửi CHK ({selectedSendableCount})
+                            </Button>
+                        </span>
+                    )}
+                    {canSubmitForecastItems && (
+                        <span
+                            className="inline-flex"
+                            title={selectedSubmittedCount === 0 ? 'Vui lòng chọn ít nhất một vật tư ở trạng thái Đã gửi CHK.' : undefined}
+                        >
+                            <Button
+                                variant="outline"
+                                className="border-cyan-300 text-cyan-700 hover:bg-cyan-50 font-normal"
+                                onClick={handleUnsubmitToChief}
+                                disabled={selectedSubmittedCount === 0}
+                            >
+                                Hủy duyệt gửi ({selectedSubmittedCount})
+                            </Button>
+                        </span>
+                    )}
                     <span
                         className="inline-flex"
                         title={
                             !canApproveAllForecastItems
                                 ? approveAllRoleTooltip
-                                : selectedPendingCount === 0
-                                    ? 'Vui lòng chọn ít nhất một vật tư đang chờ duyệt.'
+                                : selectedSubmittedCount === 0
+                                    ? 'Vui lòng chọn ít nhất một vật tư ở trạng thái Đã gửi CHK.'
                                     : undefined
                         }
                     >
                         <Button
                             className="bg-green-600 hover:bg-green-700 text-white font-normal"
                             onClick={() => setIsApproveAllDialogOpen(true)}
-                            disabled={!canApproveAllForecastItems || selectedPendingCount === 0}
+                            disabled={!canApproveAllForecastItems || selectedSubmittedCount === 0}
                         >
                             <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
-                            Duyệt tất cả ({selectedPendingCount})
+                            Duyệt tất cả ({selectedSubmittedCount})
                         </Button>
                     </span>
                 </div>
@@ -1527,7 +1761,7 @@ export default function MaterialForecast() {
                         onForecastBlur: handleForecastBlur,
                         isRowSelected,
                         isRowSelectable,
-                        canSelectRowsRole: canApproveAllForecastItems,
+                        canSelectRowsRole: canSubmitForecastItems || canApproveAllForecastItems,
                         onRowSelectToggle: handleRowSelectToggle,
                         allSelectableRowsSelected,
                         someSelectableRowsSelected,
@@ -1572,10 +1806,14 @@ export default function MaterialForecast() {
                     onApprove: handleApprove,
                     onReject: handleReject,
                     onEditAndSave: handleEditAndSave,
+                    approveLabel: isThuKhoRole ? 'Duyệt & gửi lên CHK' : 'Phê duyệt',
                 }}
                 permissions={{
-                    canApproveReject: canApproveForecastItems,
+                    canApproveReject: canApproveForecastItems || canSubmitForecastItems,
                     canEditForecast: canEditForecastValues,
+                    approveRejectTooltip: approveRejectDialogTooltip,
+                    lockApproveReject: Boolean(isThuKhoRole && selectedItem && getApprovalStatus(selectedItem) === 'submitted'),
+                    lockApproveRejectTooltip: 'Vật tư đã gửi CHK. Thủ kho chỉ có thể hủy duyệt gửi ở danh sách bên ngoài.',
                 }}
             />
 
@@ -1583,7 +1821,7 @@ export default function MaterialForecast() {
             <ApproveAllDialog
                 isApproveAllDialogOpen={isApproveAllDialogOpen}
                 setIsApproveAllDialogOpen={setIsApproveAllDialogOpen}
-                pendingCount={pendingCount}
+                pendingCount={selectedSubmittedCount}
                 pendingTotalValue={pendingTotalValue}
                 handleApproveAll={handleApproveAll}
             />

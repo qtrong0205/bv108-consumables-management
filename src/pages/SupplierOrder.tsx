@@ -39,7 +39,7 @@ export default function SupplierOrder() {
     const canCreateOrders = canCreateManualOrders(currentRole);
     const canSubmitOrders = canPlaceOrders(currentRole);
     const createOrderRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
-    const placeOrderRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
+    const placeOrderRoleTooltip = 'Chỉ Admin, Chỉ huy khoa, Thủ kho hoặc Nhân viên thầu mới được thực hiện thao tác này.';
 
     const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);
     const [selectedOrders, setSelectedOrders] = useState<number[]>(supplierOrderUiCache.selectedOrders);
@@ -82,7 +82,7 @@ export default function SupplierOrder() {
         if (!canSubmitOrders) {
             toast({
                 title: 'Không có quyền đặt hàng',
-                description: 'Chỉ Admin hoặc Chỉ huy khoa mới có quyền bấm nút Đặt hàng.',
+                description: 'Chỉ Admin, Chỉ huy khoa, Thủ kho hoặc Nhân viên thầu mới có quyền bấm nút Đặt hàng.',
                 variant: 'destructive',
             });
             return;

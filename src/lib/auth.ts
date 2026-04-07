@@ -72,7 +72,10 @@ export const canCreateManualOrders = (role?: string | null): boolean => {
 
 export const canPlaceOrders = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
-  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
+  return normalizedRole === 'admin'
+    || normalizedRole === 'chi_huy_khoa'
+    || normalizedRole === 'thu_kho'
+    || normalizedRole === 'nhan_vien_thau';
 };
 
 export const canEditForecast = (role?: string | null): boolean => {
@@ -82,10 +85,15 @@ export const canEditForecast = (role?: string | null): boolean => {
 
 export const canApproveForecast = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
-  return normalizedRole === 'admin' || normalizedRole === 'thu_kho';
+  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
 };
 
 export const canApproveAllForecast = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
+};
+
+export const canSubmitForecast = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
   return normalizedRole === 'admin' || normalizedRole === 'thu_kho';
 };

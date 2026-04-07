@@ -100,7 +100,7 @@ export interface ApiForecastApproval {
   maQuanLy: string;
   maVtytCu: string;
   tenVtytBv: string;
-  status: 'approved' | 'rejected' | 'edited';
+  status: 'approved' | 'rejected' | 'edited' | 'submitted';
   lyDo?: string;
   duTruGoc?: number;
   duTruSua?: number;
@@ -115,7 +115,7 @@ export interface SaveForecastApprovalRequest {
   maQuanLy: string;
   maVtytCu: string;
   tenVtytBv: string;
-  status: 'approved' | 'rejected' | 'edited';
+  status: 'approved' | 'rejected' | 'edited' | 'submitted';
   lyDo?: string;
   duTruGoc?: number;
   duTruSua?: number;
@@ -132,9 +132,9 @@ export interface ApiForecastChangeHistoryRecord {
   maQuanLy: string;
   maVtytCu: string;
   tenVtytBv: string;
-  actionType: 'approve' | 'reject' | 'edit';
+  actionType: 'approve' | 'reject' | 'edit' | 'submit';
   statusBefore?: string;
-  statusAfter?: 'approved' | 'rejected' | 'edited';
+  statusAfter?: 'approved' | 'rejected' | 'edited' | 'submitted';
   lyDo?: string;
   duTruGoc?: number;
   duTruSua?: number;
@@ -153,7 +153,7 @@ export interface ApiMonthlyForecastHistoryItem {
   goiHang: number;
   donGia: number;
   thanhTien: number;
-  trangThai: 'approved' | 'rejected' | 'edited';
+  trangThai: 'approved' | 'rejected' | 'edited' | 'submitted';
   nguoiDuyet: string;
   ngayDuyet: string;
 }

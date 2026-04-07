@@ -41,8 +41,8 @@ interface IForecastTableProps {
         totalPages: number;
         error: string | null;
         loading: boolean;
-        statusFilter: 'all' | 'edited' | 'approved' | 'rejected';
-        onStatusFilterChange: (value: 'all' | 'edited' | 'approved' | 'rejected') => void;
+        statusFilter: 'all' | 'edited' | 'submitted' | 'approved' | 'rejected';
+        onStatusFilterChange: (value: 'all' | 'edited' | 'submitted' | 'approved' | 'rejected') => void;
         onSearchChange: (value: string) => void;
         onCategoryPopoverOpenChange: (open: boolean) => void;
         onCategoryToggle: (category: string) => void;
@@ -224,7 +224,7 @@ const ForecastTable = ({
     const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
     const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
     const hasSelectableRows = filteredData.some((item) => isRowSelectable(item));
-    const approveRoleOnlyTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
+    const approveRoleOnlyTooltip = 'Chỉ role có quyền xử lý luồng duyệt mới được thực hiện thao tác này.';
     const editForecastRoleOnlyTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
     const selectAllDisabledTooltip = !canSelectRowsRole
         ? approveRoleOnlyTooltip
@@ -631,6 +631,17 @@ const ForecastTable = ({
                             type="button"
                             variant="outline"
                             size="sm"
+                            onClick={() => onStatusFilterChange(statusFilter === 'submitted' ? 'all' : 'submitted')}
+                            className={statusFilter === 'submitted'
+                                ? 'border-cyan-300 bg-cyan-100 text-cyan-800 hover:bg-cyan-200'
+                                : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100'}
+                        >
+                            Đã gửi CHK
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() => onStatusFilterChange(statusFilter === 'approved' ? 'all' : 'approved')}
                             className={statusFilter === 'approved'
                                 ? 'border-green-300 bg-green-100 text-green-800 hover:bg-green-200'
@@ -812,7 +823,7 @@ const ForecastTable = ({
                                                             const rowSelectDisabledTooltip = !canSelectRowsRole
                                                                 ? approveRoleOnlyTooltip
                                                                 : !rowSelectable
-                                                                    ? 'Vật tư này không còn ở trạng thái chờ duyệt.'
+                                                                    ? 'Vật tư này không ở trạng thái có thể chọn cho luồng duyệt hiện tại.'
                                                                     : undefined;
 
                                                             return (

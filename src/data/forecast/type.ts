@@ -1,5 +1,5 @@
-export type HistoryActionType = 'approve' | 'reject' | 'edit';
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited';
+export type HistoryActionType = 'approve' | 'reject' | 'edit' | 'submit' | 'unsubmit';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'submitted';
 
 export interface HistoryEntry {
     id: number;

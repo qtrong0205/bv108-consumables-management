@@ -38,10 +38,14 @@ interface IApproveDialogProps {
         onApprove: () => void;
         onReject: () => void;
         onEditAndSave: () => void;
+        approveLabel?: string;
     };
     permissions: {
         canApproveReject: boolean;
         canEditForecast: boolean;
+        approveRejectTooltip?: string;
+        lockApproveReject?: boolean;
+        lockApproveRejectTooltip?: string;
     };
 }
 
@@ -55,8 +59,8 @@ const ApproveDialog = ({
     const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge } = dialog;
     const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
-    const { onApprove, onReject, onEditAndSave } = actions;
-    const { canApproveReject, canEditForecast } = permissions;
+    const { onApprove, onReject, onEditAndSave, approveLabel = 'Phê duyệt' } = actions;
+    const { canApproveReject, canEditForecast, approveRejectTooltip, lockApproveReject, lockApproveRejectTooltip } = permissions;
 
     const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
         const maVtytCu = (item.maVtytCu || '').trim();
@@ -75,10 +79,19 @@ const ApproveDialog = ({
     };
 
     const selectedItemApproval = selectedItem ? approvalStates[getMaterialKey(selectedItem)] : undefined;
-    const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited';
+    const isApprovedLocked = selectedItemApproval?.status === 'approved';
+    const isThuKhoUnsubmitState = selectedItemApproval?.status === 'edited'
+        && typeof selectedItemApproval.duTruGoc !== 'number'
+        && typeof selectedItemApproval.duTruSua !== 'number';
+    const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited' || selectedItemApproval.status === 'submitted' || selectedItemApproval.status === 'approved';
     const currentGoiHang = isEditMode ? editDuTru : selectedItem?.goiHang ?? 0;
-    const approveRejectRoleTooltip = 'Chỉ Admin hoặc Thủ kho mới được thực hiện thao tác này.';
+    const approveRejectRoleTooltip = approveRejectTooltip || 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được thực hiện thao tác này.';
     const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
+    const approvedLockTooltip = 'Vật tư đã được duyệt, không thể từ chối hoặc gửi duyệt lại.';
+    const isApproveRejectLocked = Boolean(lockApproveReject) || isApprovedLocked;
+    const approveRejectLockTooltip = isApprovedLocked
+        ? approvedLockTooltip
+        : (lockApproveRejectTooltip || 'Vật tư đã gửi CHK. Thủ kho chỉ có thể hủy duyệt gửi ở danh sách bên ngoài.');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,12 +203,17 @@ const ApproveDialog = ({
                                 ? 'bg-green-50 border-green-200 dark:bg-green-950/30'
                                 : selectedItemApproval.status === 'rejected'
                                     ? 'bg-red-50 border-red-200 dark:bg-red-950/30'
+                                    : selectedItemApproval.status === 'submitted'
+                                        ? 'bg-cyan-50 border-cyan-200 dark:bg-cyan-950/30'
+                                        : isThuKhoUnsubmitState
+                                            ? 'bg-slate-50 border-slate-200 dark:bg-slate-950/30'
                                     : 'bg-orange-50 border-orange-200 dark:bg-orange-950/30'
                                 }`}>
                                 <p className="text-sm font-medium">
                                     {selectedItemApproval.status === 'approved' && '✅ Đã phê duyệt'}
                                     {selectedItemApproval.status === 'rejected' && '❌ Đã từ chối'}
-                                    {selectedItemApproval.status === 'edited' && '✏️ Đã sửa'}
+                                    {selectedItemApproval.status === 'edited' && (isThuKhoUnsubmitState ? '↩️ Thủ kho hủy duyệt' : '✏️ Đã sửa')}
+                                    {selectedItemApproval.status === 'submitted' && '📨 Đã gửi lên chỉ huy khoa'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     Bởi: {selectedItemApproval.nguoiDuyet} - {selectedItemApproval.thoiGian?.toLocaleString('vi-VN')}
@@ -230,20 +248,20 @@ const ApproveDialog = ({
                 <DialogFooter className="flex-col sm:flex-row gap-2">
                     {canShowActionButtons && !isEditMode && !isRejectMode && (
                         <>
-                            <span className="inline-flex" title={!canApproveReject ? approveRejectRoleTooltip : undefined}>
+                            <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : (!canApproveReject ? approveRejectRoleTooltip : undefined)}>
                                 <Button
                                     onClick={onApprove}
-                                    disabled={!canApproveReject}
+                                    disabled={!canApproveReject || isApproveRejectLocked}
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                 >
                                     <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    Phê duyệt
+                                    {approveLabel}
                                 </Button>
                             </span>
-                            <span className="inline-flex" title={!canApproveReject ? approveRejectRoleTooltip : undefined}>
+                            <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : (!canApproveReject ? approveRejectRoleTooltip : undefined)}>
                                 <Button
                                     onClick={() => setIsRejectMode(true)}
-                                    disabled={!canApproveReject}
+                                    disabled={!canApproveReject || isApproveRejectLocked}
                                     variant="destructive"
                                 >
                                     <XCircle className="w-4 h-4 mr-2" />
@@ -306,7 +324,7 @@ const ApproveDialog = ({
                         </>
                     )}
 
-                    {selectedItemApproval && selectedItemApproval.status !== 'edited' && !isEditMode && !isRejectMode && (
+                    {selectedItemApproval && selectedItemApproval.status !== 'edited' && selectedItemApproval.status !== 'submitted' && !isEditMode && !isRejectMode && (
                         <Button
                             onClick={() => onOpenChange(false)}
                             variant="outline"

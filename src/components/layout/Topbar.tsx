@@ -60,6 +60,16 @@ const formatNotificationSummary = (notification: ActivityNotification) => {
                 title: 'Từ Chối Dự Trù',
                 description: `${actor} đã từ chối dự trù${count ? ` (${count} mục)` : ''}${monthYear}.`,
             };
+        case 'forecast.submitted':
+            return {
+                title: 'Đã Gửi CHK',
+                description: `${actor} đã gửi dự trù lên CHK${count ? ` (${count} mục)` : ''}${monthYear}.`,
+            };
+        case 'forecast.unsubmitted':
+            return {
+                title: 'Thủ Kho Hủy Duyệt',
+                description: `${actor} đã hủy duyệt gửi dự trù${count ? ` (${count} mục)` : ''}${monthYear}.`,
+            };
         case 'orders.pending_created':
             return {
                 title: 'Thêm Vào Gọi Hàng',
