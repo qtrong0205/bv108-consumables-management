@@ -537,6 +537,7 @@ export default function MaterialForecast() {
                 stt: item.stt,
                 maVtyt: item.maVtyt,
                 tenVtyt: item.tenVtyt,
+                typeName: item.typeName || '',
                 quyCach: item.quyCach,
                 donViTinh: item.donViTinh,
                 duTru: item.duTru,

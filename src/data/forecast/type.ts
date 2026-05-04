@@ -33,6 +33,7 @@ export interface MonthlyForecastItem {
     stt: number;
     maVtyt: string;
     tenVtyt: string;
+    typeName?: string;
     quyCach: string;
     donViTinh: string;
     duTru: number;
