@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Pagination from "@/components/ui/pagination"
+import { MonthSelector } from "@/components/forecast/MonthSelector"
 import { IVatTuDuTru } from "@/data/mockData";
 import { TabsContent } from "@radix-ui/react-tabs"
 import { Calculator, CheckCircle2, Search, ChevronDown, ChevronRight, X, Loader2, AlertTriangle } from "lucide-react"
@@ -17,6 +18,12 @@ interface IForecastTableProps {
         totalOrder: number;
         totalValue: number;
         approvedCount: number;
+    };
+    monthSelector?: {
+        selectedMonth: number;
+        selectedYear: number;
+        onMonthChange: (month: number, year: number) => void;
+        isReadOnly: boolean;
     };
     tableData: {
         filteredData: IVatTuDuTru[];
@@ -68,6 +75,7 @@ interface IForecastTableProps {
         getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
         isForecastEditable: (item: IVatTuDuTru) => boolean;
         canEditForecastRole: boolean;
+        isReadOnly: boolean;
         onForecastChange: (item: IVatTuDuTru, value: string) => void;
         onForecastFocus: (item: IVatTuDuTru, value: number) => void;
         onForecastBlur: (item: IVatTuDuTru, newValue: number) => void;
@@ -100,6 +108,7 @@ const getTypeLevel1 = (typeName?: string): string => {
 
 const ForecastTable = ({
     statistics,
+    monthSelector,
     tableData,
     handlers,
 }: IForecastTableProps) => {
@@ -155,6 +164,7 @@ const ForecastTable = ({
         getStatusBadge,
         isForecastEditable,
         canEditForecastRole,
+        isReadOnly,
         onForecastChange,
         onForecastFocus,
         onForecastBlur,
@@ -745,6 +755,25 @@ const ForecastTable = ({
                 </Card>
             )}
 
+            {/* Month Selector */}
+            {monthSelector && (
+                <Card className="bg-neutral border-border">
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-foreground">Dự trù tháng: {monthSelector.selectedMonth}/{monthSelector.selectedYear}</h3>
+                            {monthSelector.isReadOnly && (
+                                <span className="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">🔒 Tháng đã qua (Chỉ xem)</span>
+                            )}
+                        </div>
+                        <MonthSelector
+                            selectedMonth={monthSelector.selectedMonth}
+                            selectedYear={monthSelector.selectedYear}
+                            onMonthChange={monthSelector.onMonthChange}
+                        />
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Bảng dữ liệu */}
             {!loading && !error && (
                 <>
@@ -878,12 +907,14 @@ const ForecastTable = ({
                                                     </td>
                                                     <td className="px-2 py-3 bg-green-50 dark:bg-green-950/30" onClick={(e) => e.stopPropagation()}>
                                                         {(() => {
-                                                            const forecastEditable = isForecastEditable(item);
-                                                            const forecastInputDisabledTooltip = !canEditForecastRole
-                                                                ? editForecastRoleOnlyTooltip
-                                                                : !forecastEditable
-                                                                    ? 'Vật tư đã được duyệt, không thể chỉnh sửa dự trù.'
-                                                                    : undefined;
+                                                            const forecastEditable = isForecastEditable(item) && !isReadOnly;
+                                                            const forecastInputDisabledTooltip = isReadOnly
+                                                                ? 'Không thể chỉnh sửa dữ liệu của tháng đã qua.'
+                                                                : !canEditForecastRole
+                                                                    ? editForecastRoleOnlyTooltip
+                                                                    : !forecastEditable
+                                                                        ? 'Vật tư đã được duyệt, không thể chỉnh sửa dự trù.'
+                                                                        : undefined;
 
                                                             return (
                                                                 <span className="inline-flex" title={forecastInputDisabledTooltip}>

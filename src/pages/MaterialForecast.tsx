@@ -436,6 +436,11 @@ export default function MaterialForecast() {
     // State cho lịch sử dự trù theo tháng
     const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
+    // State cho chọn tháng dự trù
+    const [selectedForecastMonth, setSelectedForecastMonth] = useState(CURRENT_MONTH);
+    const [selectedForecastYear, setSelectedForecastYear] = useState(CURRENT_YEAR);
+    const isReadOnly = selectedForecastYear < CURRENT_YEAR || (selectedForecastYear === CURRENT_YEAR && selectedForecastMonth < CURRENT_MONTH);
+
     const storedAuth = useMemo(() => getStoredAuth(), []);
     const currentUser = storedAuth?.user.username || 'Người dùng hệ thống';
     const currentRole = storedAuth?.user.role ?? '';
@@ -470,8 +475,8 @@ export default function MaterialForecast() {
         latestForecastChangesRef.current = latestForecastChanges;
     }, [latestForecastChanges]);
 
-    const refreshApprovalRecords = async () => {
-        const response = await apiService.getForecastApprovals(CURRENT_MONTH, CURRENT_YEAR);
+    const refreshApprovalRecords = async (month: number = selectedForecastMonth, year: number = selectedForecastYear) => {
+        const response = await apiService.getForecastApprovals(month, year);
         setApprovalRecords(response.data);
     };
 
@@ -575,7 +580,7 @@ export default function MaterialForecast() {
                 variant: 'destructive',
             });
         });
-    }, [toast]);
+    }, [selectedForecastMonth, selectedForecastYear, toast]);
 
     useEffect(() => {
         if (!lastRealtimeEvent) {
@@ -889,8 +894,8 @@ export default function MaterialForecast() {
             duTruSua?: number;
         }
     ): SaveForecastApprovalRequest => ({
-        forecastMonth: CURRENT_MONTH,
-        forecastYear: CURRENT_YEAR,
+        forecastMonth: selectedForecastMonth,
+        forecastYear: selectedForecastYear,
         maQuanLy: item.maQuanLy,
         maVtytCu: item.maVtytCu,
         tenVtytBv: item.tenVtytBv,
@@ -990,6 +995,15 @@ export default function MaterialForecast() {
 
     // Lưu dữ liệu
     const handleSave = async () => {
+        if (isReadOnly) {
+            toast({
+                title: 'Không thể lưu',
+                description: 'Không thể chỉnh sửa dữ liệu của tháng đã qua',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         if (!canEditForecastValues) {
             toast({
                 title: 'Không có quyền lưu dự trù',
@@ -1147,6 +1161,16 @@ export default function MaterialForecast() {
     // Phê duyệt
     const handleApprove = async () => {
         if (!selectedItem) return;
+
+        if (isReadOnly) {
+            toast({
+                title: 'Không thể phê duyệt',
+                description: 'Không thể phê duyệt dữ liệu của tháng đã qua',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         if (!canApproveForecastItems && !canSubmitForecastItems) {
             toast({
                 title: 'Không có quyền xử lý',
@@ -1240,6 +1264,16 @@ export default function MaterialForecast() {
     // Từ chối
     const handleReject = async () => {
         if (!selectedItem) return;
+
+        if (isReadOnly) {
+            toast({
+                title: 'Không thể từ chối',
+                description: 'Không thể từ chối dữ liệu của tháng đã qua',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         if (!canApproveForecastItems && !canSubmitForecastItems) {
             toast({
                 title: 'Không có quyền từ chối',
@@ -1333,6 +1367,16 @@ export default function MaterialForecast() {
     // Sửa và lưu
     const handleEditAndSave = async () => {
         if (!selectedItem) return;
+
+        if (isReadOnly) {
+            toast({
+                title: 'Không thể lưu',
+                description: 'Không thể chỉnh sửa dữ liệu của tháng đã qua',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         if (!canEditForecastValues) {
             toast({
                 title: 'Không có quyền sửa dự trù',
@@ -1704,6 +1748,15 @@ export default function MaterialForecast() {
                         totalValue,
                         approvedCount,
                     }}
+                    monthSelector={{
+                        selectedMonth: selectedForecastMonth,
+                        selectedYear: selectedForecastYear,
+                        onMonthChange: (month, year) => {
+                            setSelectedForecastMonth(month);
+                            setSelectedForecastYear(year);
+                        },
+                        isReadOnly,
+                    }}
                     tableData={{
                         filteredData: paginatedFilteredData,
                         searchTerm,
@@ -1757,6 +1810,7 @@ export default function MaterialForecast() {
                         getStatusBadge,
                         isForecastEditable,
                         canEditForecastRole: canEditForecastValues,
+                        isReadOnly,
                         onForecastChange: handleForecastChange,
                         onForecastFocus: handleForecastFocus,
                         onForecastBlur: handleForecastBlur,
