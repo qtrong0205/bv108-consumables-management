@@ -913,7 +913,7 @@ const ForecastTable = ({
                                                                 : !canEditForecastRole
                                                                     ? editForecastRoleOnlyTooltip
                                                                     : !forecastEditable
-                                                                        ? 'Vật tư đã được duyệt, không thể chỉnh sửa dự trù.'
+                                                                        ? 'Vật tư đã được gửi CHK, không thể chỉnh sửa dự trù. Vui lòng liên hệ thủ kho để được hỗ trợ.'
                                                                         : undefined;
 
                                                             return (

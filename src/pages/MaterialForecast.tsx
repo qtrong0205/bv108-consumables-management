@@ -1718,7 +1718,7 @@ export default function MaterialForecast() {
                             disabled={!canApproveAllForecastItems || selectedSubmittedCount === 0}
                         >
                             <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
-                            Duyệt tất cả ({selectedSubmittedCount})
+                            CHK duyệt tất cả ({selectedSubmittedCount})
                         </Button>
                     </span>
                 </div>
