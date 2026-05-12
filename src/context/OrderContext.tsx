@@ -36,6 +36,7 @@ interface OrderContextType {
     addApprovedOrdersBulk: (items: IVatTuDuTru[]) => Promise<void>;
     addManualOrder: (order: OrderRequest) => Promise<void>;
     placeOrders: (ids: number[]) => Promise<number>;
+    reorderHistoryOrders: (ids: number[]) => Promise<number>;
     invoices: Invoice[];
     addInvoices: (invoices: Invoice[]) => void;
     orderHistory: OrderHistory[];
@@ -518,6 +519,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         return response.placedCount;
     };
 
+    const reorderHistoryOrders = async (ids: number[]) => {
+        const response = await apiService.reorderHistoryOrders({ orderIds: ids });
+        await refreshOrders();
+        return response.placedCount;
+    };
+
     const addInvoices = (newInvoices: Invoice[]) => {
         setInvoices((prev) => {
             const updated = [...prev];
@@ -583,6 +590,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
                 addApprovedOrdersBulk,
                 addManualOrder,
                 placeOrders,
+                reorderHistoryOrders,
                 invoices,
                 addInvoices,
                 orderHistory,

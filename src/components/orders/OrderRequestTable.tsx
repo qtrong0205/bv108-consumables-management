@@ -413,11 +413,12 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                                                     <tr
                                                                         key={order.id}
                                                                         className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${selectedOrders.includes(order.id) ? 'bg-primary/5' : ''}`}
+                                                                        onClick={() => handleOrderCheck(order.id, !selectedOrders.includes(order.id))}
                                                                     >
-                                                                        <td className="px-4 py-2">
+                                                                        <td className="px-4 py-2" onClick={(event) => event.stopPropagation()}>
                                                                             <Checkbox
                                                                                 checked={selectedOrders.includes(order.id)}
-                                                                                onCheckedChange={(checked: boolean) => handleOrderCheck(order.id, checked)}
+                                                                                onCheckedChange={(checked) => handleOrderCheck(order.id, checked === true)}
                                                                                 aria-label={`Chọn vật tư ${order.tenVtytBv}`}
                                                                             />
                                                                         </td>

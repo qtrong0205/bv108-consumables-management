@@ -633,6 +633,13 @@ class ApiService {
     }, true);
   }
 
+  async reorderHistoryOrders(payload: PlaceOrdersRequest): Promise<PlaceOrdersResponse> {
+    return this.request<PlaceOrdersResponse>('/orders/history/reorder', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
   async getOrderUnreadSnapshot(): Promise<{ data: OrderUnreadSnapshot }> {
     return this.request<{ data: OrderUnreadSnapshot }>('/orders/unread-snapshot', {
       method: 'GET',

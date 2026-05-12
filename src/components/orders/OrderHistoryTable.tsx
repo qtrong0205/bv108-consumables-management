@@ -1,11 +1,14 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { OrderHistory } from '@/types';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronDown, Building2, Package, Calendar, CheckCircle2, CheckCircle, Plus } from 'lucide-react';
 import { buildOrderHistoryGroups, OrderBatchHistoryGroup, OrderHistoryGroupSource } from './orderHistoryUtils';
 
 interface OrderHistoryTableProps {
     orders: OrderHistory[];
+    selectedOrderIds: number[];
+    setSelectedOrderIds: (ids: number[]) => void;
 }
 
 const orderHistoryUiCache = {
@@ -29,10 +32,16 @@ const formatDateTime = (date: string | Date | undefined) => {
     });
 };
 
-export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
+export default function OrderHistoryTable({ orders, selectedOrderIds, setSelectedOrderIds }: OrderHistoryTableProps) {
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(orderHistoryUiCache.expandedGroups));
+    const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
     const historyGroups = useMemo(() => buildOrderHistoryGroups(orders), [orders]);
+    const selectedOrderIdSet = useMemo(() => new Set(selectedOrderIds), [selectedOrderIds]);
+    const allVisibleOrderIds = useMemo(
+        () => historyGroups.flatMap((group) => group.orders.map((order) => order.id)),
+        [historyGroups],
+    );
 
     const uniqueCompanyCount = useMemo(
         () => new Set(historyGroups.map((group) => group.nhaThau)).size,
@@ -40,8 +49,34 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
     );
 
     useEffect(() => {
+        const validOrderIds = new Set(orders.map((order) => order.id));
+        setSelectedOrderIds((prev) => prev.filter((orderId) => validOrderIds.has(orderId)));
+    }, [orders]);
+
+    useEffect(() => {
         orderHistoryUiCache.expandedGroups = Array.from(expandedGroups);
     }, [expandedGroups]);
+
+    const getGroupCheckState = (group: OrderBatchHistoryGroup) => {
+        const orderIds = group.orders.map((order) => order.id);
+        const selectedCount = orderIds.filter((orderId) => selectedOrderIdSet.has(orderId)).length;
+
+        if (selectedCount === 0) return 'unchecked';
+        if (selectedCount === orderIds.length) return 'checked';
+        return 'indeterminate';
+    };
+
+    useEffect(() => {
+        historyGroups.forEach((group) => {
+            const checkbox = checkboxRefs.current[group.groupKey];
+            if (!checkbox) return;
+
+            const input = checkbox.querySelector('input');
+            if (!input) return;
+
+            (input as HTMLInputElement).indeterminate = getGroupCheckState(group) === 'indeterminate';
+        });
+    }, [historyGroups, selectedOrderIdSet]);
 
     const toggleExpand = (groupKey: string) => {
         setExpandedGroups((prev) => {
@@ -82,31 +117,72 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
     };
 
     const getBatchStatusBadge = (group: OrderBatchHistoryGroup) => {
-        const sentCount = group.orders.filter((order) => order.emailSent).length;
-        if (sentCount === group.orders.length) {
+        if (group.hasEmailFailure) {
             return (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Đã gửi email
-                </Badge>
-            );
-        }
-
-        if (sentCount > 0) {
-            return (
-                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Gửi một phần
+                    Gửi lỗi
                 </Badge>
             );
         }
 
         return (
-            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-                Chưa gửi email
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Đã gửi email
             </Badge>
         );
     };
+
+    const getOrderStatusBadge = (order: OrderHistory) => {
+        if (!order.emailSent) {
+            return (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[10px] whitespace-nowrap">
+                    Gửi lỗi
+                </Badge>
+            );
+        }
+
+        return (
+            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap">
+                Đã gửi email
+            </Badge>
+        );
+    };
+
+    const handleOrderToggle = (orderId: number, checked: boolean) => {
+        setSelectedOrderIds((prev) => {
+            if (checked) {
+                return [...new Set([...prev, orderId])];
+            }
+
+            return prev.filter((selectedOrderId) => selectedOrderId !== orderId);
+        });
+    };
+
+    const handleGroupToggle = (group: OrderBatchHistoryGroup, checked: boolean) => {
+        const groupOrderIds = group.orders.map((order) => order.id);
+        setSelectedOrderIds((prev) => {
+            if (checked) {
+                return [...new Set([...prev, ...groupOrderIds])];
+            }
+
+            return prev.filter((orderId) => !groupOrderIds.includes(orderId));
+        });
+    };
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedOrderIds((prev) => [...new Set([...prev, ...allVisibleOrderIds])]);
+            return;
+        }
+
+        setSelectedOrderIds((prev) => prev.filter((orderId) => !allVisibleOrderIds.includes(orderId)));
+    };
+
+    const selectedVisibleCount = allVisibleOrderIds.filter((orderId) => selectedOrderIdSet.has(orderId)).length;
+    const allSelected = allVisibleOrderIds.length > 0 && selectedVisibleCount === allVisibleOrderIds.length;
+    const someSelected = selectedVisibleCount > 0 && selectedVisibleCount < allVisibleOrderIds.length;
 
     const getApproverLabel = (order: OrderHistory) => {
         if (order.source === 'manual' && !order.nguoiPheDuyet) {
@@ -117,10 +193,20 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
 
     return (
         <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+                {selectedOrderIds.length > 0 ? (
+                    <span>
+                        Đã chọn <strong className="text-foreground">{selectedOrderIds.length}</strong> đơn để đặt lại.
+                    </span>
+                ) : (
+                    <span>Chọn các đơn trong lịch sử để đặt lại và gửi email thêm một lần nữa.</span>
+                )}
+            </div>
             <div className="rounded-md border border-border overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
+                            <col style={{ width: '44px' }} />
                             <col style={{ width: '44px' }} />
                             <col />
                             <col style={{ width: '140px' }} />
@@ -129,6 +215,14 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                         </colgroup>
                         <thead className="bg-primary text-primary-foreground">
                             <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium">
+                                    <Checkbox
+                                        checked={allSelected}
+                                        onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                                        aria-label="Chọn tất cả đơn lịch sử"
+                                        className={someSelected ? 'data-[state=checked]:bg-primary-foreground/50' : ''}
+                                    />
+                                </th>
                                 <th className="px-4 py-3 text-left text-xs font-medium"></th>
                                 <th className="px-4 py-3 text-left text-xs font-medium">Nhà Thầu</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium">Số vật tư đã gọi</th>
@@ -139,6 +233,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                         <tbody>
                             {historyGroups.map((group) => {
                                 const isExpanded = expandedGroups.has(group.groupKey);
+                                const groupCheckState = getGroupCheckState(group);
 
                                 return (
                                     <React.Fragment key={group.groupKey}>
@@ -146,6 +241,15 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
                                             onClick={() => toggleExpand(group.groupKey)}
                                         >
+                                            <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <Checkbox
+                                                    ref={(element) => { checkboxRefs.current[group.groupKey] = element; }}
+                                                    checked={groupCheckState === 'checked'}
+                                                    onCheckedChange={(checked) => handleGroupToggle(group, checked === true)}
+                                                    aria-label={`Chọn nhà thầu ${group.nhaThau}`}
+                                                    className={groupCheckState === 'indeterminate' ? 'data-[state=checked]:bg-primary/50' : ''}
+                                                />
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center justify-center text-muted-foreground">
                                                     {isExpanded ? (
@@ -185,10 +289,11 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
 
                                         {isExpanded && (
                                             <tr key={`${group.groupKey}-items`}>
-                                                <td colSpan={5} className="p-0">
+                                                <td colSpan={7} className="p-0">
                                                     <div className="bg-background border-l-4 border-green-400 overflow-x-auto">
                                                         <table className="w-full min-w-[980px]" style={{ tableLayout: 'fixed' }}>
                                                             <colgroup>
+                                                                <col style={{ width: '44px' }} />
                                                                 <col style={{ width: '40px' }} />
                                                                 <col style={{ width: '90px' }} />
                                                                 <col style={{ width: '260px' }} />
@@ -202,6 +307,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                             </colgroup>
                                                             <thead className="bg-green-50 dark:bg-green-950/20 border-b border-green-200">
                                                                 <tr>
+                                                                    <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground"></th>
                                                                     <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">STT</th>
                                                                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Mã VT</th>
                                                                     <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Tên vật tư</th>
@@ -218,8 +324,16 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                 {group.orders.map((order, index) => (
                                                                     <tr
                                                                         key={`${group.groupKey}-${order.id}`}
-                                                                        className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                                                                        className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${selectedOrderIdSet.has(order.id) ? 'bg-primary/5' : ''}`}
+                                                                        onClick={() => handleOrderToggle(order.id, !selectedOrderIdSet.has(order.id))}
                                                                     >
+                                                                        <td className="px-3 py-2 text-center" onClick={(event) => event.stopPropagation()}>
+                                                                            <Checkbox
+                                                                                checked={selectedOrderIdSet.has(order.id)}
+                                                                                onCheckedChange={(checked) => handleOrderToggle(order.id, checked === true)}
+                                                                                aria-label={`Chọn đơn ${order.tenVtytBv}`}
+                                                                            />
+                                                                        </td>
                                                                         <td className="px-3 py-2 text-xs text-muted-foreground text-center">
                                                                             {index + 1}
                                                                         </td>
@@ -249,12 +363,7 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                                                                             {order.nguoiDatHang || 'Chưa xác định'}
                                                                         </td>
                                                                         <td className="px-3 py-2 text-center">
-                                                                            <Badge
-                                                                                variant="outline"
-                                                                                className="bg-green-100 text-green-700 border-green-300 text-[10px] whitespace-nowrap"
-                                                                            >
-                                                                                {order.trangThai}
-                                                                            </Badge>
+                                                                            {getOrderStatusBadge(order)}
                                                                         </td>
                                                                     </tr>
                                                                 ))}
@@ -282,6 +391,9 @@ export default function OrderHistoryTable({ orders }: OrderHistoryTableProps) {
                     </span>
                     <span>
                         <strong className="text-foreground">{orders.length}</strong> vật tư đã gọi
+                    </span>
+                    <span>
+                        Đã chọn: <strong className="text-primary">{selectedVisibleCount}</strong> vật tư
                     </span>
                 </div>
             </div>

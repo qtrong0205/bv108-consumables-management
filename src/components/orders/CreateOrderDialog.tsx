@@ -106,11 +106,6 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         }
 
         const keyword = (formData.nhaThau || '').trim();
-        if (keyword.length < 2) {
-            setCompanySuggestions([]);
-            setShowCompanySuggestions(false);
-            return;
-        }
 
         let isCancelled = false;
         const timer = window.setTimeout(async () => {
@@ -259,6 +254,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         value={formData.nhaThau || ''}
                                         onChange={(e) => handleInputChange('nhaThau', e.target.value)}
                                         onFocus={() => {
+                                            setShowCompanySuggestions(true);
                                             if (companySuggestions.length > 0) {
                                                 setShowCompanySuggestions(true);
                                             }

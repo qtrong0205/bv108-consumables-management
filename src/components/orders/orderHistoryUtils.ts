@@ -10,6 +10,7 @@ export interface OrderBatchHistoryGroup {
     batchTime: string | Date | undefined;
     sortTime: number;
     latestOrderId: number;
+    hasEmailFailure: boolean;
     source: OrderHistoryGroupSource;
 }
 
@@ -52,12 +53,14 @@ export const buildOrderHistoryGroups = (orders: OrderHistory[]): OrderBatchHisto
                 batchTime: order.ngayDatHang,
                 sortTime: orderTime,
                 latestOrderId: order.id,
+                hasEmailFailure: !order.emailSent,
                 source: order.source || 'forecast',
             };
         }
 
         groups[groupKey].orders.push(order);
         groups[groupKey].totalOrders += 1;
+        groups[groupKey].hasEmailFailure = groups[groupKey].hasEmailFailure || !order.emailSent;
 
         if (
             orderTime > groups[groupKey].sortTime
@@ -77,6 +80,11 @@ export const buildOrderHistoryGroups = (orders: OrderHistory[]): OrderBatchHisto
         .map((group) => ({
             ...group,
             orders: [...group.orders].sort((a, b) => {
+                const statusDiff = Number(a.emailSent) - Number(b.emailSent);
+                if (statusDiff !== 0) {
+                    return statusDiff;
+                }
+
                 const timeDiff = getOrderHistoryTime(b.ngayDatHang) - getOrderHistoryTime(a.ngayDatHang);
                 if (timeDiff !== 0) {
                     return timeDiff;
@@ -85,6 +93,11 @@ export const buildOrderHistoryGroups = (orders: OrderHistory[]): OrderBatchHisto
             }),
         }))
         .sort((a, b) => {
+            const statusDiff = Number(a.hasEmailFailure) - Number(b.hasEmailFailure);
+            if (statusDiff !== 0) {
+                return statusDiff;
+            }
+
             const timeDiff = b.sortTime - a.sortTime;
             if (timeDiff !== 0) {
                 return timeDiff;

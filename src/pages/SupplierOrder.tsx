@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
-
-const supplierOrderUiCache = {
-    activeTab: 'active',
-    selectedOrders: [] as number[],
-};
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Mail, Plus } from 'lucide-react';
+import { Mail, Plus, RotateCcw } from 'lucide-react';
 
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
@@ -20,6 +15,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
 import { getStoredAuth } from '@/services/api';
 import { canCreateManualOrders, canPlaceOrders } from '@/lib/auth';
+
+const supplierOrderUiCache = {
+    activeTab: 'active',
+    selectedOrders: [] as number[],
+    selectedHistoryOrders: [] as number[],
+};
 
 export default function SupplierOrder() {
     const { toast } = useToast();
@@ -33,8 +34,9 @@ export default function SupplierOrder() {
         orderHistory,
         addManualOrder,
         placeOrders,
+        reorderHistoryOrders,
         loadingOrders,
-        refreshOrders
+        refreshOrders,
     } = useOrder();
     const canCreateOrders = canCreateManualOrders(currentRole);
     const canSubmitOrders = canPlaceOrders(currentRole);
@@ -43,27 +45,24 @@ export default function SupplierOrder() {
 
     const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);
     const [selectedOrders, setSelectedOrders] = useState<number[]>(supplierOrderUiCache.selectedOrders);
+    const [selectedHistoryOrders, setSelectedHistoryOrders] = useState<number[]>(supplierOrderUiCache.selectedHistoryOrders);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const placeOrderDisabledTooltip = !canSubmitOrders
-        ? placeOrderRoleTooltip
-        : selectedOrders.length === 0
-            ? 'Vui lòng chọn ít nhất một vật tư để đặt hàng.'
-            : undefined;
 
     useEffect(() => {
         supplierOrderUiCache.activeTab = activeTab;
         supplierOrderUiCache.selectedOrders = selectedOrders;
-    }, [activeTab, selectedOrders]);
+        supplierOrderUiCache.selectedHistoryOrders = selectedHistoryOrders;
+    }, [activeTab, selectedOrders, selectedHistoryOrders]);
 
     useEffect(() => {
         if (!hasSupplierNotification) return;
 
-        const timeoutId = setTimeout(() => {
+        const timeoutId = window.setTimeout(() => {
             clearSupplierNotification();
         }, 1000);
 
-        return () => clearTimeout(timeoutId);
+        return () => window.clearTimeout(timeoutId);
     }, [hasSupplierNotification, clearSupplierNotification]);
 
     const activeOrders = approvedOrders;
@@ -73,6 +72,11 @@ export default function SupplierOrder() {
         const validIds = new Set(activeOrders.map((order) => order.id));
         setSelectedOrders((prev) => prev.filter((id) => validIds.has(id)));
     }, [activeOrders]);
+
+    useEffect(() => {
+        const validIds = new Set(orderHistory.map((order) => order.id));
+        setSelectedHistoryOrders((prev) => prev.filter((id) => validIds.has(id)));
+    }, [orderHistory]);
 
     useEffect(() => {
         void refreshOrders().catch(() => undefined);
@@ -147,6 +151,50 @@ export default function SupplierOrder() {
         }
     };
 
+    const handleReorderHistoryOrders = async (ids: number[]) => {
+        if (!canSubmitOrders) {
+            toast({
+                title: 'Không có quyền đặt hàng',
+                description: 'Chỉ Admin, Chỉ huy khoa, Thủ kho hoặc Nhân viên thầu mới có quyền đặt lại đơn hàng.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        try {
+            const repeatedCount = await reorderHistoryOrders(ids);
+            setSelectedHistoryOrders([]);
+            toast({
+                title: 'Đặt lại đơn hàng thành công',
+                description: `Đã gửi lại ${repeatedCount} vật tư`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Đặt lại đơn hàng thất bại',
+                description: error instanceof Error ? error.message : 'Không thể đặt lại lịch sử đơn hàng',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const isHistoryTab = activeTab === 'history';
+    const topActionCount = isHistoryTab ? selectedHistoryOrders.length : selectedOrders.length;
+    const topActionTooltip = !canSubmitOrders
+        ? placeOrderRoleTooltip
+        : topActionCount === 0
+            ? (isHistoryTab
+                ? 'Vui lòng chọn ít nhất một vật tư trong lịch sử để đặt lại.'
+                : 'Vui lòng chọn ít nhất một vật tư để đặt hàng.')
+            : undefined;
+
+    const handleTopAction = () => {
+        if (isHistoryTab) {
+            void handleReorderHistoryOrders(selectedHistoryOrders);
+            return;
+        }
+        void handlePlaceOrder();
+    };
+
     return (
         <div className="p-6 lg:p-8 space-y-6">
             <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-3 bg-tertiary/95 backdrop-blur supports-[backdrop-filter]:bg-tertiary/80 border-b border-border flex justify-between items-start">
@@ -181,14 +229,18 @@ export default function SupplierOrder() {
                                 </TabsTrigger>
                             </TabsList>
 
-                            <span className="inline-flex" title={placeOrderDisabledTooltip}>
+                            <span className="inline-flex" title={topActionTooltip}>
                                 <Button
-                                    onClick={handlePlaceOrder}
-                                    disabled={!canSubmitOrders || selectedOrders.length === 0 || isSubmitting}
+                                    onClick={handleTopAction}
+                                    disabled={!canSubmitOrders || topActionCount === 0 || isSubmitting}
                                     className="gap-2"
                                 >
-                                    <Mail className="w-4 h-4" />
-                                    {isSubmitting ? 'ĐANG XỬ LÝ...' : `ĐẶT HÀNG (${selectedOrders.length})`}
+                                    {isHistoryTab ? <RotateCcw className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                                    {isSubmitting
+                                        ? 'ĐANG XỬ LÝ...'
+                                        : isHistoryTab
+                                            ? `ĐẶT LẠI (${selectedHistoryOrders.length})`
+                                            : `ĐẶT HÀNG (${selectedOrders.length})`}
                                 </Button>
                             </span>
                         </div>
@@ -219,7 +271,11 @@ export default function SupplierOrder() {
                                     Đang tải lịch sử gọi hàng...
                                 </p>
                             ) : orderHistory.length > 0 ? (
-                                <OrderHistoryTable orders={orderHistory} />
+                                <OrderHistoryTable
+                                    orders={orderHistory}
+                                    selectedOrderIds={selectedHistoryOrders}
+                                    setSelectedOrderIds={setSelectedHistoryOrders}
+                                />
                             ) : (
                                 <p className="text-center text-muted-foreground py-12">
                                     Chưa có lịch sử gọi hàng
@@ -230,7 +286,6 @@ export default function SupplierOrder() {
                 </CardContent>
             </Card>
 
-            {/* Dialog tạo đơn hàng mới */}
             <CreateOrderDialog
                 open={isCreateDialogOpen}
                 onOpenChange={setIsCreateDialogOpen}
