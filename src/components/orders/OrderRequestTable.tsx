@@ -1,7 +1,8 @@
-﻿import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { OrderRequest } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus, Funnel, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -24,7 +25,7 @@ interface OrderRequestTableProps {
     unreadGroupKeys: string[];
     onMarkGroupsRead: (groupKeys: string[]) => void;
     selectedOrders: number[];
-    setSelectedOrders: (ids: number[]) => void;
+    setSelectedOrders: React.Dispatch<React.SetStateAction<number[]>>;
 }
 
 interface SupplierGroup {
@@ -140,6 +141,16 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
     const visibleOrderIds = useMemo(() => {
         return visibleSupplierGroups.flatMap((group) => group.orders.map((order) => order.id));
     }, [visibleSupplierGroups]);
+    const allOrderIds = useMemo(() => orders.map((order) => order.id), [orders]);
+    const selectedOrderIdSet = useMemo(() => new Set(selectedOrders), [selectedOrders]);
+
+    useEffect(() => {
+        const validOrderIdSet = new Set(allOrderIds);
+        setSelectedOrders((prev) => {
+            const next = prev.filter((orderId) => validOrderIdSet.has(orderId));
+            return next.length === prev.length ? prev : next;
+        });
+    }, [allOrderIds, setSelectedOrders]);
 
     const toggleExpand = (groupKey: string) => {
         setExpandedSuppliers((prev) => {
@@ -162,7 +173,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
 
     const getSupplierCheckState = (group: SupplierGroup) => {
         const orderIds = group.orders.map((order) => order.id);
-        const selectedCount = orderIds.filter((id) => selectedOrders.includes(id)).length;
+        const selectedCount = orderIds.filter((id) => selectedOrderIdSet.has(id)).length;
 
         if (selectedCount === 0) return 'unchecked';
         if (selectedCount === orderIds.length) return 'checked';
@@ -173,31 +184,29 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
         const orderIds = group.orders.map((order) => order.id);
 
         if (checked) {
-            const newSelected = [...new Set([...selectedOrders, ...orderIds])];
-            setSelectedOrders(newSelected);
+            setSelectedOrders((prev) => [...new Set([...prev, ...orderIds])]);
         } else {
-            setSelectedOrders(selectedOrders.filter((id) => !orderIds.includes(id)));
+            setSelectedOrders((prev) => prev.filter((id) => !orderIds.includes(id)));
         }
     };
 
     const handleOrderCheck = (orderId: number, checked: boolean) => {
         if (checked) {
-            setSelectedOrders([...selectedOrders, orderId]);
+            setSelectedOrders((prev) => [...new Set([...prev, orderId])]);
         } else {
-            setSelectedOrders(selectedOrders.filter((id) => id !== orderId));
+            setSelectedOrders((prev) => prev.filter((id) => id !== orderId));
         }
     };
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const newSelected = [...new Set([...selectedOrders, ...visibleOrderIds])];
-            setSelectedOrders(newSelected);
+            setSelectedOrders((prev) => [...new Set([...prev, ...visibleOrderIds])]);
         } else {
-            setSelectedOrders(selectedOrders.filter((id) => !visibleOrderIds.includes(id)));
+            setSelectedOrders((prev) => prev.filter((id) => !visibleOrderIds.includes(id)));
         }
     };
 
-    const selectedVisibleCount = visibleOrderIds.filter((id) => selectedOrders.includes(id)).length;
+    const selectedVisibleCount = visibleOrderIds.filter((id) => selectedOrderIdSet.has(id)).length;
     const allSelected = visibleOrderIds.length > 0 && selectedVisibleCount === visibleOrderIds.length;
     const someSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleOrderIds.length;
 
@@ -263,34 +272,45 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-end gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                    <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-                    <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
-                        <SelectTrigger className="w-52 bg-neutral text-foreground border-border h-9">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="newest">Mới nhất đến cũ nhất</SelectItem>
-                            <SelectItem value="oldest">Cũ nhất đến mới nhất</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Funnel className="w-4 h-4 text-muted-foreground" />
-                    <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                        <SelectTrigger className="w-full max-w-sm bg-neutral text-foreground border-border h-9">
-                            <SelectValue placeholder="Lọc theo công ty" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Tất cả công ty</SelectItem>
-                            {companyOptions.map((company) => (
-                                <SelectItem key={company} value={company}>
-                                    {company}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={visibleOrderIds.length === 0}
+                    onClick={() => handleSelectAll(!allSelected)}
+                >
+                    {allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                </Button>
+                <div className='flex'>
+                    <div className="flex items-center gap-2">
+                        <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                        <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+                            <SelectTrigger className="w-52 bg-neutral text-foreground border-border h-9">
+                               <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="newest">Mới nhất đến cũ nhất</SelectItem>
+                                <SelectItem value="oldest">Cũ nhất đến mới nhất</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Funnel className="w-4 h-4 text-muted-foreground" />
+                        <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                            <SelectTrigger className="w-full max-w-sm bg-neutral text-foreground border-border h-9">
+                                <SelectValue placeholder="Lọc theo công ty" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Tất cả công ty</SelectItem>
+                                {companyOptions.map((company) => (
+                                    <SelectItem key={company} value={company}>
+                                        {company}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
@@ -301,10 +321,10 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-12">
                                     <Checkbox
-                                        checked={allSelected}
-                                        onCheckedChange={handleSelectAll}
+                                        checked={allSelected ? true : (someSelected ? 'indeterminate' : false)}
+                                        onCheckedChange={(checked) => handleSelectAll(checked === true)}
                                         aria-label="Chọn tất cả"
-                                        className={someSelected ? 'data-[state=checked]:bg-primary-foreground/50' : ''}
+                                        className={someSelected ? 'data-[state=checked]:bg-primary-foreground/50' : undefined}
                                     />
                                 </th>
                                 <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-12"></th>
@@ -333,7 +353,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                                 <Checkbox
                                                     ref={(element) => { checkboxRefs.current[group.groupKey] = element; }}
                                                     checked={checkState === 'checked'}
-                                                    onCheckedChange={(checked: boolean) => handleSupplierCheck(group, checked)}
+                                                    onCheckedChange={(checked) => handleSupplierCheck(group, checked === true)}
                                                     aria-label={`Chọn nhà thầu ${group.nhaThau}`}
                                                     className={checkState === 'indeterminate' ? 'data-[state=checked]:bg-primary/50' : ''}
                                                 />
