@@ -478,7 +478,7 @@ export default function MaterialForecast() {
     };
 
     const refreshLatestForecastChanges = async () => {
-        const response = await apiService.getForecastChangeHistory(1000);
+        const response = await apiService.getLatestForecastChanges(selectedForecastMonth, selectedForecastYear);
         setLatestForecastChanges(
             response.data.filter((entry): entry is ApiForecastChangeHistoryRecord & { actionType: 'edit' } =>
                 isForecastEditAction(entry.actionType)

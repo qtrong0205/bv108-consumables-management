@@ -31,6 +31,7 @@ interface OrderRequestTableProps {
 interface SupplierGroup {
     groupKey: string;
     nhaThau: string;
+    email: string;
     sortTime: number;
     unreadSourceGroupKeys: string[];
     orders: OrderRequest[];
@@ -57,6 +58,14 @@ const normalizeCompanyName = (name?: string) => {
 
 const toCompanyGroupKey = (companyName: string) => `company__${companyName.toLowerCase()}`;
 
+const getGroupEmail = (orders: OrderRequest[]): string => {
+    const email = orders
+        .map((order) => order.email?.trim() || '')
+        .find((value) => value.length > 0);
+
+    return email || '';
+};
+
 export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroupsRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set(orderRequestUiCache.expandedSuppliers));
     const [selectedCompany, setSelectedCompany] = useState(orderRequestUiCache.selectedCompany);
@@ -74,6 +83,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                 groups[groupKey] = {
                     groupKey,
                     nhaThau: normalizedCompanyName,
+                    email: getGroupEmail([order]),
                     sortTime: getOrderTime(order),
                     unreadSourceGroupKeys: [],
                     unreadSourceGroupKeySet: new Set<string>(),
@@ -82,6 +92,9 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             }
 
             groups[groupKey].orders.push(order);
+            if (!groups[groupKey].email) {
+                groups[groupKey].email = getGroupEmail(groups[groupKey].orders);
+            }
             const backendGroupKey = order.groupKey || getApprovalGroupKey(order);
             if (backendGroupKey && !groups[groupKey].unreadSourceGroupKeySet.has(backendGroupKey)) {
                 groups[groupKey].unreadSourceGroupKeySet.add(backendGroupKey);
@@ -371,7 +384,12 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                                 <div className="flex items-start gap-2">
                                                     <Building2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                                                     <div className="min-w-0">
-                                                        <p className="font-medium text-sm text-foreground truncate" title={group.nhaThau}>{group.nhaThau}</p>
+                                                        <p
+                                                            className="font-medium text-sm text-foreground truncate cursor-help"
+                                                            title={group.email ? `${group.nhaThau}\n${group.email}` : group.nhaThau}
+                                                        >
+                                                            {group.nhaThau}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>
