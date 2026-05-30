@@ -107,3 +107,8 @@ export const canManageInvoiceWorkflow = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
   return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa' || normalizedRole === 'nhan_vien_ke_toan';
 };
+
+export const canManageSupplyTasks = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
+};

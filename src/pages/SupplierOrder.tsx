@@ -204,16 +204,15 @@ export default function SupplierOrder() {
                         Danh sách vật tư chờ gọi (từ dự trù đã duyệt)
                     </p>
                 </div>
-                <span className="inline-flex" title={!canCreateOrders ? createOrderRoleTooltip : undefined}>
+                {canCreateOrders && (
                     <Button
                         onClick={() => setIsCreateDialogOpen(true)}
-                        disabled={!canCreateOrders}
                         className="gap-2 bg-green-600 hover:bg-green-700 text-white"
                     >
                         <Plus className="w-4 h-4" />
                         Tạo đơn hàng mới
                     </Button>
-                </span>
+                )}
             </div>
 
             <Card>
@@ -229,20 +228,22 @@ export default function SupplierOrder() {
                                 </TabsTrigger>
                             </TabsList>
 
-                            <span className="inline-flex" title={topActionTooltip}>
-                                <Button
-                                    onClick={handleTopAction}
-                                    disabled={!canSubmitOrders || topActionCount === 0 || isSubmitting}
-                                    className="gap-2"
-                                >
-                                    {isHistoryTab ? <RotateCcw className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
-                                    {isSubmitting
-                                        ? 'ĐANG XỬ LÝ...'
-                                        : isHistoryTab
-                                            ? `ĐẶT LẠI (${selectedHistoryOrders.length})`
-                                            : `ĐẶT HÀNG (${selectedOrders.length})`}
-                                </Button>
-                            </span>
+                            {canSubmitOrders && (
+                                <span className="inline-flex" title={topActionTooltip}>
+                                    <Button
+                                        onClick={handleTopAction}
+                                        disabled={topActionCount === 0 || isSubmitting}
+                                        className="gap-2"
+                                    >
+                                        {isHistoryTab ? <RotateCcw className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                                        {isSubmitting
+                                            ? 'ĐANG XỬ LÝ...'
+                                            : isHistoryTab
+                                                ? `ĐẶT LẠI (${selectedHistoryOrders.length})`
+                                                : `ĐẶT HÀNG (${selectedOrders.length})`}
+                                    </Button>
+                                </span>
+                            )}
                         </div>
 
                         <TabsContent value="active">

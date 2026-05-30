@@ -309,8 +309,57 @@ export interface UpdateProfileResponse {
   user: AuthUser;
 }
 
+export interface ManagedAccountUser {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+}
+
+export interface ManagedUsersResponse {
+  users: ManagedAccountUser[];
+}
+
+export interface UpdateManagedUserRoleRequest {
+  role: AssignableRole;
+}
+
 export interface GetProfileResponse {
   user: AuthUser;
+}
+
+export interface SupplyTaskUserState {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  assignedCount: number;
+}
+
+export interface SupplyTaskStateResponse {
+  hideForOtherRoles: boolean;
+  totalSupplies: number;
+  users: SupplyTaskUserState[];
+}
+
+export interface SupplyTaskAssignmentItem {
+  idx1: number;
+  code: string;
+  name: string;
+}
+
+export interface SupplyTaskAssignmentsResponse {
+  userId: number;
+  assignments: SupplyTaskAssignmentItem[];
+}
+
+export interface UpdateSupplyTaskVisibilityRequest {
+  hideForOtherRoles: boolean;
+}
+
+export interface UpdateSupplyTaskAssignmentsRequest {
+  userId: number;
+  supplyIdx1List: number[];
 }
 
 export interface StoredAuth {
@@ -533,28 +582,59 @@ class ApiService {
     }, true);
   }
 
+  async getManagedUsers(): Promise<ManagedUsersResponse> {
+    return this.request<ManagedUsersResponse>('/auth/users', {
+      method: 'GET',
+    }, true);
+  }
+
+  async updateManagedUserRole(userId: number, payload: UpdateManagedUserRoleRequest): Promise<UpdateProfileResponse> {
+    return this.request<UpdateProfileResponse>(`/auth/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async deleteManagedUser(userId: number): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>(`/auth/users/${userId}`, {
+      method: 'DELETE',
+    }, true);
+  }
+
   async getSupplies(page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    return this.request<PaginationResponse<ApiSupply>>(`/supplies?page=${page}&pageSize=${pageSize}`);
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies?page=${page}&pageSize=${pageSize}`, {
+      method: 'GET',
+    }, true);
   }
 
   async getSupplyById(id: number): Promise<ApiSupply> {
-    return this.request<ApiSupply>(`/supplies/${id}`);
+    return this.request<ApiSupply>(`/supplies/${id}`, {
+      method: 'GET',
+    }, true);
   }
 
   async searchSupplies(keyword: string, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    return this.request<PaginationResponse<ApiSupply>>(`/supplies/search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`);
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/search?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}`, {
+      method: 'GET',
+    }, true);
   }
 
   async getGroups(): Promise<{ groups: string[]; total: number }> {
-    return this.request<{ groups: string[]; total: number }>('/supplies/groups');
+    return this.request<{ groups: string[]; total: number }>('/supplies/groups', {
+      method: 'GET',
+    }, true);
   }
 
   async getSuppliesByGroup(groupName: string, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    return this.request<PaginationResponse<ApiSupply>>(`/supplies/group?groupName=${encodeURIComponent(groupName)}&page=${page}&pageSize=${pageSize}`);
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/group?groupName=${encodeURIComponent(groupName)}&page=${page}&pageSize=${pageSize}`, {
+      method: 'GET',
+    }, true);
   }
 
   async getLowStockSupplies(threshold: number = 20, page: number = 1, pageSize: number = 20): Promise<PaginationResponse<ApiSupply>> {
-    return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`);
+    return this.request<PaginationResponse<ApiSupply>>(`/supplies/low-stock?threshold=${threshold}&page=${page}&pageSize=${pageSize}`, {
+      method: 'GET',
+    }, true);
   }
 
   async getCompareLevel1Options(): Promise<{ groups: string[]; total: number }> {
@@ -581,8 +661,44 @@ class ApiService {
 
   async getForecastCatalog(keyword: string = ''): Promise<{ data: ApiSupply[]; total: number }> {
     return this.request<{ data: ApiSupply[]; total: number }>(
-      `/supplies/forecast-catalog?keyword=${encodeURIComponent(keyword)}`
+      `/supplies/forecast-catalog?keyword=${encodeURIComponent(keyword)}`,
+      { method: 'GET' },
+      true,
     );
+  }
+
+  async getSupplyTaskState(): Promise<SupplyTaskStateResponse> {
+    return this.request<SupplyTaskStateResponse>('/supply-tasks/state', {
+      method: 'GET',
+    }, true);
+  }
+
+  async getSupplyTaskCatalog(keyword: string = ''): Promise<{ data: ApiSupply[]; total: number }> {
+    return this.request<{ data: ApiSupply[]; total: number }>(
+      `/supply-tasks/catalog?keyword=${encodeURIComponent(keyword)}`,
+      { method: 'GET' },
+      true,
+    );
+  }
+
+  async getSupplyTaskAssignments(userId: number): Promise<SupplyTaskAssignmentsResponse> {
+    return this.request<SupplyTaskAssignmentsResponse>(`/supply-tasks/assignments?userId=${userId}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async updateSupplyTaskVisibility(payload: UpdateSupplyTaskVisibilityRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/supply-tasks/visibility', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async updateSupplyTaskAssignments(payload: UpdateSupplyTaskAssignmentsRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/supply-tasks/assignments', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
   }
 
   async compareSupplies(maThuVien: string[]): Promise<CompareSuppliesResponse> {

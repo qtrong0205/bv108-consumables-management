@@ -13,6 +13,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ActivityNotification, useOrder } from '@/context/OrderContext';
 import { AuthUser } from '@/services/api';
+import { canManageSupplyTasks } from '@/lib/auth';
 
 interface TopbarProps {
     userRole: string;
@@ -114,6 +115,7 @@ export default function Topbar({ userRole, user, onLogout }: TopbarProps) {
 
     // Display user name with fallback: username -> email
     const displayUserName = user?.username || user?.email || 'Người dùng';
+    const canOpenTasks = canManageSupplyTasks(user?.role);
 
     return (
         <header className="sticky top-0 z-40 h-16 bg-neutral border-b border-border flex items-center justify-between px-6 lg:px-8">
@@ -197,6 +199,9 @@ export default function Topbar({ userRole, user, onLogout }: TopbarProps) {
                                 <div className="text-xs text-muted-foreground">{userRole}</div>
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            {canOpenTasks && (
+                                <DropdownMenuItem onClick={() => navigate('/tasks')} className="text-foreground cursor-pointer">Tác vụ</DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => navigate('/profile')} className="text-foreground cursor-pointer">Hồ sơ</DropdownMenuItem>
                             <DropdownMenuItem className="text-foreground cursor-pointer">Cài đặt</DropdownMenuItem>
                             <DropdownMenuSeparator />

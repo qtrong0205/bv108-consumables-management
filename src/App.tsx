@@ -11,6 +11,7 @@ import SupplierOrder from './pages/SupplierOrder';
 import MaterialForecast from './pages/MaterialForecast';
 import InvoiceManagement from './pages/InvoiceManagement';
 import ProfilePage from './pages/ProfilePage';
+import TaskManagement from './pages/TaskManagement';
 import { OrderProvider } from './context/OrderContext';
 import {
     AUTH_EXPIRES_AT_KEY,
@@ -26,7 +27,7 @@ import {
     recordAuthActivity,
     storeAuth,
 } from './services/api';
-import { canCreateUsers, formatRoleLabel } from '@/lib/auth';
+import { canCreateUsers, canManageSupplyTasks, formatRoleLabel } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -275,6 +276,10 @@ function App() {
                         <Route path="suppliers" element={<SupplierOrder />} />
                         <Route path="forecast" element={<MaterialForecast />} />
                         <Route path="invoices" element={<InvoiceManagement />} />
+                        <Route
+                            path="tasks"
+                            element={canManageSupplyTasks(userRole) ? <TaskManagement /> : <Navigate to="/dashboard" replace />}
+                        />
                         <Route path="reports" element={<Reports />} />
                         <Route path="profile" element={<ProfilePage />} />
                     </Route>

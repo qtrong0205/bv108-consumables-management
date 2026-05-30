@@ -248,37 +248,40 @@ const ApproveDialog = ({
                 <DialogFooter className="flex-col sm:flex-row gap-2">
                     {canShowActionButtons && !isEditMode && !isRejectMode && (
                         <>
-                            <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : (!canApproveReject ? approveRejectRoleTooltip : undefined)}>
-                                <Button
-                                    onClick={onApprove}
-                                    disabled={!canApproveReject || isApproveRejectLocked}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    {approveLabel}
-                                </Button>
-                            </span>
-                            <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : (!canApproveReject ? approveRejectRoleTooltip : undefined)}>
-                                <Button
-                                    onClick={() => setIsRejectMode(true)}
-                                    disabled={!canApproveReject || isApproveRejectLocked}
-                                    variant="destructive"
-                                >
-                                    <XCircle className="w-4 h-4 mr-2" />
-                                    Từ chối
-                                </Button>
-                            </span>
-                            <span className="inline-flex" title={!canEditForecast ? editForecastRoleTooltip : undefined}>
+                            {canApproveReject && (
+                                <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : undefined}>
+                                    <Button
+                                        onClick={onApprove}
+                                        disabled={isApproveRejectLocked}
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                                        {approveLabel}
+                                    </Button>
+                                </span>
+                            )}
+                            {canApproveReject && (
+                                <span className="inline-flex" title={isApproveRejectLocked ? approveRejectLockTooltip : undefined}>
+                                    <Button
+                                        onClick={() => setIsRejectMode(true)}
+                                        disabled={isApproveRejectLocked}
+                                        variant="destructive"
+                                    >
+                                        <XCircle className="w-4 h-4 mr-2" />
+                                        Từ chối
+                                    </Button>
+                                </span>
+                            )}
+                            {canEditForecast && (
                                 <Button
                                     onClick={() => setIsEditMode(true)}
-                                    disabled={!canEditForecast}
                                     variant="outline"
                                     className="border-orange-300 text-orange-600 hover:bg-orange-50"
                                 >
                                     <FilePen className="w-4 h-4 mr-2" />
                                     Sửa và lưu
                                 </Button>
-                            </span>
+                            )}
                         </>
                     )}
 

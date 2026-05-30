@@ -436,10 +436,7 @@ export default function MaterialForecast() {
     // State cho lịch sử dự trù theo tháng
     const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
-    // State cho chọn tháng dự trù
-    const [selectedForecastMonth, setSelectedForecastMonth] = useState(CURRENT_MONTH);
-    const [selectedForecastYear, setSelectedForecastYear] = useState(CURRENT_YEAR);
-    const isReadOnly = selectedForecastYear < CURRENT_YEAR || (selectedForecastYear === CURRENT_YEAR && selectedForecastMonth < CURRENT_MONTH);
+    const isReadOnly = false;
 
     const storedAuth = useMemo(() => getStoredAuth(), []);
     const currentUser = storedAuth?.user.username || 'Người dùng hệ thống';
@@ -475,7 +472,7 @@ export default function MaterialForecast() {
         latestForecastChangesRef.current = latestForecastChanges;
     }, [latestForecastChanges]);
 
-    const refreshApprovalRecords = async (month: number = selectedForecastMonth, year: number = selectedForecastYear) => {
+    const refreshApprovalRecords = async (month: number = CURRENT_MONTH, year: number = CURRENT_YEAR) => {
         const response = await apiService.getForecastApprovals(month, year);
         setApprovalRecords(response.data);
     };
@@ -580,7 +577,7 @@ export default function MaterialForecast() {
                 variant: 'destructive',
             });
         });
-    }, [selectedForecastMonth, selectedForecastYear, toast]);
+    }, [toast]);
 
     useEffect(() => {
         if (!lastRealtimeEvent) {
@@ -894,8 +891,8 @@ export default function MaterialForecast() {
             duTruSua?: number;
         }
     ): SaveForecastApprovalRequest => ({
-        forecastMonth: selectedForecastMonth,
-        forecastYear: selectedForecastYear,
+        forecastMonth: CURRENT_MONTH,
+        forecastYear: CURRENT_YEAR,
         maQuanLy: item.maQuanLy,
         maVtytCu: item.maVtytCu,
         tenVtytBv: item.tenVtytBv,
@@ -1663,16 +1660,15 @@ export default function MaterialForecast() {
                         <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
                         Xuất Excel
                     </Button>
-                    <span className="inline-flex" title={!canEditForecastValues ? editForecastRoleTooltip : undefined}>
+                    {canEditForecastValues && (
                         <Button
                             className="bg-primary text-primary-foreground hover:bg-primary/90 font-normal"
                             onClick={handleSave}
-                            disabled={!canEditForecastValues}
                         >
                             <Save className="w-4 h-4 mr-2" strokeWidth={2} />
                             Lưu dự trù
                         </Button>
-                    </span>
+                    )}
                     {canSubmitForecastItems && (
                         <span
                             className="inline-flex"
@@ -1702,25 +1698,21 @@ export default function MaterialForecast() {
                             </Button>
                         </span>
                     )}
-                    <span
-                        className="inline-flex"
-                        title={
-                            !canApproveAllForecastItems
-                                ? approveAllRoleTooltip
-                                : selectedSubmittedCount === 0
-                                    ? 'Vui lòng chọn ít nhất một vật tư ở trạng thái Đã gửi CHK.'
-                                    : undefined
-                        }
-                    >
-                        <Button
-                            className="bg-green-600 hover:bg-green-700 text-white font-normal"
-                            onClick={() => setIsApproveAllDialogOpen(true)}
-                            disabled={!canApproveAllForecastItems || selectedSubmittedCount === 0}
+                    {canApproveAllForecastItems && (
+                        <span
+                            className="inline-flex"
+                            title={selectedSubmittedCount === 0 ? 'Vui lòng chọn ít nhất một vật tư ở trạng thái Đã gửi CHK.' : undefined}
                         >
-                            <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
-                            CHK duyệt tất cả ({selectedSubmittedCount})
-                        </Button>
-                    </span>
+                            <Button
+                                className="bg-green-600 hover:bg-green-700 text-white font-normal"
+                                onClick={() => setIsApproveAllDialogOpen(true)}
+                                disabled={selectedSubmittedCount === 0}
+                            >
+                                <CheckCheck className="w-4 h-4 mr-2" strokeWidth={2} />
+                                CHK duyệt tất cả ({selectedSubmittedCount})
+                            </Button>
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -1747,15 +1739,6 @@ export default function MaterialForecast() {
                         totalOrder,
                         totalValue,
                         approvedCount,
-                    }}
-                    monthSelector={{
-                        selectedMonth: selectedForecastMonth,
-                        selectedYear: selectedForecastYear,
-                        onMonthChange: (month, year) => {
-                            setSelectedForecastMonth(month);
-                            setSelectedForecastYear(year);
-                        },
-                        isReadOnly,
                     }}
                     tableData={{
                         filteredData: paginatedFilteredData,

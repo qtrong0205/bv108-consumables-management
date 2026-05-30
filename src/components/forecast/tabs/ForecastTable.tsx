@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Pagination from "@/components/ui/pagination"
-import { MonthSelector } from "@/components/forecast/MonthSelector"
 import { IVatTuDuTru } from "@/data/mockData";
 import { TabsContent } from "@radix-ui/react-tabs"
 import { Calculator, CheckCircle2, Search, ChevronDown, ChevronRight, X, Loader2, AlertTriangle } from "lucide-react"
@@ -18,12 +17,6 @@ interface IForecastTableProps {
         totalOrder: number;
         totalValue: number;
         approvedCount: number;
-    };
-    monthSelector?: {
-        selectedMonth: number;
-        selectedYear: number;
-        onMonthChange: (month: number, year: number) => void;
-        isReadOnly: boolean;
     };
     tableData: {
         filteredData: IVatTuDuTru[];
@@ -108,7 +101,6 @@ const getTypeLevel1 = (typeName?: string): string => {
 
 const ForecastTable = ({
     statistics,
-    monthSelector,
     tableData,
     handlers,
 }: IForecastTableProps) => {
@@ -755,25 +747,6 @@ const ForecastTable = ({
                         <AlertTriangle className="w-8 h-8 text-warning mb-4" />
                         <p className="text-foreground font-medium mb-2">Không thể tải dữ liệu</p>
                         <p className="text-muted-foreground text-sm">{error}</p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Month Selector */}
-            {monthSelector && (
-                <Card className="bg-neutral border-border">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-foreground">Dự trù tháng: {monthSelector.selectedMonth}/{monthSelector.selectedYear}</h3>
-                            {monthSelector.isReadOnly && (
-                                <span className="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">🔒 Tháng đã qua (Chỉ xem)</span>
-                            )}
-                        </div>
-                        <MonthSelector
-                            selectedMonth={monthSelector.selectedMonth}
-                            selectedYear={monthSelector.selectedYear}
-                            onMonthChange={monthSelector.onMonthChange}
-                        />
                     </CardContent>
                 </Card>
             )}
