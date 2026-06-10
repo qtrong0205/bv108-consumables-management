@@ -41,7 +41,7 @@ export default function InventoryCatalog() {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [selectedTypeLevel1, setSelectedTypeLevel1] = useState<string[]>([]);
     const [selectedTypeLevel2, setSelectedTypeLevel2] = useState<string[]>([]);
-    const [stockFilter, setStockFilter] = useState<'all' | 'low-stock'>('all');
+    const [stockFilter, setStockFilter] = useState<'all' | 'low-stock' | 'out-of-stock'>('all');
     const [selectedItem, setSelectedItem] = useState<MedicalSupply | null>(null);
     const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
     const [typeLevel1PopoverOpen, setTypeLevel1PopoverOpen] = useState(false);
@@ -108,11 +108,11 @@ export default function InventoryCatalog() {
     // Đọc filter từ URL khi component mount
     useEffect(() => {
         const filterParam = searchParams.get('filter');
-        if (filterParam === 'low-stock') {
-            setStockFilter('low-stock');
-        } else {
-            setStockFilter('all');
+        if (filterParam === 'low-stock' || filterParam === 'out-of-stock') {
+            setStockFilter(filterParam);
+            return;
         }
+        setStockFilter('all');
     }, [searchParams]);
 
     useEffect(() => {
@@ -151,7 +151,11 @@ export default function InventoryCatalog() {
 
         // Filter theo tình trạng tồn kho
         if (stockFilter === 'low-stock') {
-            filtered = filtered.filter((item) => item.soLuongTon < item.soLuongToiThieu);
+            filtered = filtered.filter((item) => item.soLuongTon > 0 && item.soLuongTon < item.soLuongToiThieu);
+        }
+
+        if (stockFilter === 'out-of-stock') {
+            filtered = filtered.filter((item) => item.soLuongTon === 0);
         }
 
         return filtered;
@@ -160,12 +164,20 @@ export default function InventoryCatalog() {
     // Tính toán lowStock từ dữ liệu supplies
     const lowStock = useMemo(() => {
         return supplies
-            .filter((item) => item.soLuongTon < item.soLuongToiThieu)
+            .filter((item) => item.soLuongTon > 0 && item.soLuongTon < item.soLuongToiThieu)
             .map((item) => item.maVtyt);
     }, [supplies]);
 
+    const outOfStockCount = useMemo(() => {
+        return supplies.filter((item) => item.soLuongTon === 0).length;
+    }, [supplies]);
+
     const lowStockCount = lowStock.length;
-    const hasActiveFilters = selectedCategories.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0;
+    const hasActiveFilters =
+        selectedCategories.length > 0 ||
+        selectedTypeLevel1.length > 0 ||
+        selectedTypeLevel2.length > 0 ||
+        stockFilter !== 'all';
     const isTypeLevel2Disabled = selectedTypeLevel1.length === 0;
     const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
     const isAllTypeLevel2Selected = selectedTypeLevel2.length > 0 && selectedTypeLevel2.length === typeLevel2Options.length;
@@ -188,13 +200,13 @@ export default function InventoryCatalog() {
         }
     }, [isTypeLevel2Disabled, typeLevel2PopoverOpen]);
 
-    const handleStockFilterChange = (value: 'all' | 'low-stock') => {
+    const handleStockFilterChange = (value: 'all' | 'low-stock' | 'out-of-stock') => {
         setStockFilter(value);
-        if (value === 'low-stock') {
-            setSearchParams({ filter: 'low-stock' });
-        } else {
+        if (value === 'all') {
             setSearchParams({});
+            return;
         }
+        setSearchParams({ filter: value });
     };
 
     const handleCategoryToggle = (category: string) => {
@@ -400,6 +412,21 @@ export default function InventoryCatalog() {
                             <AlertTriangle className="w-5 h-5 text-warning" strokeWidth={2} />
                             <span className="text-sm font-medium text-foreground">
                                 {stockFilter === 'low-stock' ? 'Đang lọc: ' : ''}{lowStockCount} vật tư sắp hết
+                            </span>
+                        </div>
+                    )}
+
+                    {outOfStockCount > 0 && (
+                        <div
+                            onClick={() => handleStockFilterChange(stockFilter === 'out-of-stock' ? 'all' : 'out-of-stock')}
+                            className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer transition-colors ${stockFilter === 'out-of-stock'
+                                ? 'bg-red-500/20 border-red-500'
+                                : 'bg-red-500/10 border-red-500 hover:bg-red-500/20'
+                                }`}
+                        >
+                            <AlertTriangle className="w-5 h-5 text-red-600" strokeWidth={2} />
+                            <span className="text-sm font-medium text-foreground">
+                                {stockFilter === 'out-of-stock' ? 'Đang lọc: ' : ''}{outOfStockCount} vật tư đã hết
                             </span>
                         </div>
                     )}
@@ -646,13 +673,14 @@ export default function InventoryCatalog() {
                             </PopoverContent>
                         </Popover>
 
-                        <Select value={stockFilter} onValueChange={(v) => handleStockFilterChange(v as 'all' | 'low-stock')}>
+                        <Select value={stockFilter} onValueChange={(v) => handleStockFilterChange(v as 'all' | 'low-stock' | 'out-of-stock')}>
                             <SelectTrigger className="w-full md:w-48 bg-neutral text-foreground border-border">
                                 <SelectValue placeholder="Tình trạng tồn kho" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Tất cả</SelectItem>
                                 <SelectItem value="low-stock">Sắp hết hàng</SelectItem>
+                                <SelectItem value="out-of-stock">Đã hết hàng</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -756,7 +784,7 @@ export default function InventoryCatalog() {
                     )}
 
                     {/* Thông tin khi có filter */}
-                    {(searchInput || selectedCategories.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0 || stockFilter === 'low-stock') && (
+                    {(searchInput || selectedCategories.length > 0 || selectedTypeLevel1.length > 0 || selectedTypeLevel2.length > 0 || stockFilter !== 'all') && (
                         <div className="text-center text-sm text-muted-foreground">
                             Đang hiển thị {filteredItems.length} / {supplies.length} vật tư (đã filter)
                         </div>

@@ -30,6 +30,7 @@ export interface ApiSupply {
   nhapTrongKy: { Int32: number; Valid: boolean } | null;
   xuatTrongKy: { Int32: number; Valid: boolean } | null;
   tongNhap: { Int32: number; Valid: boolean } | null;
+  tonKhoMin: { Int32: number; Valid: boolean } | null;
   tonCuoiKy: number;
 }
 
@@ -68,11 +69,19 @@ export interface MutationMessageResponse {
 }
 
 export interface CompanyContactSuggestion {
-  id: number;
+  id: string;
   identityKey: string;
   companyName: string;
   taxId?: string;
   email: string;
+  contractNumber?: string;
+  contractDate?: string;
+  companyAddress?: string;
+  bankAccount?: string;
+  bankName?: string;
+  bankBranch?: string;
+  decisionNumber?: string;
+  packageNumber?: string;
 }
 
 export interface PlaceOrdersRequest {
@@ -177,7 +186,7 @@ export interface ApiInvoiceReconciliationRecord {
   id: number;
   orderHistoryId: number;
   orderBatchKey: string;
-  companyContactId?: number;
+  companyContactId?: string;
   nhaThau: string;
   maQuanLy: string;
   maVtytCu: string;
@@ -187,7 +196,7 @@ export interface ApiInvoiceReconciliationRecord {
   invoiceNumber: string;
   invoiceIdHoaDon?: string;
   invoiceRowId?: number;
-  invoiceCompanyContactId?: number;
+  invoiceCompanyContactId?: string;
   invoiceCompanyName?: string;
   invoiceItemCode?: string;
   invoiceItemName?: string;

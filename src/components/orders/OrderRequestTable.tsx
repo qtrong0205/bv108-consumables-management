@@ -32,6 +32,7 @@ interface SupplierGroup {
     groupKey: string;
     nhaThau: string;
     email: string;
+    usesDefaultEmail: boolean;
     sortTime: number;
     unreadSourceGroupKeys: string[];
     orders: OrderRequest[];
@@ -66,6 +67,10 @@ const getGroupEmail = (orders: OrderRequest[]): string => {
     return email || '';
 };
 
+const isMissingCompanyContact = (order: OrderRequest): boolean => {
+    return !order.companyContactId || order.companyContactId.trim().length === 0;
+};
+
 export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroupsRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set(orderRequestUiCache.expandedSuppliers));
     const [selectedCompany, setSelectedCompany] = useState(orderRequestUiCache.selectedCompany);
@@ -80,10 +85,12 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             const normalizedCompanyName = normalizeCompanyName(order.nhaThau);
             const groupKey = toCompanyGroupKey(normalizedCompanyName);
             if (!groups[groupKey]) {
+                const email = getGroupEmail([order]);
                 groups[groupKey] = {
                     groupKey,
                     nhaThau: normalizedCompanyName,
-                    email: getGroupEmail([order]),
+                    email,
+                    usesDefaultEmail: isMissingCompanyContact(order),
                     sortTime: getOrderTime(order),
                     unreadSourceGroupKeys: [],
                     unreadSourceGroupKeySet: new Set<string>(),
@@ -95,6 +102,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
             if (!groups[groupKey].email) {
                 groups[groupKey].email = getGroupEmail(groups[groupKey].orders);
             }
+            groups[groupKey].usesDefaultEmail = groups[groupKey].orders.some((item) => isMissingCompanyContact(item));
             const backendGroupKey = order.groupKey || getApprovalGroupKey(order);
             if (backendGroupKey && !groups[groupKey].unreadSourceGroupKeySet.has(backendGroupKey)) {
                 groups[groupKey].unreadSourceGroupKeySet.add(backendGroupKey);
@@ -359,7 +367,11 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                 return (
                                     <React.Fragment key={group.groupKey}>
                                         <tr
-                                            className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+                                            className={`border-b border-border cursor-pointer transition-colors ${
+                                                group.usesDefaultEmail
+                                                    ? 'bg-red-50 hover:bg-red-100/70'
+                                                    : 'bg-muted/30 hover:bg-muted/50'
+                                            }`}
                                             onClick={() => toggleExpand(group.groupKey)}
                                         >
                                             <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
@@ -382,14 +394,34 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-start gap-2">
-                                                    <Building2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                                                    <Building2 className={`w-4 h-4 mt-0.5 shrink-0 ${group.usesDefaultEmail ? 'text-red-600' : 'text-primary'}`} />
                                                     <div className="min-w-0">
                                                         <p
-                                                            className="font-medium text-sm text-foreground truncate cursor-help"
+                                                            className={`font-medium text-sm truncate cursor-help ${
+                                                                group.usesDefaultEmail ? 'text-red-700' : 'text-foreground'
+                                                            }`}
                                                             title={group.email ? `${group.nhaThau}\n${group.email}` : group.nhaThau}
                                                         >
                                                             {group.nhaThau}
                                                         </p>
+                                                        {group.email && (
+                                                            <p
+                                                                className={`text-xs truncate ${
+                                                                    group.usesDefaultEmail ? 'text-red-600 font-medium' : 'text-muted-foreground'
+                                                                }`}
+                                                                title={group.email}
+                                                            >
+                                                                {group.email}
+                                                            </p>
+                                                        )}
+                                                        {group.usesDefaultEmail && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="mt-1 w-fit bg-red-50 text-red-700 border-red-200 text-[10px] px-2 py-0.5"
+                                                            >
+                                                                Email mặc định
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>

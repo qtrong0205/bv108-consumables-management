@@ -436,6 +436,10 @@ export default function MaterialForecast() {
     // State cho lịch sử dự trù theo tháng
     const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
+    // Selected month/year for forecast views
+    const [selectedForecastMonth, setSelectedForecastMonth] = useState<number>(CURRENT_MONTH);
+    const [selectedForecastYear, setSelectedForecastYear] = useState<number>(CURRENT_YEAR);
+
     const isReadOnly = false;
 
     const storedAuth = useMemo(() => getStoredAuth(), []);

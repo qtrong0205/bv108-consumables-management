@@ -468,9 +468,9 @@ export default function TaskManagement() {
                   aria-label="Bật hoặc tắt ẩn vật tư cho các role khác"
                 />
                 <div>
-                  <p className="text-sm font-medium text-foreground">Ẩn toàn bộ vật tư với các role khác, chỉ cho thấy vật tư đã được phân công</p>
+                  <p className="text-sm font-medium text-foreground">Chỉ hiển thị vật tư được phân công cho người nhập dự trù</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, các role ngoài Admin/Chỉ huy khoa chỉ xem và thao tác trên vật tư được giao cho tài khoản của họ.
+                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, Nhân viên kho/Nhân viên thầu chỉ xem và thao tác trên vật tư được giao; Thủ kho vẫn thấy đầy đủ để duyệt và gửi Chỉ huy khoa.
                   </p>
                 </div>
               </div>

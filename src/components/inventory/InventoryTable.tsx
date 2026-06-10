@@ -11,6 +11,7 @@ interface InventoryTableProps {
 
 export default function InventoryTable({ items, lowStockItems, onRowClick }: InventoryTableProps) {
     const isLowStock = (maVtyt: string) => lowStockItems.includes(maVtyt);
+    const isOutOfStock = (item: MedicalSupply) => typeof item.soLuongTon === 'number' && item.soLuongTon === 0;
     
     // Helper để hiển thị giá trị hoặc để trống
     const displayValue = (value: any) => value || '';
@@ -25,13 +26,17 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                             <div
                                 key={item.id}
                                 onClick={() => onRowClick(item)}
-                                className={`p-4 hover:bg-tertiary transition-colors cursor-pointer active:bg-tertiary/80 ${isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
+                                className={`p-4 hover:bg-tertiary transition-colors cursor-pointer active:bg-tertiary/80 ${isOutOfStock(item) ? 'bg-red-500/5' : isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
                             >
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="text-xs font-mono text-muted-foreground">{displayValue(item.maVtyt)}</span>
-                                            {isLowStock(item.maVtyt) && (
+                                            {isOutOfStock(item) ? (
+                                                <Badge variant="outline" className="bg-red-500/20 text-red-600 border-red-500 text-[10px] px-1.5 py-0 flex items-center gap-1">
+                                                    Đã hết
+                                                </Badge>
+                                            ) : isLowStock(item.maVtyt) && (
                                                 <Badge variant="outline" className="bg-warning/20 text-warning border-warning text-[10px] px-1.5 py-0 flex items-center gap-1">
                                                     <AlertTriangle className="w-3 h-3" />
                                                     Sắp hết
@@ -75,7 +80,7 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                 <tr
                                     key={item.id}
                                     onClick={() => onRowClick(item)}
-                                    className={`hover:bg-tertiary transition-colors cursor-pointer ${isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
+                                    className={`hover:bg-tertiary transition-colors cursor-pointer ${isOutOfStock(item) ? 'bg-red-500/5' : isLowStock(item.maVtyt) ? 'bg-warning/5' : ''}`}
                                 >
                                     <td className="px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap">
                                         {displayValue(item.maVtyt)}
@@ -104,7 +109,11 @@ export default function InventoryTable({ items, lowStockItems, onRowClick }: Inv
                                     </td>
                                     <td className="px-4 py-3 text-xs text-foreground text-center font-medium w-[128px]"></td>
                                     <td className="px-4 py-3 text-center">
-                                        {isLowStock(item.maVtyt) ? (
+                                        {isOutOfStock(item) ? (
+                                            <Badge variant="outline" className="bg-red-500/20 text-red-600 border-red-500 text-xs w-fit mx-auto">
+                                                Đã hết
+                                            </Badge>
+                                        ) : isLowStock(item.maVtyt) ? (
                                             <Badge variant="outline" className="bg-warning/20 text-warning border-warning text-xs flex items-center gap-1 w-fit mx-auto">
                                                 <AlertTriangle className="w-3 h-3" />
                                                 Sắp hết

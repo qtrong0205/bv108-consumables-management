@@ -26,7 +26,7 @@ export interface MedicalSupply {
 
 export interface OrderRequest {
     id: number;                // STT
-    companyContactId?: number;
+    companyContactId?: string;
     nhaThau: string;           // NHA_THAU
     maQuanLy: string;          // MA_QUAN_LY
     maVtytCu: string;          // MA_VTYT_CU
@@ -70,7 +70,7 @@ export interface Invoice {
 // Hóa đơn UBot từ database (bảng hoa_don)
 export interface HoaDonUBot {
     id: number;
-    companyContactId?: number;
+    companyContactId?: string;
     trangThaiHoaDon: string;
     loaiHoaDon: string;
     soHoaDon: string;
