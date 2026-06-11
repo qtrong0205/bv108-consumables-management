@@ -61,7 +61,7 @@ const groupSuppliesByParent = (items: MedicalSupply[]): (MedicalSupply | SupplyG
                     parentTypeName,
                     parentItem: item,
                     childItems,
-                    allItems: [item, ...childItems],
+                    allItems: childItems,
                 });
                 
                 // Đánh dấu parent và children đã được xử lý

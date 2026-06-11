@@ -219,6 +219,13 @@ const ForecastTable = ({
         });
     };
 
+    const toggleGroupSelection = (items: IVatTuDuTru[], checked: boolean) => {
+        const selectableItems = items.filter((item) => isRowSelectable(item));
+        selectableItems.forEach((item) => {
+            onRowSelectToggle(item, checked);
+        });
+    };
+
     const visibleSuppliers = React.useMemo(() => {
         const keyword = supplierSearchTerm.trim().toLowerCase();
         if (!keyword) return suppliers;
@@ -789,6 +796,16 @@ const ForecastTable = ({
                             <tbody className="divide-y divide-border">
                                 {typeGroups.map((group) => {
                                     const isExpanded = expandedTypeGroups.has(group.key);
+                                    const selectableGroupItems = group.items.filter((item) => isRowSelectable(item));
+                                    const selectedGroupCount = selectableGroupItems.filter((item) => isRowSelected(item)).length;
+                                    const groupSelectionState = selectableGroupItems.length === 0
+                                        ? false
+                                        : selectedGroupCount === selectableGroupItems.length
+                                            ? true
+                                            : selectedGroupCount > 0
+                                                ? 'indeterminate'
+                                                : false;
+                                    const groupSelectDisabled = !canSelectRowsRole || selectableGroupItems.length === 0;
 
                                     return (
                                         <React.Fragment key={group.key}>
@@ -796,9 +813,21 @@ const ForecastTable = ({
                                                 className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
                                                 onClick={() => toggleExpand(group.key)}
                                             >
-                                                    <td colSpan={11} className="px-2 py-3">
+                                                        <td colSpan={11} className="px-2 py-3">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div className="flex items-center gap-2 min-w-0">
+                                                                <span
+                                                                    className="inline-flex shrink-0"
+                                                                    title={groupSelectDisabled ? approveRoleOnlyTooltip : 'Chọn tất cả vật tư con của mã này'}
+                                                                >
+                                                                    <Checkbox
+                                                                        checked={groupSelectionState}
+                                                                        disabled={groupSelectDisabled}
+                                                                        onCheckedChange={(checked) => toggleGroupSelection(group.items, checked === true)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        aria-label={`Chọn toàn bộ vật tư con của mã ${group.code}`}
+                                                                    />
+                                                                </span>
                                                             {isExpanded ? (
                                                                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                                                             ) : (
