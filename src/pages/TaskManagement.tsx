@@ -26,7 +26,10 @@ const getTypeLevel1 = (typeName?: string): string => {
     .split('-')
     .map((part) => part.trim())
     .filter(Boolean);
-  return parts.length >= 1 ? parts[0] : '';
+  const code = parts.length >= 1 ? parts[0] : '';
+  const codeParts = code.split('.');
+  if (codeParts.length <= 3) return code;
+  return codeParts.slice(0, 3).join('.');
 };
 
 const toCatalogItem = (item: ApiSupply): AssignmentCatalogItem => ({
@@ -470,7 +473,7 @@ export default function TaskManagement() {
                 <div>
                   <p className="text-sm font-medium text-foreground">Chỉ hiển thị vật tư được phân công cho người nhập dự trù</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, Nhân viên kho/Nhân viên thầu chỉ xem và thao tác trên vật tư được giao; Thủ kho vẫn thấy đầy đủ để duyệt và gửi Chỉ huy khoa.
+                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, Nhân viên kho, Thủ kho và Nhân viên thầu chỉ xem và thao tác trên vật tư được giao.
                   </p>
                 </div>
               </div>

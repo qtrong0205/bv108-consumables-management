@@ -48,6 +48,10 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderItemRequest => {
     const finalDuTru = duTruValue ?? item.duTru;
+    // Calculate dotGoiHang based on finalDuTru and slTrongQuyCach
+    const dotGoiHang = finalDuTru <= 0 || !item.slTrongQuyCach 
+        ? 0 
+        : Math.ceil(finalDuTru / item.slTrongQuyCach);
 
     return {
         nhaThau: item.nhaThau,
@@ -58,7 +62,7 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderI
         hangSx: item.hangSx,
         donViTinh: item.donViTinh,
         quyCach: item.quyCach,
-        dotGoiHang: finalDuTru,
+        dotGoiHang: dotGoiHang,
         email: '',
     };
 };

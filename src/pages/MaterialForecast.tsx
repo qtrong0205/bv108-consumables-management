@@ -84,7 +84,10 @@ const getTypeLevel1 = (typeName?: string): string => {
         .split('-')
         .map((part) => part.trim())
         .filter(Boolean);
-    return parts.length >= 1 ? parts[0] : '';
+    const code = parts.length >= 1 ? parts[0] : '';
+    const codeParts = code.split('.');
+    if (codeParts.length <= 3) return code;
+    return codeParts.slice(0, 3).join('.');
 };
 
 const getTypeLevel2 = (typeName?: string): string => {
@@ -105,7 +108,10 @@ const shouldShowInForecast = (item: ApiSupply): boolean => {
     return !(tonDauKy === 0 && nhapTrongKy === 0 && xuatTrongKy === 0 && tongNhap === 0);
 };
 
-const calculateOrderQuantity = (duTru: number): number => duTru;
+const calculateOrderQuantity = (duTru: number, slTrongQuyCach: number = 1): number => {
+    if (duTru <= 0 || slTrongQuyCach <= 0) return 0;
+    return Math.ceil(duTru / slTrongQuyCach);
+};
 
 const calculateEstimatedValue = (quantity: number, donGia: number): number => quantity * donGia;
 
@@ -136,7 +142,7 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
         slTon: slTon, // SL tồn đầu kỳ
         nhaThau: getNullableString(item.nhaCungCap),
         duTru,
-        goiHang: calculateOrderQuantity(duTru),
+        goiHang: calculateOrderQuantity(duTru, slTrongQuyCach),
     };
 };
 
@@ -228,7 +234,7 @@ const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastCha
         return {
             ...nextRow,
             duTru: latestDuTru,
-            goiHang: calculateOrderQuantity(latestDuTru),
+            goiHang: calculateOrderQuantity(latestDuTru, row.slTrongQuyCach),
         };
     });
 };
@@ -291,7 +297,7 @@ const applyForecastOverrides = (rows: IVatTuDuTru[]): IVatTuDuTru[] => {
         return {
             ...row,
             duTru: overrideDuTru,
-            goiHang: calculateOrderQuantity(overrideDuTru),
+            goiHang: calculateOrderQuantity(overrideDuTru, row.slTrongQuyCach),
         };
     });
 };
@@ -928,7 +934,7 @@ export default function MaterialForecast() {
         setData(prevData =>
             prevData.map(item => {
                 if (getMaterialKey(item) === rowKey) {
-                    const goiHang = calculateOrderQuantity(numValue);
+                    const goiHang = calculateOrderQuantity(numValue, item.slTrongQuyCach);
                     return { ...item, duTru: numValue, goiHang };
                 }
                 return item;
@@ -981,7 +987,7 @@ export default function MaterialForecast() {
                     return dataItem;
                 }
 
-                const goiHang = calculateOrderQuantity(newValue);
+                const goiHang = calculateOrderQuantity(newValue, dataItem.slTrongQuyCach);
                 return { ...dataItem, duTru: newValue, goiHang };
             })
         );

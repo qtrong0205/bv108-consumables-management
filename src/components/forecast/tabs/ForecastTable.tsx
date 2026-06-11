@@ -96,7 +96,10 @@ const getTypeLevel1 = (typeName?: string): string => {
         .split('-')
         .map((part) => part.trim())
         .filter(Boolean);
-    return parts.length >= 1 ? parts[0] : '';
+    const code = parts.length >= 1 ? parts[0] : '';
+    const codeParts = code.split('.');
+    if (codeParts.length <= 3) return code;
+    return codeParts.slice(0, 3).join('.');
 };
 
 const ForecastTable = ({
