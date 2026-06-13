@@ -526,14 +526,6 @@ export default function InventoryCatalog() {
             <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
             Xuất file Excel
           </Button>
-          <Button
-            variant="outline"
-            className="bg-neutral text-foreground border-border hover:bg-tertiary font-normal"
-            onClick={handleImportClick}
-          >
-            <FileDown className="w-4 h-4 mr-2" strokeWidth={2} />
-            Nhập file Excel
-          </Button>
           <input
             type="file"
             ref={fileInputRef}
