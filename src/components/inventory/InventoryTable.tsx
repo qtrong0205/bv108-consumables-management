@@ -230,6 +230,9 @@ export default function InventoryTable({
           {displayValue(item.maHieu)}
         </div>
       </td>
+      <td className="px-4 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap">
+        {typeof item.soLuongTon === "number" ? item.soLuongTon : 0}
+      </td>
       <td className="px-4 py-3 text-xs text-foreground text-center">
         <div
           className="max-w-[56px] truncate mx-auto"
@@ -351,6 +354,14 @@ export default function InventoryTable({
                                 {displayValue(item.hangSanXuat)} -{" "}
                                 {displayValue(item.nuocSanXuat)}
                               </p>
+                              <p className="text-xs text-muted-foreground">
+                                Tồn kho:{" "}
+                                <span className="text-foreground font-medium">
+                                  {typeof item.soLuongTon === "number"
+                                    ? item.soLuongTon
+                                    : 0}
+                                </span>
+                              </p>
                             </div>
                             <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                           </div>
@@ -414,6 +425,14 @@ export default function InventoryTable({
                           {displayValue(item.hangSanXuat)} -{" "}
                           {displayValue(item.nuocSanXuat)}
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tồn kho:{" "}
+                          <span className="text-foreground font-medium">
+                            {typeof item.soLuongTon === "number"
+                              ? item.soLuongTon
+                              : 0}
+                          </span>
+                        </p>
                       </div>
                       <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                     </div>
@@ -457,7 +476,7 @@ export default function InventoryTable({
             onScroll={handleTableScroll}
             className="overflow-x-auto"
           >
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[920px]">
               <thead className="bg-primary text-primary-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">
@@ -468,6 +487,9 @@ export default function InventoryTable({
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-[400px]">
                     Mã hiệu
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-[96px]">
+                    Tồn kho
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-[78px]">
                     Đơn vị tính
@@ -498,7 +520,7 @@ export default function InventoryTable({
                           className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
                           onClick={() => toggleGroup(group.key)}
                         >
-                          <td colSpan={8} className="px-4 py-3">
+                          <td colSpan={9} className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {isExpanded ? (
                                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
