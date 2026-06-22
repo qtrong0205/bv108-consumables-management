@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyUsageReport from "@/components/reports/DailyUsageReport.tsx";
+import CompareSuppliesTab from "@/components/reports/CompareSuppliesTab";
 
 type ReportTab = "daily-usage" | "tender-progress";
 
@@ -38,7 +39,7 @@ export default function Report() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 sm:grid-cols-2">
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 sm:grid-cols-3">
               <TabsTrigger
                 value="daily-usage"
                 className="w-full px-4 py-3 text-sm leading-tight"
@@ -51,6 +52,12 @@ export default function Report() {
               >
                 Theo dõi tiến độ thực hiện thầu
               </TabsTrigger>
+              <TabsTrigger
+                value="compare"
+                className="w-full px-4 py-3 text-sm leading-tight"
+              >
+                So sánh
+              </TabsTrigger>
             </TabsList>
           </CardContent>
         </Card>
@@ -61,6 +68,10 @@ export default function Report() {
 
         <TabsContent value="tender-progress" className="mt-0">
           <TenderProgressReport />
+        </TabsContent>
+
+        <TabsContent value="compare">
+          <CompareSuppliesTab />
         </TabsContent>
       </Tabs>
     </div>
