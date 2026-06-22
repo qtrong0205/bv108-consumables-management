@@ -1,19 +1,11 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import DailyUsageReport from "@/components/reports/DailyUsageReport.tsx";
+import DailyUsageReport from "@/components/reports/DailyUsageReport";
 import CompareSuppliesTab from "@/components/reports/CompareSuppliesTab";
+import TenderProgressReport from "@/components/reports/TenderProgressReport";
 
 type ReportTab = "daily-usage" | "tender-progress";
-
-function TenderProgressReport() {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-neutral/40 p-6 text-sm text-muted-foreground">
-      {/* TODO: replace with <TenderProgressReport /> */}
-      Nội dung báo cáo 2 sẽ được thêm sau
-    </div>
-  );
-}
 
 export default function Report() {
   const [activeTab, setActiveTab] = useState<ReportTab>("daily-usage");
@@ -70,7 +62,7 @@ export default function Report() {
           <TenderProgressReport />
         </TabsContent>
 
-        <TabsContent value="compare">
+        <TabsContent value="compare" className="mt-0">
           <CompareSuppliesTab />
         </TabsContent>
       </Tabs>
