@@ -21,6 +21,8 @@ export interface MedicalSupply {
     soLuongTon: number;        // Số lượng tồn kho hiện tại
     soLuongToiThieu: number;   // Số lượng tối thiểu (ngưỡng cảnh báo)
     soLuongTieuHao: number;    // Số lượng đã tiêu hao trong tháng
+    nhapTrongKy?: number;      // Số lượng nhập trong kỳ
+    tongNhap?: number;         // Tổng số lượng nhập của thầu
     imageUrl?: string;         // URL ảnh vật tư (optional)
 }
 

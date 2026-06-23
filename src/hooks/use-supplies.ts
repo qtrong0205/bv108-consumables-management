@@ -27,6 +27,8 @@ const convertApiSupplyToMedicalSupply = (apiSupply: ApiSupply, index: number): M
     soLuongTon: apiSupply.tonCuoiKy,
     soLuongToiThieu: getNullableNumber(apiSupply.tonKhoMin),
     soLuongTieuHao: getNullableNumber(apiSupply.xuatTrongKy),
+    nhapTrongKy: getNullableNumber(apiSupply.nhapTrongKy),
+    tongNhap: getNullableNumber(apiSupply.tongNhap),
   };
 };
 
