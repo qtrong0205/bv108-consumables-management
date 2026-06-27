@@ -5,7 +5,6 @@ export type AuthRole =
   | 'thu_kho'
   | 'nhan_vien_ke_toan'
   | 'nhan_vien_thau'
-  | 'truong_khoa'
   | 'nhan_vien';
 
 export type AssignableRole =
@@ -28,8 +27,6 @@ export const ASSIGNABLE_ROLE_OPTIONS: Array<{ value: AssignableRole; label: stri
 export const normalizeRole = (role?: string | null): AssignableRole | '' => {
   const normalizedInput = (role || '').trim().toLowerCase();
   switch (normalizedInput) {
-    case 'truong_khoa':
-      return 'admin';
     case 'nhan_vien':
       return 'nhan_vien_kho';
     case 'admin':

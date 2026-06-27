@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Loader2, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Download, Loader2, ShieldCheck, Trash2, Upload, UserCog, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { apiService, ApiSupply, getNullableString, getStoredAuth, ManagedAccountUser } from '@/services/api';
 import { ASSIGNABLE_ROLE_OPTIONS, AssignableRole, formatRoleLabel, normalizeRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 type AssignmentCatalogItem = {
   idx1: number;
@@ -39,10 +40,31 @@ const toCatalogItem = (item: ApiSupply): AssignmentCatalogItem => ({
   typeName: getNullableString(item.typeName),
 });
 
+const normalizeImportHeader = (value: unknown): string => String(value ?? '').trim().toUpperCase().replace(/\s+/g, '');
+
+const parseExcelNumericCell = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/,/g, '');
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
 export default function TaskManagement() {
   const { toast } = useToast();
   const storedAuth = useMemo(() => getStoredAuth(), []);
   const currentUserId = storedAuth?.user.id || 0;
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTab, setActiveTab] = useState('supplies');
 
@@ -51,6 +73,8 @@ export default function TaskManagement() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
   const [savingAssignments, setSavingAssignments] = useState(false);
+  const [exportingAssignments, setExportingAssignments] = useState(false);
+  const [importingAssignments, setImportingAssignments] = useState(false);
   const [loadingManagedUsers, setLoadingManagedUsers] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<number | null>(null);
@@ -85,12 +109,21 @@ export default function TaskManagement() {
     [catalog],
   );
   const filteredCatalog = useMemo(() => {
-    if (selectedTypeLevel1.length === 0) {
-      return catalog;
-    }
+    const baseItems = selectedTypeLevel1.length === 0
+      ? catalog
+      : catalog.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
 
-    return catalog.filter((item) => selectedTypeLevel1.includes(getTypeLevel1(item.typeName)));
-  }, [catalog, selectedTypeLevel1]);
+    return [...baseItems].sort((left, right) => {
+      const leftAssigned = selectedSupplyIds.has(left.idx1) ? 1 : 0;
+      const rightAssigned = selectedSupplyIds.has(right.idx1) ? 1 : 0;
+
+      if (leftAssigned !== rightAssigned) {
+        return rightAssigned - leftAssigned;
+      }
+
+      return left.idx1 - right.idx1;
+    });
+  }, [catalog, selectedSupplyIds, selectedTypeLevel1]);
   const isAllTypeLevel1Selected = selectedTypeLevel1.length > 0 && selectedTypeLevel1.length === typeLevel1Options.length;
   const typeLevel1Label = selectedTypeLevel1.length === 0
     ? 'Tất cả mã cấp 1'
@@ -302,6 +335,134 @@ export default function TaskManagement() {
     }
   };
 
+  const handleExportAssignments = async () => {
+    setExportingAssignments(true);
+    try {
+      const { blob, filename } = await apiService.downloadSupplyTaskAssignmentsExport();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+
+      toast({
+        title: 'Đã xuất file phân quyền',
+        description: 'File CSV đã được tải xuống. Có thể mở và chỉnh sửa bằng Excel.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Không xuất được file phân quyền',
+        description: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi tải file export',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportingAssignments(false);
+    }
+  };
+
+  const handleTriggerImportAssignments = () => {
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportAssignmentsFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    setImportingAssignments(true);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+
+      if (!worksheet) {
+        throw new Error('File không có sheet dữ liệu hợp lệ.');
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Array<unknown>>(worksheet, {
+        header: 1,
+        blankrows: false,
+        defval: '',
+        raw: true,
+      });
+
+      if (rows.length < 2) {
+        throw new Error('File import không có dòng dữ liệu.');
+      }
+
+      const headers = rows[0].map((value) => normalizeImportHeader(value));
+      const idx1Column = headers.findIndex((value) => value === 'IDX1');
+      const assigneeColumn = headers.findIndex((value) => value === 'ID_THU_KI_PHU_TRACH');
+
+      if (idx1Column === -1 || assigneeColumn === -1) {
+        throw new Error('File import phải chứa cột IDX1 và id_thu_ki_phu_trach.');
+      }
+
+      const seenIDX1 = new Set<number>();
+      const items: Array<{ idx1: number; userId: number | null }> = [];
+
+      for (let index = 1; index < rows.length; index += 1) {
+        const row = rows[index] || [];
+        const idx1Value = parseExcelNumericCell(row[idx1Column]);
+        const userIdValue = parseExcelNumericCell(row[assigneeColumn]);
+        const hasAnyData = row.some((cell) => String(cell ?? '').trim() !== '');
+
+        if (!hasAnyData) {
+          continue;
+        }
+
+        if (idx1Value === null || !Number.isInteger(idx1Value) || idx1Value <= 0) {
+          throw new Error(`Dòng ${index + 1} có IDX1 không hợp lệ.`);
+        }
+
+        if (seenIDX1.has(idx1Value)) {
+          throw new Error(`Dòng ${index + 1} bị trùng IDX1 ${idx1Value}.`);
+        }
+        seenIDX1.add(idx1Value);
+
+        if (userIdValue !== null && (!Number.isInteger(userIdValue) || userIdValue <= 0)) {
+          throw new Error(`Dòng ${index + 1} có id_thu_ki_phu_trach không hợp lệ.`);
+        }
+
+        items.push({
+          idx1: idx1Value,
+          userId: userIdValue === null ? null : userIdValue,
+        });
+      }
+
+      if (items.length === 0) {
+        throw new Error('File import không có dòng dữ liệu hợp lệ để cập nhật.');
+      }
+
+      const response = await apiService.importSupplyTaskAssignments({ items });
+      await Promise.all([
+        loadState(),
+        selectedUserId ? loadAssignments(Number(selectedUserId)) : Promise.resolve(),
+      ]);
+
+      toast({
+        title: 'Import phân quyền thành công',
+        description: `${response.updatedCount} dòng đã xử lý, ${response.assignedCount} vật tư đã gán và ${response.clearedCount} vật tư đã bỏ phụ trách.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Không import được file phân quyền',
+        description: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi đọc file import',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingAssignments(false);
+    }
+  };
+
   const resetCreateUserForm = () => {
     setStaffName('');
     setStaffEmail('');
@@ -473,7 +634,7 @@ export default function TaskManagement() {
                 <div>
                   <p className="text-sm font-medium text-foreground">Chỉ hiển thị vật tư được phân công cho người nhập dự trù</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, Nhân viên kho, Thủ kho và Nhân viên thầu chỉ xem và thao tác trên vật tư được giao.
+                    Tổng vật tư hiện có: {totalSupplies}. Khi bật chế độ này, chỉ Nhân viên thầu bị giới hạn theo vật tư được giao; Admin, Chỉ huy khoa, Thủ kho, Nhân viên kế toán và Nhân viên kho vẫn nhìn full danh mục.
                   </p>
                 </div>
               </div>
@@ -497,7 +658,7 @@ export default function TaskManagement() {
                     <SelectContent>
                       {users.map((user) => (
                         <SelectItem key={user.id} value={String(user.id)}>
-                          {user.username} ({formatRoleLabel(user.role)}) - {user.assignedCount} vật tư
+                          ID {user.id} - {user.username} ({formatRoleLabel(user.role)}) - {user.assignedCount} vật tư
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -507,7 +668,7 @@ export default function TaskManagement() {
                 <div className="flex items-center gap-2">
                   {selectedUser ? (
                     <>
-                      <Badge className="bg-slate-100 text-slate-800 border border-slate-300">{selectedUser.username}</Badge>
+                      <Badge className="bg-slate-100 text-slate-800 border border-slate-300">ID {selectedUser.id} - {selectedUser.username}</Badge>
                       <Badge className="bg-sky-100 text-sky-800 border border-sky-300">{formatRoleLabel(selectedUser.role)}</Badge>
                       <Badge className="bg-blue-600 hover:bg-blue-600 text-white">Đã chọn {selectedCount} vật tư</Badge>
                     </>
@@ -577,7 +738,26 @@ export default function TaskManagement() {
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={handleClearAllVisible} disabled={loadingCatalog || loadingAssignments}>
                   Bỏ chọn
                 </Button>
+                <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => void handleExportAssignments()} disabled={exportingAssignments}>
+                  {exportingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  Xuất Excel
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 px-3" onClick={handleTriggerImportAssignments} disabled={importingAssignments}>
+                  {importingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Giao lại quản lí từ Excel
+                </Button>
+                <input
+                  ref={importFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={(event) => void handleImportAssignmentsFile(event)}
+                />
               </div>
+
+              <p className="text-xs text-muted-foreground">
+                File export giữ nguyên format dữ liệu vật tư hiện tại và thêm cột cuối <code>id_thu_ki_phu_trach</code>. Cột này chỉ được nhập ID của tài khoản có role Nhân viên thầu.
+              </p>
 
               <div className="border border-slate-300 rounded-md max-h-[420px] overflow-y-auto bg-slate-50/50">
                 {loadingCatalog || loadingAssignments ? (
@@ -715,6 +895,7 @@ export default function TaskManagement() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-slate-900 truncate">{user.username}</p>
                           <p className="text-xs text-slate-600 truncate">{user.email}</p>
+                          <p className="text-xs text-slate-500">ID: {user.id}</p>
                         </div>
 
                         <div className="w-full lg:w-64">

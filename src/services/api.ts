@@ -371,6 +371,22 @@ export interface UpdateSupplyTaskAssignmentsRequest {
   supplyIdx1List: number[];
 }
 
+export interface ImportSupplyTaskAssignmentsItem {
+  idx1: number;
+  userId: number | null;
+}
+
+export interface ImportSupplyTaskAssignmentsRequest {
+  items: ImportSupplyTaskAssignmentsItem[];
+}
+
+export interface ImportSupplyTaskAssignmentsResponse {
+  message: string;
+  updatedCount: number;
+  assignedCount: number;
+  clearedCount: number;
+}
+
 export interface StoredAuth {
   token: string;
   expiresAt: string;
@@ -564,6 +580,17 @@ class ApiService {
     return response.json() as Promise<T>;
   }
 
+  private getAuthHeaders(includeAuth: boolean = false): Headers {
+    const headers = new Headers();
+    if (includeAuth) {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+    return headers;
+  }
+
   async login(payload: LoginRequest): Promise<AuthResponse> {
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
@@ -706,6 +733,46 @@ class ApiService {
   async updateSupplyTaskAssignments(payload: UpdateSupplyTaskAssignmentsRequest): Promise<MutationMessageResponse> {
     return this.request<MutationMessageResponse>('/supply-tasks/assignments', {
       method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async downloadSupplyTaskAssignmentsExport(): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${this.baseUrl}/supply-tasks/assignments/export`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(true),
+    });
+
+    if (!response.ok) {
+      let message = 'Không tải được file export';
+      try {
+        const error = (await response.json()) as ErrorResponse;
+        message = error.message || message;
+      } catch {
+        message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      }
+
+      if (response.status === 401) {
+        clearStoredAuth();
+        dispatchAuthSessionInvalidEvent();
+      }
+
+      throw new Error(message);
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const matchedFilename = disposition.match(/filename="?([^"]+)"?/i)?.[1]?.trim();
+    const blob = await response.blob();
+
+    return {
+      blob,
+      filename: matchedFilename || 'phan-quyen-vat-tu.csv',
+    };
+  }
+
+  async importSupplyTaskAssignments(payload: ImportSupplyTaskAssignmentsRequest): Promise<ImportSupplyTaskAssignmentsResponse> {
+    return this.request<ImportSupplyTaskAssignmentsResponse>('/supply-tasks/assignments/import', {
+      method: 'POST',
       body: JSON.stringify(payload),
     }, true);
   }
