@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSupplies } from "@/hooks/use-supplies";
+import { MedicalSupply } from "@/types";
 
 interface TenderItem {
   mã_vt: string;
@@ -29,142 +31,44 @@ type Filters = {
   mãCap1: string;
   mãCap2: string;
   nhàCungCấp: string;
-  từNgày: string;
-  đếnNgày: string;
 };
 
-const LEVEL1_OPTIONS = [
-  { value: "cap1-tieu-hao", label: "Vật tư tiêu hao" },
-  { value: "cap1-tiem-truyen", label: "Vật tư tiêm truyền" },
-  { value: "cap1-bao-ho", label: "Vật tư bảo hộ" },
-];
-
-const LEVEL2_OPTIONS: Record<
-  string,
-  Array<{ value: string; label: string }>
-> = {
-  "cap1-tieu-hao": [
-    { value: "cap2-gac-bong", label: "Gạc bông" },
-    { value: "cap2-bang-keo", label: "Băng keo y tế" },
-    { value: "cap2-khau-trang", label: "Khẩu trang y tế" },
-  ],
-  "cap1-tiem-truyen": [
-    { value: "cap2-kim-tiem", label: "Kim tiêm" },
-    { value: "cap2-bom-tiem", label: "Bơm tiêm" },
-    { value: "cap2-day-truyen", label: "Dây truyền dịch" },
-  ],
-  "cap1-bao-ho": [
-    { value: "cap2-gang-tay", label: "Găng tay" },
-    { value: "cap2-ao-choang", label: "Áo choàng" },
-  ],
+const parseTypeNameParts = (typeName?: string): string[] => {
+  if (!typeName) return [];
+  return typeName.split('-').map(p => p.trim()).filter(Boolean);
 };
 
-const SUPPLIER_OPTIONS = [
-  { value: "ncc-medline", label: "Medline Việt Nam" },
-  { value: "ncc-hapharco", label: "Hapharco" },
-  { value: "ncc-vimedimex", label: "Vimedimex" },
-];
+const getMãCấp1 = (item: MedicalSupply): string => {
+  if (item.maNhom) return item.maNhom.trim();
+  const parts = parseTypeNameParts(item.typeName);
+  return parts.length >= 1 ? parts[0] : '';
+};
 
-const MOCK_DATA: TenderItem[] = [
-  {
-    mã_vt: "VT-001",
-    tên_vật_tư: "Gạc bông vô trùng 5x5",
-    nhà_cung_cấp: "Medline Việt Nam",
-    đvt: "Hộp",
-    tongthau: 1000,
-    tongnhap: 480,
-    price: 85000,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-gac-bong",
-  },
-  {
-    mã_vt: "VT-002",
-    tên_vật_tư: "Băng keo y tế 2.5cm",
-    nhà_cung_cấp: "Hapharco",
-    đvt: "Cuộn",
-    tongthau: 500,
-    tongnhap: 500,
-    price: 12000,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-bang-keo",
-  },
-  {
-    mã_vt: "VT-003",
-    tên_vật_tư: "Khẩu trang y tế 3 lớp",
-    nhà_cung_cấp: "Vimedimex",
-    đvt: "Thùng",
-    tongthau: 300,
-    tongnhap: 310,
-    price: 150000,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-khau-trang",
-  },
-  {
-    mã_vt: "VT-004",
-    tên_vật_tư: "Kim tiêm 5ml",
-    nhà_cung_cấp: "Medline Việt Nam",
-    đvt: "Hộp",
-    tongthau: 800,
-    tongnhap: 200,
-    price: 95000,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-kim-tiem",
-  },
-  {
-    mã_vt: "VT-005",
-    tên_vật_tư: "Bơm tiêm 10ml",
-    nhà_cung_cấp: "Hapharco",
-    đvt: "Hộp",
-    tongthau: 600,
-    tongnhap: 420,
-    price: 78000,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-bom-tiem",
-  },
-  {
-    mã_vt: "VT-006",
-    tên_vật_tư: "Dây truyền dịch",
-    nhà_cung_cấp: "Vimedimex",
-    đvt: "Cái",
-    tongthau: 1200,
-    tongnhap: 1100,
-    price: 22000,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-day-truyen",
-  },
-  {
-    mã_vt: "VT-007",
-    tên_vật_tư: "Găng tay y tế không bột",
-    nhà_cung_cấp: "Medline Việt Nam",
-    đvt: "Hộp",
-    tongthau: 400,
-    tongnhap: 90,
-    price: 185000,
-    mã_cap1: "cap1-bao-ho",
-    mã_cap2: "cap2-gang-tay",
-  },
-  {
-    mã_vt: "VT-008",
-    tên_vật_tư: "Áo choàng phẫu thuật",
-    nhà_cung_cấp: "Hapharco",
-    đvt: "Cái",
-    tongthau: 200,
-    tongnhap: 160,
-    price: 45000,
-    mã_cap1: "cap1-bao-ho",
-    mã_cap2: "cap2-ao-choang",
-  },
-];
+const getMãCấp2 = (item: MedicalSupply): string => {
+  const maCấp1 = getMãCấp1(item);
+  if (!maCấp1) return '';
+  const parts = parseTypeNameParts(item.typeName);
+  if (parts.length >= 2) {
+    const part1 = parts[1].split(' ')[0];
+    return `${maCấp1}-${part1}`;
+  }
+  return '';
+};
 
-function getTodayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
+const mapMedicalSupplyToTenderItem = (item: MedicalSupply): TenderItem => {
+  return {
+    mã_vt: item.maVtyt,
+    tên_vật_tư: item.tenVtyt,
+    nhà_cung_cấp: item.nhaThau || 'Không rõ',
+    đvt: item.donViTinh,
+    tongthau: parseFloat(item.tongThau) || 0,
+    tongnhap: item.tongNhap || 0,
+    price: item.donGia || 0,
+    mã_cap1: getMãCấp1(item),
+    mã_cap2: getMãCấp2(item),
+  };
+};
 
-function getDefaultFromDate() {
-  const date = new Date();
-  date.setDate(date.getDate() - 29);
-  return date.toISOString().slice(0, 10);
-}
 
 function formatVND(value: number) {
   return value.toLocaleString("vi-VN") + " ₫";
@@ -179,49 +83,65 @@ function calculateStatus(tyLe: number): { label: string; tone: string } {
 }
 
 export default function TenderProgressReport() {
+  const { supplies: rawSupplies, loading } = useSupplies(1, 1500);
+
+  const supplies = useMemo(() => {
+    return rawSupplies.map(mapMedicalSupplyToTenderItem);
+  }, [rawSupplies]);
+
   const [draftFilters, setDraftFilters] = useState<Filters>({
     mãCap1: "all",
     mãCap2: "all",
     nhàCungCấp: "all",
-    từNgày: getDefaultFromDate(),
-    đếnNgày: getTodayInputValue(),
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters | null>(null);
 
+  const level1Options = useMemo(() => {
+    const list = supplies.map((item) => item.mã_cap1).filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [supplies]);
+
+  const level2Options = useMemo(() => {
+    const targetCap1 = draftFilters.mãCap1;
+    if (targetCap1 === "all") return [];
+    const list = supplies
+      .filter((item) => item.mã_cap1 === targetCap1)
+      .map((item) => item.mã_cap2)
+      .filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [supplies, draftFilters.mãCap1]);
+
+  const supplierOptions = useMemo(() => {
+    const list = supplies.map((item) => item.nhà_cung_cấp).filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [supplies]);
+
   // Reset mã cấp 2 khi mã cấp 1 thay đổi
   useEffect(() => {
-    const availableLevel2 = LEVEL2_OPTIONS[draftFilters.mãCap1] ?? [];
     if (
       draftFilters.mãCap2 !== "all" &&
-      !availableLevel2.some((opt) => opt.value === draftFilters.mãCap2)
+      !level2Options.includes(draftFilters.mãCap2)
     ) {
       setDraftFilters((cur) => ({ ...cur, mãCap2: "all" }));
     }
-  }, [draftFilters.mãCap1, draftFilters.mãCap2]);
-
-  const activeFilters = appliedFilters ?? draftFilters;
-
-  const level2Options =
-    activeFilters.mãCap1 === "all"
-      ? []
-      : (LEVEL2_OPTIONS[activeFilters.mãCap1] ?? []);
+  }, [draftFilters.mãCap1, draftFilters.mãCap2, level2Options]);
 
   const visibleRows = useMemo(() => {
-    const filters = appliedFilters ?? null;
-    if (!filters) return MOCK_DATA;
+    if (!appliedFilters) return supplies;
 
-    return MOCK_DATA.filter((item) => {
+    return supplies.filter((item) => {
       const matchCap1 =
-        filters.mãCap1 === "all" || item.mã_cap1 === filters.mãCap1;
+        appliedFilters.mãCap1 === "all" ||
+        item.mã_cap1 === appliedFilters.mãCap1;
       const matchCap2 =
-        filters.mãCap2 === "all" || item.mã_cap2 === filters.mãCap2;
+        appliedFilters.mãCap2 === "all" ||
+        item.mã_cap2 === appliedFilters.mãCap2;
       const matchNcc =
-        filters.nhàCungCấp === "all" ||
-        item.nhà_cung_cấp ===
-          SUPPLIER_OPTIONS.find((s) => s.value === filters.nhàCungCấp)?.label;
+        appliedFilters.nhàCungCấp === "all" ||
+        item.nhà_cung_cấp === appliedFilters.nhàCungCấp;
       return matchCap1 && matchCap2 && matchNcc;
     });
-  }, [appliedFilters]);
+  }, [supplies, appliedFilters]);
 
   // Tổng hợp cuối bảng
   const summary = useMemo(() => {
@@ -246,8 +166,6 @@ export default function TenderProgressReport() {
       mãCap1: "all",
       mãCap2: "all",
       nhàCungCấp: "all",
-      từNgày: getDefaultFromDate(),
-      đếnNgày: getTodayInputValue(),
     };
     setDraftFilters(reset);
     setAppliedFilters(null);
@@ -255,6 +173,12 @@ export default function TenderProgressReport() {
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary font-medium text-sm animate-pulse">
+          <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+          Đang tải dữ liệu thầu từ máy chủ...
+        </div>
+      )}
       {/* Filter bar */}
       <Card className="bg-neutral border-border">
         <CardHeader className="pb-4">
@@ -262,7 +186,7 @@ export default function TenderProgressReport() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
-            <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-3">
               {/* Mã cấp 1 */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
@@ -279,9 +203,9 @@ export default function TenderProgressReport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả mã cấp 1</SelectItem>
-                    {LEVEL1_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {level1Options.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -306,8 +230,8 @@ export default function TenderProgressReport() {
                   <SelectContent>
                     <SelectItem value="all">Tất cả mã cấp 2</SelectItem>
                     {level2Options.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -330,49 +254,13 @@ export default function TenderProgressReport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả nhà cung cấp</SelectItem>
-                    {SUPPLIER_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {supplierOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Từ ngày */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Từ ngày
-                </label>
-                <Input
-                  type="date"
-                  value={draftFilters.từNgày}
-                  onChange={(e) =>
-                    setDraftFilters((cur) => ({
-                      ...cur,
-                      từNgày: e.target.value,
-                    }))
-                  }
-                  className="bg-neutral text-foreground border-border"
-                />
-              </div>
-
-              {/* Đến ngày */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Đến ngày
-                </label>
-                <Input
-                  type="date"
-                  value={draftFilters.đếnNgày}
-                  onChange={(e) =>
-                    setDraftFilters((cur) => ({
-                      ...cur,
-                      đếnNgày: e.target.value,
-                    }))
-                  }
-                  className="bg-neutral text-foreground border-border"
-                />
               </div>
             </div>
 

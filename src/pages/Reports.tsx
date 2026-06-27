@@ -34,19 +34,19 @@ export default function Report() {
             <TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 sm:grid-cols-3">
               <TabsTrigger
                 value="daily-usage"
-                className="w-full px-4 py-3 text-sm leading-tight"
+                className="w-full px-4 py-3 text-sm leading-tight border border-border rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-bold data-[state=active]:shadow-md"
               >
                 Mức sử dụng trung bình ngày & cảnh báo gọi hàng
               </TabsTrigger>
               <TabsTrigger
                 value="tender-progress"
-                className="w-full px-4 py-3 text-sm leading-tight"
+                className="w-full px-4 py-3 text-sm leading-tight border border-border rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-bold data-[state=active]:shadow-md"
               >
                 Theo dõi tiến độ thực hiện thầu
               </TabsTrigger>
               <TabsTrigger
                 value="compare"
-                className="w-full px-4 py-3 text-sm leading-tight"
+                className="w-full px-4 py-3 text-sm leading-tight border border-border rounded-md transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-bold data-[state=active]:shadow-md"
               >
                 So sánh
               </TabsTrigger>

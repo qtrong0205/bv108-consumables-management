@@ -19,26 +19,38 @@ import {
 } from 'recharts';
 
 // Helper functions for Circular 04 hierarchy codes
-const parseCodeParts = (typeName?: string): string[] => {
+const parseTypeNameParts = (typeName?: string): string[] => {
     if (!typeName) return [];
-    const parts = typeName.split('-').map(p => p.trim()).filter(Boolean);
-    const code = parts.length >= 1 ? parts[0] : '';
-    return code.split('.').filter(Boolean);
+    return typeName.split('-').map(p => p.trim()).filter(Boolean);
 };
 
-const getMãCấp1 = (typeName?: string): string => {
-    const parts = parseCodeParts(typeName);
+const getMãCấp1 = (item: MedicalSupply): string => {
+    if (item.maNhom) return item.maNhom.trim();
+    const parts = parseTypeNameParts(item.typeName);
     return parts.length >= 1 ? parts[0] : '';
 };
 
-const getMãCấp2 = (typeName?: string): string => {
-    const parts = parseCodeParts(typeName);
-    return parts.length >= 2 ? parts.slice(0, 2).join('.') : '';
+const getMãCấp2 = (item: MedicalSupply): string => {
+    const maCấp1 = getMãCấp1(item);
+    if (!maCấp1) return '';
+    const parts = parseTypeNameParts(item.typeName);
+    if (parts.length >= 2) {
+        const part1 = parts[1].split(' ')[0];
+        return `${maCấp1}-${part1}`;
+    }
+    return '';
 };
 
-const getMãCấp3 = (typeName?: string): string => {
-    const parts = parseCodeParts(typeName);
-    return parts.length >= 3 ? parts.slice(0, 3).join('.') : '';
+const getMãCấp3 = (item: MedicalSupply): string => {
+    const maCấp1 = getMãCấp1(item);
+    if (!maCấp1) return '';
+    const parts = parseTypeNameParts(item.typeName);
+    if (parts.length >= 3) {
+        const part1 = parts[1].split(' ')[0];
+        const part2 = parts[2].split(' ')[0];
+        return `${maCấp1}-${part1}-${part2}`;
+    }
+    return '';
 };
 
 export default function Dashboard() {
@@ -90,22 +102,22 @@ export default function Dashboard() {
 
     // 3. Level filters options derivation from current supplies
     const level1Options = useMemo(() => {
-        const list = supplies.map(item => getMãCấp1(item.typeName)).filter(Boolean);
+        const list = supplies.map(item => getMãCấp1(item)).filter(Boolean);
         return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
     }, [supplies]);
 
     const level2Options = useMemo(() => {
         const list = supplies
-            .filter(item => selectedTypeLevel1 === 'all' || getMãCấp1(item.typeName) === selectedTypeLevel1)
-            .map(item => getMãCấp2(item.typeName))
+            .filter(item => selectedTypeLevel1 === 'all' || getMãCấp1(item) === selectedTypeLevel1)
+            .map(item => getMãCấp2(item))
             .filter(Boolean);
         return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
     }, [supplies, selectedTypeLevel1]);
 
     const level3Options = useMemo(() => {
         const list = supplies
-            .filter(item => selectedTypeLevel2 === 'all' || getMãCấp2(item.typeName) === selectedTypeLevel2)
-            .map(item => getMãCấp3(item.typeName))
+            .filter(item => selectedTypeLevel2 === 'all' || getMãCấp2(item) === selectedTypeLevel2)
+            .map(item => getMãCấp3(item))
             .filter(Boolean);
         return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
     }, [supplies, selectedTypeLevel2]);
@@ -140,9 +152,9 @@ export default function Dashboard() {
     const filteredSupplies = useMemo(() => {
         return supplies.filter(item => {
             const matchGroup = selectedGroup === 'all' || item.tenNhom === selectedGroup;
-            const matchLevel1 = selectedTypeLevel1 === 'all' || getMãCấp1(item.typeName) === selectedTypeLevel1;
-            const matchLevel2 = selectedTypeLevel2 === 'all' || getMãCấp2(item.typeName) === selectedTypeLevel2;
-            const matchLevel3 = selectedTypeLevel3 === 'all' || getMãCấp3(item.typeName) === selectedTypeLevel3;
+            const matchLevel1 = selectedTypeLevel1 === 'all' || getMãCấp1(item) === selectedTypeLevel1;
+            const matchLevel2 = selectedTypeLevel2 === 'all' || getMãCấp2(item) === selectedTypeLevel2;
+            const matchLevel3 = selectedTypeLevel3 === 'all' || getMãCấp3(item) === selectedTypeLevel3;
             const matchSupplier = selectedSupplier === 'all' || item.nhaThau === selectedSupplier;
             return matchGroup && matchLevel1 && matchLevel2 && matchLevel3 && matchSupplier;
         });
@@ -530,7 +542,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Tổng vật tư kho</span>
                                     <h3 className="text-2xl font-bold text-foreground">{kpis.totalItems.toLocaleString('vi-VN')}</h3>
-                                    <p className="text-[10px] text-muted-foreground">Có sẵn trong danh mục</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 group-hover:scale-110 transition-transform">
                                     <Package className="w-5 h-5" />
@@ -545,7 +556,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Vật tư sắp hết</span>
                                     <h3 className="text-2xl font-bold text-amber-600">{kpis.lowStock}</h3>
-                                    <p className="text-[10px] text-muted-foreground">Cần chú ý gọi hàng</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 group-hover:scale-110 transition-transform">
                                     <AlertTriangle className="w-5 h-5" />
@@ -560,7 +570,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Đơn hàng chờ gọi</span>
                                     <h3 className="text-2xl font-bold text-indigo-600">{kpis.pendingOrders}</h3>
-                                    <p className="text-[10px] text-muted-foreground">Chờ gửi nhà thầu</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-indigo-500/10 text-indigo-600 group-hover:scale-110 transition-transform">
                                     <ShoppingCart className="w-5 h-5" />
@@ -575,7 +584,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Yêu cầu chờ duyệt</span>
                                     <h3 className="text-2xl font-bold text-emerald-600">{kpis.procurementRequests}</h3>
-                                    <p className="text-[10px] text-muted-foreground">Chờ Chỉ huy khoa duyệt</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:scale-110 transition-transform">
                                     <CheckCircle className="w-5 h-5" />
@@ -590,7 +598,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Tổng giá trị tồn</span>
                                     <h3 className="text-lg font-bold text-foreground truncate max-w-[130px]">{formatVND(kpis.inventoryValue)}</h3>
-                                    <p className="text-[10px] text-muted-foreground">TON_CUOI_KY × PRICE</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-violet-500/10 text-violet-600 group-hover:scale-110 transition-transform">
                                     <DollarSign className="w-5 h-5" />
@@ -605,7 +612,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Giá trị nhập kỳ</span>
                                     <h3 className="text-lg font-bold text-foreground truncate max-w-[130px]">{formatVND(kpis.importValue)}</h3>
-                                    <p className="text-[10px] text-muted-foreground">NHAPTRONGKY × PRICE</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-600 group-hover:scale-110 transition-transform">
                                     <ArrowUpRight className="w-5 h-5" />
@@ -620,7 +626,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Giá trị xuất kỳ</span>
                                     <h3 className="text-lg font-bold text-foreground truncate max-w-[130px]">{formatVND(kpis.exportValue)}</h3>
-                                    <p className="text-[10px] text-muted-foreground">XUATTRONGKY × PRICE</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-pink-500/10 text-pink-600 group-hover:scale-110 transition-transform">
                                     <ArrowDownRight className="w-5 h-5" />
@@ -635,7 +640,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Dưới mốc tối thiểu</span>
                                     <h3 className="text-2xl font-bold text-rose-600">{kpis.belowMinStock}</h3>
-                                    <p className="text-[10px] text-muted-foreground">TON_CUOI_KY &lt; MIN</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-600 group-hover:scale-110 transition-transform">
                                     <AlertTriangle className="w-5 h-5 text-rose-600" />
@@ -650,7 +654,6 @@ export default function Dashboard() {
                                 <div className="space-y-1">
                                     <span className="text-xs font-medium text-muted-foreground uppercase">Tỷ lệ thực hiện thầu</span>
                                     <h3 className="text-2xl font-bold text-teal-600">{kpis.tenderRate.toFixed(1)}%</h3>
-                                    <p className="text-[10px] text-muted-foreground">TONGNHAP / TONGTHAU × 100</p>
                                 </div>
                                 <div className="p-2.5 rounded-lg bg-teal-500/10 text-teal-600 group-hover:scale-110 transition-transform">
                                     <Percent className="w-5 h-5" />

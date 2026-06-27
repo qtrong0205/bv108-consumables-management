@@ -78,7 +78,7 @@ export default function CompareSuppliesTab() {
   const [level1Options, setLevel1Options] = useState<string[]>([]);
   const [level2Options, setLevel2Options] = useState<string[]>([]);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize] = useState(100);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 

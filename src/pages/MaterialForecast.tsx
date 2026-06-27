@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Calendar } from 'lucide-react';
+import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Calendar, Loader2 } from 'lucide-react';
 import { IVatTuDuTru } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -114,6 +114,26 @@ const calculateOrderQuantity = (duTru: number, slTrongQuyCach: number = 1): numb
 };
 
 const calculateEstimatedValue = (quantity: number, donGia: number): number => quantity * donGia;
+
+const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number) => {
+    const finalDuTru = duTruValue ?? item.duTru;
+    const dotGoiHang = finalDuTru <= 0 || !item.slTrongQuyCach 
+        ? 0 
+        : Math.ceil(finalDuTru / item.slTrongQuyCach);
+
+    return {
+        nhaThau: item.nhaThau,
+        maQuanLy: item.maQuanLy || '',
+        maVtytCu: item.maVtytCu,
+        tenVtytBv: item.tenVtytBv,
+        maHieu: item.maHieu,
+        hangSx: item.hangSx,
+        donViTinh: item.donViTinh,
+        quyCach: item.quyCach,
+        dotGoiHang: dotGoiHang,
+        email: '',
+    };
+};
 
 const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru => {
     const quyCach = getNullableString(item.quyCach);
@@ -357,6 +377,14 @@ export default function MaterialForecast() {
 
         if (statusFilter !== 'all') {
             filtered = filtered.filter((item) => approvalStates[getMaterialKey(item)]?.status === statusFilter);
+            return [...filtered].sort((a, b) => {
+                const aTime = approvalStates[getMaterialKey(a)]?.thoiGian ? new Date(approvalStates[getMaterialKey(a)].thoiGian).getTime() : 0;
+                const bTime = approvalStates[getMaterialKey(b)]?.thoiGian ? new Date(approvalStates[getMaterialKey(b)].thoiGian).getTime() : 0;
+                if (aTime !== bTime) {
+                    return bTime - aTime;
+                }
+                return a.stt - b.stt;
+            });
         }
 
         // Đưa các dòng đã phê duyệt xuống cuối để dòng chưa phê duyệt nổi lên trên.
@@ -414,7 +442,7 @@ export default function MaterialForecast() {
     const [activeTab, setActiveTab] = useState(materialForecastUiCache.activeTab);
 
     // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
-    const { addApprovedOrder, addApprovedOrdersBulk, realtimeEventVersion, lastRealtimeEvent } = useOrder();
+    const { addApprovedOrder, addApprovedOrdersBulk, realtimeEventVersion, lastRealtimeEvent, refreshOrders } = useOrder();
 
     // State cho dialog phê duyệt
     const [selectedItem, setSelectedItem] = useState<IVatTuDuTru | null>(null);
@@ -428,6 +456,8 @@ export default function MaterialForecast() {
     const latestForecastChangesRef = useRef<ApiForecastChangeHistoryRecord[]>([]);
     const [isApproveAllDialogOpen, setIsApproveAllDialogOpen] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>(materialForecastUiCache.selectedRowKeys);
+    const [processingProgress, setProcessingProgress] = useState<number | null>(null);
+    const [processingText, setProcessingText] = useState<string>('');
 
     // State cho lịch sử thay đổi
     const [historyLog, setHistoryLog] = useState<HistoryEntry[]>([]);
@@ -828,16 +858,7 @@ export default function MaterialForecast() {
     };
 
     const isRowSelectable = (item: IVatTuDuTru) => {
-        const status = getApprovalStatus(item);
-
-        if (canSubmitForecastItems) {
-            return status === 'pending' || status === 'edited' || status === 'submitted';
-        }
-
-        if (canApproveAllForecastItems) {
-            return status === 'submitted';
-        }
-        return false;
+        return true;
     };
 
     const selectableItems = useMemo(
@@ -1500,10 +1521,22 @@ export default function MaterialForecast() {
             return;
         }
 
+        const batchSize = 30;
+        const itemsToSubmit = selectedSendableItems.map((item) => buildForecastApprovalPayload(item, 'submitted'));
+        const totalItems = itemsToSubmit.length;
+
+        setProcessingProgress(0);
+        setProcessingText(`Đang xử lý gửi duyệt vật tư...`);
+
         try {
-            await apiService.saveForecastApprovalsBulk({
-                items: selectedSendableItems.map((item) => buildForecastApprovalPayload(item, 'submitted')),
-            });
+            for (let i = 0; i < totalItems; i += batchSize) {
+                const chunk = itemsToSubmit.slice(i, i + batchSize);
+                await apiService.saveForecastApprovalsBulk({ items: chunk });
+                const percent = Math.round((Math.min(i + batchSize, totalItems) / totalItems) * 100);
+                setProcessingProgress(percent);
+                setProcessingText(`Đang xử lý gửi duyệt vật tư... (${percent}%)`);
+            }
+
             await refreshApprovalRecords();
             await refreshHistoryTabs();
             setSelectedRowKeys([]);
@@ -1518,6 +1551,8 @@ export default function MaterialForecast() {
                 description: error instanceof Error ? error.message : 'Không thể gửi dữ liệu lên chỉ huy khoa',
                 variant: 'destructive',
             });
+        } finally {
+            setProcessingProgress(null);
         }
     };
 
@@ -1585,49 +1620,58 @@ export default function MaterialForecast() {
             return;
         }
 
+        const batchSize = 30;
+        const totalItems = pendingItems.length;
+
+        setProcessingProgress(0);
+        setProcessingText(`Đang phê duyệt và chuyển sang mục gọi hàng...`);
+
         try {
-            await apiService.saveForecastApprovalsBulk({
-                items: pendingItems.map((item) => buildForecastApprovalPayload(item, 'approved')),
-            });
+            for (let i = 0; i < totalItems; i += batchSize) {
+                const chunk = pendingItems.slice(i, i + batchSize);
+                
+                await apiService.saveForecastApprovalsBulk({
+                    items: chunk.map((item) => buildForecastApprovalPayload(item, 'approved')),
+                });
+                
+                await apiService.createForecastOrders({
+                    items: chunk.map((item) => toForecastPayload(item)),
+                });
+
+                const percent = Math.round((Math.min(i + batchSize, totalItems) / totalItems) * 100);
+                setProcessingProgress(percent);
+                setProcessingText(`Đang phê duyệt và chuyển sang mục gọi hàng... (${percent}%)`);
+            }
+
             await refreshApprovalRecords();
             await refreshHistoryTabs();
+            await refreshOrders();
+
+            pendingItems.forEach(item => {
+                newApprovalStates[getMaterialKey(item)] = {
+                    status: 'approved',
+                    nguoiDuyet: currentUser,
+                    thoiGian: now,
+                };
+            });
+
+            setApprovalStates(newApprovalStates);
+            setSelectedRowKeys([]);
+            setIsApproveAllDialogOpen(false);
+
+            toast({
+                title: "Duyệt tất cả thành công",
+                description: `Đã phê duyệt ${pendingItems.length} vật tư đã chọn`,
+            });
         } catch (error) {
             toast({
                 title: "Duyệt tất cả thất bại",
-                description: error instanceof Error ? error.message : 'Không thể lưu trạng thái phê duyệt',
+                description: error instanceof Error ? error.message : 'Không thể hoàn thành phê duyệt',
                 variant: "destructive",
             });
-            return;
+        } finally {
+            setProcessingProgress(null);
         }
-
-        try {
-            await addApprovedOrdersBulk(pendingItems);
-        } catch (error) {
-            toast({
-                title: "Đã lưu trạng thái duyệt",
-                description: error instanceof Error ? `Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng: ${error.message}` : 'Tag đã được lưu nhưng chưa chuyển sang mục gọi hàng',
-                variant: "destructive",
-            });
-        }
-
-        pendingItems.forEach(item => {
-            newApprovalStates[getMaterialKey(item)] = {
-                status: 'approved',
-                nguoiDuyet: currentUser,
-                thoiGian: now,
-            };
-        });
-
-        setApprovalStates(newApprovalStates);
-        setSelectedRowKeys([]);
-        setIsApproveAllDialogOpen(false);
-
-        // Lịch sử theo tháng chỉ dùng dữ liệu backend để tránh trùng bản ghi tạm thời.
-
-        toast({
-            title: "Duyệt tất cả thành công",
-            description: `Đã phê duyệt ${pendingItems.length} vật tư đã chọn`,
-        });
     };
 
     // Tính tổng giá trị của các vật tư đã chọn để duyệt
@@ -1880,6 +1924,24 @@ export default function MaterialForecast() {
                 setIsHistoryDetailDialogOpen={setIsHistoryDetailDialogOpen}
                 selectedHistoryEntry={selectedHistoryEntry}
             />
+
+            {/* Backdrop khóa màn hình hiển thị tiến trình xử lý */}
+            {processingProgress !== null && (
+                <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm">
+                    <div className="bg-neutral p-6 rounded-xl border border-border shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
+                        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+                        <p className="font-semibold text-foreground text-center mb-2 text-sm">{processingText}</p>
+                        <div className="w-full bg-tertiary h-3 rounded-full overflow-hidden border border-border mt-2">
+                            <div 
+                                className="bg-primary h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${processingProgress}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2 font-medium">{processingProgress}% hoàn thành</p>
+                        <p className="text-[10px] text-red-500/80 mt-4 text-center">Vui lòng không thao tác hoặc tải lại trang trong quá trình này.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

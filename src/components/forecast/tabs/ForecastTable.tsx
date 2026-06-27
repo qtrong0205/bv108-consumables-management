@@ -725,79 +725,93 @@ const ForecastTable = ({
             </Select>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onStatusFilterChange(
-                  statusFilter === "edited" ? "all" : "edited",
-                )
-              }
-              aria-pressed={statusFilter === "edited"}
-              className={
-                statusFilter === "edited"
-                  ? "border-2 border-orange-500 bg-orange-200 text-orange-900 font-semibold ring-2 ring-orange-300 ring-offset-1 shadow-sm hover:bg-orange-200"
-                  : "border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-              }
-            >
-              Đã sửa
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onStatusFilterChange(
-                  statusFilter === "submitted" ? "all" : "submitted",
-                )
-              }
-              aria-pressed={statusFilter === "submitted"}
-              className={
-                statusFilter === "submitted"
-                  ? "border-2 border-cyan-500 bg-cyan-200 text-cyan-900 font-semibold ring-2 ring-cyan-300 ring-offset-1 shadow-sm hover:bg-cyan-200"
-                  : "border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
-              }
-            >
-              Đã gửi CHK
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onStatusFilterChange(
-                  statusFilter === "approved" ? "all" : "approved",
-                )
-              }
-              aria-pressed={statusFilter === "approved"}
-              className={
-                statusFilter === "approved"
-                  ? "border-2 border-green-500 bg-green-200 text-green-900 font-semibold ring-2 ring-green-300 ring-offset-1 shadow-sm hover:bg-green-200"
-                  : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-              }
-            >
-              Đã duyệt
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onStatusFilterChange(
-                  statusFilter === "rejected" ? "all" : "rejected",
-                )
-              }
-              aria-pressed={statusFilter === "rejected"}
-              className={
-                statusFilter === "rejected"
-                  ? "border-2 border-red-500 bg-red-200 text-red-900 font-semibold ring-2 ring-red-300 ring-offset-1 shadow-sm hover:bg-red-200"
-                  : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-              }
-            >
-              Từ chối
-            </Button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onStatusFilterChange(
+                    statusFilter === "edited" ? "all" : "edited",
+                  )
+                }
+                aria-pressed={statusFilter === "edited"}
+                className={
+                  statusFilter === "edited"
+                    ? "border-2 border-orange-500 bg-orange-200 text-orange-900 font-semibold ring-2 ring-orange-300 ring-offset-1 shadow-sm hover:bg-orange-200"
+                    : "border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                }
+              >
+                Đã sửa
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onStatusFilterChange(
+                    statusFilter === "submitted" ? "all" : "submitted",
+                  )
+                }
+                aria-pressed={statusFilter === "submitted"}
+                className={
+                  statusFilter === "submitted"
+                    ? "border-2 border-cyan-500 bg-cyan-200 text-cyan-900 font-semibold ring-2 ring-cyan-300 ring-offset-1 shadow-sm hover:bg-cyan-200"
+                    : "border border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+                }
+              >
+                Đã gửi CHK
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onStatusFilterChange(
+                    statusFilter === "approved" ? "all" : "approved",
+                  )
+                }
+                aria-pressed={statusFilter === "approved"}
+                className={
+                  statusFilter === "approved"
+                    ? "border-2 border-green-500 bg-green-200 text-green-900 font-semibold ring-2 ring-green-300 ring-offset-1 shadow-sm hover:bg-green-200"
+                    : "border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                }
+              >
+                Đã duyệt
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onStatusFilterChange(
+                    statusFilter === "rejected" ? "all" : "rejected",
+                  )
+                }
+                aria-pressed={statusFilter === "rejected"}
+                className={
+                  statusFilter === "rejected"
+                    ? "border-2 border-red-500 bg-red-200 text-red-900 font-semibold ring-2 ring-red-300 ring-offset-1 shadow-sm hover:bg-red-200"
+                    : "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                }
+              >
+                Từ chối
+              </Button>
+            </div>
+
+            {canSelectRowsRole && hasSelectableRows && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onToggleSelectAllRows(!allSelectableRowsSelected)}
+                className="border border-primary text-primary hover:bg-primary/10 font-medium"
+              >
+                {allSelectableRowsSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+              </Button>
+            )}
           </div>
 
           {(selectedCategories.length > 0 ||

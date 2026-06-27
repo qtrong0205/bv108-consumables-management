@@ -28,7 +28,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         hangSx: '',
         donViTinh: '',
         quyCach: '',
-        dotGoiHang: 1,
+        dotGoiHang: undefined,
         email: '',
     });
 
@@ -216,7 +216,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                 hangSx: '',
                 donViTinh: '',
                 quyCach: '',
-                dotGoiHang: 1,
+                dotGoiHang: undefined,
                 email: '',
             });
             setErrors({});
@@ -491,8 +491,11 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         type="number"
                                         min="1"
                                         placeholder="VD: 10"
-                                        value={formData.dotGoiHang || 1}
-                                        onChange={(e) => handleInputChange('dotGoiHang', parseInt(e.target.value) || 1)}
+                                        value={formData.dotGoiHang !== undefined ? formData.dotGoiHang : ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            handleInputChange('dotGoiHang', val === '' ? undefined : parseInt(val, 10));
+                                        }}
                                         className={errors.dotGoiHang ? 'border-red-500' : ''}
                                     />
                                     {errors.dotGoiHang && <p className="text-sm text-red-500">{errors.dotGoiHang}</p>}

@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSupplies } from "@/hooks/use-supplies";
+import { MedicalSupply } from "@/types";
 
 interface SupplyItem {
   mã_vt: string;
@@ -22,143 +24,53 @@ interface SupplyItem {
   ton_kho_min: number;
   mã_cap1: string;
   mã_cap2: string;
+  hang_sx: string;
+  nuoc_sx: string;
 }
 
 type Filters = {
   mãCap1: string;
   mãCap2: string;
-  từNgày: string;
-  đếnNgày: string;
 };
 
-const LEVEL1_OPTIONS = [
-  { value: "cap1-tieu-hao", label: "Vật tư tiêu hao" },
-  { value: "cap1-tiem-truyen", label: "Vật tư tiêm truyền" },
-  { value: "cap1-bao-ho", label: "Vật tư bảo hộ" },
-];
-
-const LEVEL2_OPTIONS: Record<
-  string,
-  Array<{ value: string; label: string }>
-> = {
-  "cap1-tieu-hao": [
-    { value: "cap2-gac-bong", label: "Gạc bông" },
-    { value: "cap2-bang-keo", label: "Băng keo y tế" },
-    { value: "cap2-khau-trang", label: "Khẩu trang y tế" },
-  ],
-  "cap1-tiem-truyen": [
-    { value: "cap2-kim-tiem", label: "Kim tiêm" },
-    { value: "cap2-bom-tiem", label: "Bơm tiêm" },
-    { value: "cap2-day-truyen", label: "Dây truyền dịch" },
-  ],
-  "cap1-bao-ho": [
-    { value: "cap2-gang-tay", label: "Găng tay" },
-    { value: "cap2-ao-choang", label: "Áo choàng" },
-    { value: "cap2-khan-trang", label: "Khăn trùm đầu" },
-  ],
+const parseTypeNameParts = (typeName?: string): string[] => {
+  if (!typeName) return [];
+  return typeName.split('-').map(p => p.trim()).filter(Boolean);
 };
 
-const MOCK_DATA: SupplyItem[] = [
-  {
-    mã_vt: "VT-001",
-    tên_vật_tư: "Gạc bông vô trùng 5x5",
-    đvt: "Hộp",
-    ton_cuoi_ky: 0,
-    xuat_trong_ky: 480,
-    ton_kho_min: 100,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-gac-bong",
-  },
-  {
-    mã_vt: "VT-002",
-    tên_vật_tư: "Băng keo y tế 2.5cm",
-    đvt: "Cuộn",
-    ton_cuoi_ky: 18,
-    xuat_trong_ky: 220,
-    ton_kho_min: 30,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-bang-keo",
-  },
-  {
-    mã_vt: "VT-003",
-    tên_vật_tư: "Khẩu trang y tế 3 lớp",
-    đvt: "Thùng",
-    ton_cuoi_ky: 260,
-    xuat_trong_ky: 180,
-    ton_kho_min: 200,
-    mã_cap1: "cap1-tieu-hao",
-    mã_cap2: "cap2-khau-trang",
-  },
-  {
-    mã_vt: "VT-004",
-    tên_vật_tư: "Kim tiêm 5ml",
-    đvt: "Hộp",
-    ton_cuoi_ky: 50,
-    xuat_trong_ky: 600,
-    ton_kho_min: 80,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-kim-tiem",
-  },
-  {
-    mã_vt: "VT-005",
-    tên_vật_tư: "Bơm tiêm 10ml",
-    đvt: "Hộp",
-    ton_cuoi_ky: 120,
-    xuat_trong_ky: 900,
-    ton_kho_min: 100,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-bom-tiem",
-  },
-  {
-    mã_vt: "VT-006",
-    tên_vật_tư: "Dây truyền dịch",
-    đvt: "Cái",
-    ton_cuoi_ky: 180,
-    xuat_trong_ky: 240,
-    ton_kho_min: 150,
-    mã_cap1: "cap1-tiem-truyen",
-    mã_cap2: "cap2-day-truyen",
-  },
-  {
-    mã_vt: "VT-007",
-    tên_vật_tư: "Găng tay y tế không bột",
-    đvt: "Hộp",
-    ton_cuoi_ky: 340,
-    xuat_trong_ky: 90,
-    ton_kho_min: 200,
-    mã_cap1: "cap1-bao-ho",
-    mã_cap2: "cap2-gang-tay",
-  },
-  {
-    mã_vt: "VT-008",
-    tên_vật_tư: "Áo choàng phẫu thuật",
-    đvt: "Cái",
-    ton_cuoi_ky: 75,
-    xuat_trong_ky: 60,
-    ton_kho_min: 100,
-    mã_cap1: "cap1-bao-ho",
-    mã_cap2: "cap2-ao-choang",
-  },
-];
+const getMãCấp1 = (item: MedicalSupply): string => {
+  if (item.maNhom) return item.maNhom.trim();
+  const parts = parseTypeNameParts(item.typeName);
+  return parts.length >= 1 ? parts[0] : '';
+};
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const getMãCấp2 = (item: MedicalSupply): string => {
+  const maCấp1 = getMãCấp1(item);
+  if (!maCấp1) return '';
+  const parts = parseTypeNameParts(item.typeName);
+  if (parts.length >= 2) {
+    const part1 = parts[1].split(' ')[0];
+    return `${maCấp1}-${part1}`;
+  }
+  return '';
+};
 
-function getTodayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
+const mapMedicalSupplyToSupplyItem = (item: MedicalSupply): SupplyItem => {
+  return {
+    mã_vt: item.maVtyt,
+    tên_vật_tư: item.tenVtyt,
+    đvt: item.donViTinh,
+    ton_cuoi_ky: item.soLuongTon,
+    xuat_trong_ky: item.soLuongTieuHao,
+    ton_kho_min: item.soLuongToiThieu,
+    mã_cap1: getMãCấp1(item),
+    mã_cap2: getMãCấp2(item),
+    hang_sx: item.hangSanXuat || '',
+    nuoc_sx: item.nuocSanXuat || '',
+  };
+};
 
-function getDefaultFromDate() {
-  const date = new Date();
-  date.setDate(date.getDate() - 29);
-  return date.toISOString().slice(0, 10);
-}
 
-function calculatePeriodDays(fromDate: string, toDate: string) {
-  const from = new Date(`${fromDate}T00:00:00`);
-  const to = new Date(`${toDate}T00:00:00`);
-  const diffDays = Math.floor((to.getTime() - from.getTime()) / MS_PER_DAY);
-  return Math.max(1, diffDays);
-}
 
 function calculateWarning(
   item: SupplyItem,
@@ -184,37 +96,50 @@ function calculateWarning(
 }
 
 export default function DailyUsageReport() {
+  const { supplies: rawSupplies, loading } = useSupplies(1, 1500);
+
+  const supplies = useMemo(() => {
+    return rawSupplies.map(mapMedicalSupplyToSupplyItem);
+  }, [rawSupplies]);
+
   const [draftFilters, setDraftFilters] = useState<Filters>({
     mãCap1: "all",
     mãCap2: "all",
-    từNgày: getDefaultFromDate(),
-    đếnNgày: getTodayInputValue(),
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters | null>(null);
 
-  useEffect(() => {
-    const availableLevel2 = LEVEL2_OPTIONS[draftFilters.mãCap1] ?? [];
+  const level1Options = useMemo(() => {
+    const list = supplies.map((item) => item.mã_cap1).filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [supplies]);
 
+  const level2Options = useMemo(() => {
+    const targetCap1 = draftFilters.mãCap1;
+    if (targetCap1 === "all") return [];
+    const list = supplies
+      .filter((item) => item.mã_cap1 === targetCap1)
+      .map((item) => item.mã_cap2)
+      .filter(Boolean);
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [supplies, draftFilters.mãCap1]);
+
+  useEffect(() => {
     if (
       draftFilters.mãCap2 !== "all" &&
-      !availableLevel2.some((option) => option.value === draftFilters.mãCap2)
+      !level2Options.includes(draftFilters.mãCap2)
     ) {
       setDraftFilters((current) => ({ ...current, mãCap2: "all" }));
     }
-  }, [draftFilters.mãCap1, draftFilters.mãCap2]);
+  }, [draftFilters.mãCap1, draftFilters.mãCap2, level2Options]);
 
-  const activeFilters = appliedFilters ?? draftFilters;
-  const periodDays = calculatePeriodDays(
-    activeFilters.từNgày,
-    activeFilters.đếnNgày,
-  );
+  const periodDays = 30;
 
   const visibleRows = useMemo(() => {
     if (!appliedFilters) {
-      return MOCK_DATA;
+      return supplies;
     }
 
-    return MOCK_DATA.filter((item) => {
+    return supplies.filter((item) => {
       const matchLevel1 =
         appliedFilters.mãCap1 === "all" ||
         item.mã_cap1 === appliedFilters.mãCap1;
@@ -223,12 +148,7 @@ export default function DailyUsageReport() {
         item.mã_cap2 === appliedFilters.mãCap2;
       return matchLevel1 && matchLevel2;
     });
-  }, [appliedFilters]);
-
-  const level2Options =
-    activeFilters.mãCap1 === "all"
-      ? []
-      : (LEVEL2_OPTIONS[activeFilters.mãCap1] ?? []);
+  }, [supplies, appliedFilters]);
 
   const handleApply = () => {
     setAppliedFilters(draftFilters);
@@ -238,8 +158,6 @@ export default function DailyUsageReport() {
     const resetFilters: Filters = {
       mãCap1: "all",
       mãCap2: "all",
-      từNgày: getDefaultFromDate(),
-      đếnNgày: getTodayInputValue(),
     };
 
     setDraftFilters(resetFilters);
@@ -260,13 +178,19 @@ export default function DailyUsageReport() {
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl text-primary font-medium text-sm animate-pulse">
+          <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+          Đang tải dữ liệu từ máy chủ...
+        </div>
+      )}
       <Card className="bg-neutral border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg text-foreground">Bộ lọc</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
-            <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
                   Mã cấp 1
@@ -285,9 +209,9 @@ export default function DailyUsageReport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả mã cấp 1</SelectItem>
-                    {LEVEL1_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {level1Options.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -313,47 +237,13 @@ export default function DailyUsageReport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả mã cấp 2</SelectItem>
-                    {level2Options.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {level2Options.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Từ ngày
-                </label>
-                <Input
-                  type="date"
-                  value={draftFilters.từNgày}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      từNgày: event.target.value,
-                    }))
-                  }
-                  className="bg-neutral text-foreground border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Đến ngày
-                </label>
-                <Input
-                  type="date"
-                  value={draftFilters.đếnNgày}
-                  onChange={(event) =>
-                    setDraftFilters((current) => ({
-                      ...current,
-                      đếnNgày: event.target.value,
-                    }))
-                  }
-                  className="bg-neutral text-foreground border-border"
-                />
               </div>
             </div>
 
@@ -413,11 +303,11 @@ export default function DailyUsageReport() {
                   <th className="px-4 py-3 text-right text-sm font-medium">
                     Tồn cuối kỳ
                   </th>
-                  <th className="px-4 py-3 text-right text-sm font-medium">
-                    Xuất trong kỳ
+                  <th className="px-4 py-3 text-left text-sm font-medium">
+                    Hãng sản xuất
                   </th>
-                  <th className="px-4 py-3 text-right text-sm font-medium">
-                    Số ngày trong kỳ
+                  <th className="px-4 py-3 text-left text-sm font-medium">
+                    Nước sản xuất
                   </th>
                   <th className="px-4 py-3 text-right text-sm font-medium">
                     Mức dùng/ngày
@@ -472,11 +362,11 @@ export default function DailyUsageReport() {
                         <td className="px-4 py-3 text-sm text-foreground text-right">
                           {item.ton_cuoi_ky.toLocaleString("vi-VN")}
                         </td>
-                        <td className="px-4 py-3 text-sm text-foreground text-right">
-                          {item.xuat_trong_ky.toLocaleString("vi-VN")}
+                        <td className="px-4 py-3 text-sm text-foreground">
+                          {item.hang_sx}
                         </td>
-                        <td className="px-4 py-3 text-sm text-foreground text-right">
-                          {periodDays.toLocaleString("vi-VN")}
+                        <td className="px-4 py-3 text-sm text-foreground">
+                          {item.nuoc_sx}
                         </td>
                         <td className="px-4 py-3 text-sm text-foreground text-right">
                           {mucDungNgay.toFixed(2)}

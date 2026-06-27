@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Mail, Plus, RotateCcw } from 'lucide-react';
+import { Mail, Plus, RotateCcw, Loader2 } from 'lucide-react';
 
 import OrderRequestTable from '@/components/orders/OrderRequestTable';
 import OrderHistoryTable from '@/components/orders/OrderHistoryTable';
@@ -13,7 +13,7 @@ import { buildOrderHistoryGroups } from '@/components/orders/orderHistoryUtils';
 import { OrderRequest } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
-import { getStoredAuth } from '@/services/api';
+import { apiService, getStoredAuth } from '@/services/api';
 import { canCreateManualOrders, canPlaceOrders } from '@/lib/auth';
 
 const supplierOrderUiCache = {
@@ -48,6 +48,8 @@ export default function SupplierOrder() {
     const [selectedHistoryOrders, setSelectedHistoryOrders] = useState<number[]>(supplierOrderUiCache.selectedHistoryOrders);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [processingProgress, setProcessingProgress] = useState<number | null>(null);
+    const [processingText, setProcessingText] = useState<string>('');
 
     useEffect(() => {
         supplierOrderUiCache.activeTab = activeTab;
@@ -102,13 +104,30 @@ export default function SupplierOrder() {
         }
 
         setIsSubmitting(true);
+        const batchSize = 30;
+        const totalItems = selectedOrders.length;
+
+        setProcessingProgress(0);
+        setProcessingText(`Đang tiến hành đặt hàng...`);
+        let totalPlacedCount = 0;
+
         try {
-            const placedCount = await placeOrders(selectedOrders);
+            for (let i = 0; i < totalItems; i += batchSize) {
+                const chunk = selectedOrders.slice(i, i + batchSize);
+                const response = await apiService.placeOrders({ orderIds: chunk });
+                totalPlacedCount += response.placedCount;
+
+                const percent = Math.round((Math.min(i + batchSize, totalItems) / totalItems) * 100);
+                setProcessingProgress(percent);
+                setProcessingText(`Đang tiến hành đặt hàng... (${percent}%)`);
+            }
+
+            await refreshOrders();
             setSelectedOrders([]);
 
             toast({
                 title: 'Đặt hàng thành công',
-                description: `Đã gửi ${placedCount} vật tư`,
+                description: `Đã gửi ${totalPlacedCount} vật tư`,
             });
         } catch (error) {
             toast({
@@ -118,6 +137,7 @@ export default function SupplierOrder() {
             });
         } finally {
             setIsSubmitting(false);
+            setProcessingProgress(null);
         }
     };
 
@@ -161,12 +181,31 @@ export default function SupplierOrder() {
             return;
         }
 
+        setIsSubmitting(true);
+        const batchSize = 30;
+        const totalItems = ids.length;
+
+        setProcessingProgress(0);
+        setProcessingText(`Đang tiến hành đặt lại đơn hàng...`);
+        let totalRepeatedCount = 0;
+
         try {
-            const repeatedCount = await reorderHistoryOrders(ids);
+            for (let i = 0; i < totalItems; i += batchSize) {
+                const chunk = ids.slice(i, i + batchSize);
+                const response = await apiService.reorderHistoryOrders({ orderIds: chunk });
+                totalRepeatedCount += response.placedCount;
+
+                const percent = Math.round((Math.min(i + batchSize, totalItems) / totalItems) * 100);
+                setProcessingProgress(percent);
+                setProcessingText(`Đang tiến hành đặt lại đơn hàng... (${percent}%)`);
+            }
+
+            await refreshOrders();
             setSelectedHistoryOrders([]);
+
             toast({
                 title: 'Đặt lại đơn hàng thành công',
-                description: `Đã gửi lại ${repeatedCount} vật tư`,
+                description: `Đã gửi lại ${totalRepeatedCount} vật tư`,
             });
         } catch (error) {
             toast({
@@ -174,6 +213,9 @@ export default function SupplierOrder() {
                 description: error instanceof Error ? error.message : 'Không thể đặt lại lịch sử đơn hàng',
                 variant: 'destructive',
             });
+        } finally {
+            setIsSubmitting(false);
+            setProcessingProgress(null);
         }
     };
 
@@ -292,6 +334,24 @@ export default function SupplierOrder() {
                 onOpenChange={setIsCreateDialogOpen}
                 onSubmit={handleCreateOrder}
             />
+
+            {/* Backdrop khóa màn hình hiển thị tiến trình đặt hàng */}
+            {processingProgress !== null && (
+                <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm">
+                    <div className="bg-neutral p-6 rounded-xl border border-border shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
+                        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+                        <p className="font-semibold text-foreground text-center mb-2 text-sm">{processingText}</p>
+                        <div className="w-full bg-tertiary h-3 rounded-full overflow-hidden border border-border mt-2">
+                            <div 
+                                className="bg-primary h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${processingProgress}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2 font-medium">{processingProgress}% hoàn thành</p>
+                        <p className="text-[10px] text-red-500/80 mt-4 text-center">Vui lòng không thao tác hoặc tải lại trang trong quá trình này.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
