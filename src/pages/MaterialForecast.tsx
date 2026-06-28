@@ -22,10 +22,13 @@ import * as XLSX from 'xlsx';
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'submitted';
 type ForecastQuickStatusFilter = 'all' | 'edited' | 'submitted' | 'approved' | 'rejected';
 
-// Lấy tháng và năm hiện tại
-const CURRENT_DATE = new Date();
-const CURRENT_MONTH = CURRENT_DATE.getMonth() + 1; // 1-12
-const CURRENT_YEAR = CURRENT_DATE.getFullYear();
+const getCurrentForecastPeriod = (): { month: number; year: number } => {
+    const now = new Date();
+    return {
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+    };
+};
 
 type MaterialForecastUiCache = {
     searchTerm: string;
@@ -472,10 +475,6 @@ export default function MaterialForecast() {
     // State cho lịch sử dự trù theo tháng
     const [monthlyForecastHistory, setMonthlyForecastHistory] = useState<MonthlyForecastRecord[]>([]);
 
-    // Selected month/year for forecast views
-    const [selectedForecastMonth, setSelectedForecastMonth] = useState<number>(CURRENT_MONTH);
-    const [selectedForecastYear, setSelectedForecastYear] = useState<number>(CURRENT_YEAR);
-
     const isReadOnly = false;
 
     const storedAuth = useMemo(() => getStoredAuth(), []);
@@ -512,13 +511,17 @@ export default function MaterialForecast() {
         latestForecastChangesRef.current = latestForecastChanges;
     }, [latestForecastChanges]);
 
-    const refreshApprovalRecords = async (month: number = CURRENT_MONTH, year: number = CURRENT_YEAR) => {
-        const response = await apiService.getForecastApprovals(month, year);
+    const refreshApprovalRecords = async (month?: number, year?: number) => {
+        const period = getCurrentForecastPeriod();
+        const targetMonth = month ?? period.month;
+        const targetYear = year ?? period.year;
+        const response = await apiService.getForecastApprovals(targetMonth, targetYear);
         setApprovalRecords(response.data);
     };
 
     const refreshLatestForecastChanges = async () => {
-        const response = await apiService.getLatestForecastChanges(selectedForecastMonth, selectedForecastYear);
+        const period = getCurrentForecastPeriod();
+        const response = await apiService.getLatestForecastChanges(period.month, period.year);
         setLatestForecastChanges(
             response.data.filter((entry): entry is ApiForecastChangeHistoryRecord & { actionType: 'edit' } =>
                 isForecastEditAction(entry.actionType)
@@ -921,17 +924,20 @@ export default function MaterialForecast() {
             duTruGoc?: number;
             duTruSua?: number;
         }
-    ): SaveForecastApprovalRequest => ({
-        forecastMonth: CURRENT_MONTH,
-        forecastYear: CURRENT_YEAR,
-        maQuanLy: item.maQuanLy,
-        maVtytCu: item.maVtytCu,
-        tenVtytBv: item.tenVtytBv,
-        status,
-        lyDo: options?.lyDo,
-        duTruGoc: options?.duTruGoc,
-        duTruSua: options?.duTruSua,
-    });
+    ): SaveForecastApprovalRequest => {
+        const period = getCurrentForecastPeriod();
+        return {
+            forecastMonth: period.month,
+            forecastYear: period.year,
+            maQuanLy: item.maQuanLy,
+            maVtytCu: item.maVtytCu,
+            tenVtytBv: item.tenVtytBv,
+            status,
+            lyDo: options?.lyDo,
+            duTruGoc: options?.duTruGoc,
+            duTruSua: options?.duTruSua,
+        };
+    };
 
     // Lưu giá trị gốc khi focus vào input
     const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
