@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
-import { ApiInvoiceReconciliationRecord, SaveInvoiceReconciliationItemRequest, apiService, getStoredAuth } from '@/services/api';
+import {
+    ApiInvoiceReconciliationRecord,
+    SaveInvoiceReconciliationItemRequest,
+    UpsertInvoiceReconciliationItemRequest,
+    apiService,
+    getStoredAuth,
+} from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +27,7 @@ import {
     Package,
 } from 'lucide-react';
 import { canEditInvoiceNotes, canManageInvoiceWorkflow } from '@/lib/auth';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 
 interface InvoiceTableProps {
     orders: OrderHistory[];
@@ -142,10 +149,29 @@ const getReconciliationRecordTime = (record: Pick<ApiInvoiceReconciliationRecord
     return Number.isNaN(matchedAt) ? 0 : matchedAt;
 };
 
+const buildReconciliationRecordMap = (records: ApiInvoiceReconciliationRecord[]) => {
+    const map = new Map<number, ApiInvoiceReconciliationRecord>();
+    records.forEach((record) => {
+        if (!record || record.orderHistoryId <= 0) return;
+        const existing = map.get(record.orderHistoryId);
+        if (!existing) {
+            map.set(record.orderHistoryId, record);
+            return;
+        }
+
+        const existingTime = getReconciliationRecordTime(existing);
+        const nextTime = getReconciliationRecordTime(record);
+        if (nextTime > existingTime) {
+            map.set(record.orderHistoryId, record);
+        }
+    });
+    return map;
+};
+
 const EMPTY_MATCHED_INVOICE_SET = new Set<string>();
 
-// TEST MODE: keep true while testing with fake data.
-// Set to false to enable strict invoice time gating.
+// TEST MODE: only enable explicitly when validating with synthetic data.
+// Production should default to strict invoice time gating.
 const parseBooleanEnv = (value: string | undefined, defaultValue: boolean) => {
     if (!value) return defaultValue;
     const normalized = value.trim().toLowerCase();
@@ -156,7 +182,7 @@ const parseBooleanEnv = (value: string | undefined, defaultValue: boolean) => {
 
 const IS_INVOICE_RECONCILE_TEST_MODE = parseBooleanEnv(
     import.meta.env.VITE_INVOICE_RECONCILE_TEST_MODE as string | undefined,
-    true,
+    false,
 );
 const MIN_INVOICE_DELAY_HOURS = 12;
 const MIN_INVOICE_DELAY_MS = MIN_INVOICE_DELAY_HOURS * 60 * 60 * 1000;
@@ -171,6 +197,12 @@ const getInvoiceNumber = (invoice: HoaDonUBot) => {
     if (soHoaDon) return soHoaDon;
     if (idHoaDon) return idHoaDon;
     return `ID-${invoice.id}`;
+};
+
+const toApiTimestamp = (value?: string | Date | null) => {
+    if (!value) return '';
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
 };
 
 const getOrderSupplierKey = (order: OrderHistory) => {
@@ -394,7 +426,8 @@ export default function InvoiceTable({
     onFilterSupplierStatusChange,
 }: InvoiceTableProps) {
     const { toast } = useToast();
-    const currentRole = useMemo(() => getStoredAuth()?.user.role ?? '', []);
+    const storedAuth = useStoredAuth();
+    const currentRole = storedAuth?.user.role ?? '';
     const canSaveInvoiceNotes = canEditInvoiceNotes(currentRole);
     const canUpdateInvoiceWorkflow = canManageInvoiceWorkflow(currentRole);
     const invoiceNoteRoleTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được thực hiện thao tác này.';
@@ -440,23 +473,10 @@ export default function InvoiceTable({
     const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
     const [groupActionState, setGroupActionState] = useState<Record<string, 'saving' | 'approving'>>({});
     const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
-    const matchedHistoryMap = useMemo(() => {
-        const map = new Map<number, ApiInvoiceReconciliationRecord>();
-        (matchedReconciliations || []).forEach((record) => {
-            if (!record || record.orderHistoryId <= 0) return;
-            const existing = map.get(record.orderHistoryId);
-            if (!existing) {
-                map.set(record.orderHistoryId, record);
-                return;
-            }
-            const existingTime = getReconciliationRecordTime(existing);
-            const nextTime = getReconciliationRecordTime(record);
-            if (nextTime > existingTime) {
-                map.set(record.orderHistoryId, record);
-            }
-        });
-        return map;
-    }, [matchedReconciliations]);
+    const matchedHistoryMap = useMemo(
+        () => buildReconciliationRecordMap(matchedReconciliations || []),
+        [matchedReconciliations],
+    );
 
     useEffect(() => {
         if (matchedHistoryMap.size === 0) return;
@@ -872,8 +892,11 @@ export default function InvoiceTable({
         return '';
     };
 
-    const getPersistedRecord = (result: ReconciliationResult) => {
-        return persistedReconciliationMap.get(Number(result.order.id));
+    const getPersistedRecord = (
+        result: ReconciliationResult,
+        recordMap: Map<number, ApiInvoiceReconciliationRecord> = persistedReconciliationMap,
+    ) => {
+        return recordMap.get(Number(result.order.id));
     };
 
     const openNoteEditor = (result: ReconciliationResult) => {
@@ -891,10 +914,13 @@ export default function InvoiceTable({
         });
     };
 
-    const buildNoteUpdatePayload = (group: SupplierGroup): SaveInvoiceReconciliationItemRequest[] => {
+    const buildNoteUpdatePayload = (
+        group: SupplierGroup,
+        recordMap: Map<number, ApiInvoiceReconciliationRecord>,
+    ): SaveInvoiceReconciliationItemRequest[] => {
         return group.results
             .map((item) => {
-                const persistedRecord = getPersistedRecord(item);
+                const persistedRecord = getPersistedRecord(item, recordMap);
                 if (!persistedRecord?.id) return null;
                 if (!Object.prototype.hasOwnProperty.call(noteDrafts, Number(item.order.id))) return null;
 
@@ -911,10 +937,13 @@ export default function InvoiceTable({
             .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
     };
 
-    const buildStatusUpdatePayload = (group: SupplierGroup): SaveInvoiceReconciliationItemRequest[] => {
+    const buildStatusUpdatePayload = (
+        group: SupplierGroup,
+        recordMap: Map<number, ApiInvoiceReconciliationRecord>,
+    ): SaveInvoiceReconciliationItemRequest[] => {
         return group.results
             .map((item) => {
-                const persistedRecord = getPersistedRecord(item);
+                const persistedRecord = getPersistedRecord(item, recordMap);
                 if (!persistedRecord?.id) return null;
                 if ((persistedRecord.status || '').trim() === WORKFLOW_STATUS_DONE) return null;
 
@@ -925,6 +954,52 @@ export default function InvoiceTable({
                 };
             })
             .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
+    };
+
+    const buildUpsertPayload = (group: SupplierGroup): UpsertInvoiceReconciliationItemRequest[] => {
+        return group.results.map((item) => ({
+            orderHistoryId: Number(item.order.id),
+            orderBatchKey: getOrderBatchKey(item.order),
+            companyContactId: item.order.companyContactId,
+            nhaThau: item.order.nhaThau,
+            maQuanLy: item.order.maQuanLy,
+            maVtytCu: item.order.maVtytCu,
+            tenVtytBv: item.order.tenVtytBv,
+            orderedQty: Number(item.order.dotGoiHang || 0),
+            orderTime: toApiTimestamp(item.order.ngayDatHang),
+            invoiceNumber: item.matchedInvoiceNumber || (item.invoice ? getInvoiceNumber(item.invoice) : ''),
+            invoiceIdHoaDon: item.invoice?.idHoaDon || '',
+            invoiceRowId: item.invoice?.id,
+            invoiceCompanyContactId: item.invoice?.companyContactId,
+            invoiceCompanyName: item.invoice?.congTy || '',
+            invoiceItemCode: item.invoice?.maHangHoa || '',
+            invoiceItemName: item.invoice?.tenHangHoa || '',
+            invoiceQty: Number(item.invoice?.soLuong || 0),
+            invoiceTime: toApiTimestamp(item.invoice?.ngayHoaDon),
+            hasInvoice: item.hasInvoice,
+            detailStatus: item.detailStatus,
+            detailNote: item.detailNote || '',
+            matchScore: Number(item.matchScore || 0),
+            quantityDiff: Number(item.quantityDiff || 0),
+            note: getCurrentNote(item).trim(),
+            status: (getPersistedRecord(item)?.status || WORKFLOW_STATUS_PENDING) as WorkflowStatus,
+        }));
+    };
+
+    const ensureGroupPersisted = async (group: SupplierGroup) => {
+        const hasMissingRecords = group.results.some((item) => !getPersistedRecord(item));
+        if (!hasMissingRecords) {
+            return persistedReconciliationMap;
+        }
+
+        await apiService.upsertInvoiceReconciliationsBulk({
+            items: buildUpsertPayload(group),
+        });
+
+        const refreshedResponse = await apiService.getMatchedOrderReconciliations();
+        const refreshedMap = buildReconciliationRecordMap(refreshedResponse.data || []);
+        setLocalMatchedMap(refreshedMap);
+        return refreshedMap;
     };
 
     const persistGroup = async (group: SupplierGroup, status: WorkflowStatus) => {
@@ -946,9 +1021,21 @@ export default function InvoiceTable({
             return;
         }
 
+        let recordMap = persistedReconciliationMap;
+        try {
+            recordMap = await ensureGroupPersisted(group);
+        } catch (error) {
+            toast({
+                title: 'Không thể khởi tạo bản ghi đối chiếu',
+                description: error instanceof Error ? error.message : 'Không thể tạo dữ liệu đối chiếu hóa đơn trong hệ thống.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const items = status === WORKFLOW_STATUS_DONE
-            ? buildStatusUpdatePayload(group)
-            : buildNoteUpdatePayload(group);
+            ? buildStatusUpdatePayload(group, recordMap)
+            : buildNoteUpdatePayload(group, recordMap);
 
         if (items.length === 0) {
             toast({
@@ -973,7 +1060,7 @@ export default function InvoiceTable({
 
                 group.results.forEach((item) => {
                     const orderHistoryId = Number(item.order.id);
-                    const persistedRecord = getPersistedRecord(item);
+                    const persistedRecord = getPersistedRecord(item, recordMap);
                     if (!persistedRecord?.id) return;
                     if (!updatedRecordIds.has(persistedRecord.id)) return;
 
@@ -995,7 +1082,7 @@ export default function InvoiceTable({
                 setNoteDrafts((prev) => {
                     const next = { ...prev };
                     group.results.forEach((item) => {
-                        const persistedRecord = getPersistedRecord(item);
+                        const persistedRecord = getPersistedRecord(item, recordMap);
                         if (!persistedRecord?.id) return;
                         if (!updatedRecordIds.has(persistedRecord.id)) return;
                         delete next[Number(item.order.id)];
@@ -1008,7 +1095,7 @@ export default function InvoiceTable({
                 const approvedInvoiceNumbers = Array.from(
                     new Set(
                         group.results
-                            .map((item) => getPersistedRecord(item)?.invoiceNumber || item.matchedInvoiceNumber || '')
+                            .map((item) => getPersistedRecord(item, recordMap)?.invoiceNumber || item.matchedInvoiceNumber || '')
                             .filter((value) => value.trim().length > 0),
                     ),
                 );

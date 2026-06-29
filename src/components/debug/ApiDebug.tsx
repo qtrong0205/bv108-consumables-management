@@ -11,7 +11,6 @@ export default function ApiDebug() {
   useEffect(() => {
     const url = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
     setApiUrl(url);
-    console.log('🔧 API URL từ env:', url);
   }, []);
 
   const testConnection = async () => {
@@ -21,8 +20,6 @@ export default function ApiDebug() {
     try {
       // Test health endpoint
       const healthUrl = apiUrl.replace('/api', '');
-      console.log('Testing:', `${healthUrl}/health`);
-      
       const response = await fetch(`${healthUrl}/health`);
       
       if (response.ok) {
@@ -38,7 +35,6 @@ export default function ApiDebug() {
         });
       }
     } catch (error) {
-      console.error('Lỗi test connection:', error);
       setResult({ 
         success: false, 
         message: `Không thể kết nối: ${error instanceof Error ? error.message : 'Unknown error'}` 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useSupplies } from '@/hooks/use-supplies';
+import { useAllSupplies } from '@/hooks/use-supplies';
 import { useOrder } from '@/context/OrderContext';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
 import { apiService, ApiForecastApproval } from '@/services/api';
@@ -55,7 +55,7 @@ const getMãCấp3 = (item: MedicalSupply): string => {
 
 export default function Dashboard() {
     // 1. Fetching core data hooks
-    const { supplies, loading: loadingSupplies } = useSupplies(1, 1500); // Retrieve all supplies
+    const { supplies, loading: loadingSupplies } = useAllSupplies();
     const { orderHistory, approvedOrders, loadingOrders } = useOrder();
     const { hoaDons, loading: loadingInvoices, refetch: refetchInvoices } = useHoaDonUBot();
     const supplyGroups = useMemo(() => {
@@ -87,7 +87,7 @@ export default function Dashboard() {
                 const res = await apiService.getForecastApprovals(monthVal, yearVal);
                 setForecastApprovals(res.data || []);
             } catch (e) {
-                console.error('Error fetching forecast approvals:', e);
+                setForecastApprovals([]);
             } finally {
                 setLoadingForecast(false);
             }

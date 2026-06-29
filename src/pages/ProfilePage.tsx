@@ -4,16 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { getStoredAuth, apiService, updateStoredAuthUser } from '@/services/api';
+import { apiService, updateStoredAuthUser } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import { canCreateUsers, formatRoleLabel } from '@/lib/auth';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 
 const validateEmail = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 export default function ProfilePage() {
-    const storedAuth = useMemo(() => getStoredAuth(), []);
+    const storedAuth = useStoredAuth();
     const { toast } = useToast();
 
     const [fullName, setFullName] = useState(storedAuth?.user.username || '');
@@ -61,14 +62,14 @@ export default function ProfilePage() {
         return () => {
             isMounted = false;
         };
-    }, [storedAuth, toast]);
+    }, [storedAuth?.token, toast]);
 
     if (!storedAuth) {
         return <Navigate to="/login" replace />;
     }
 
     const canManageAccounts = canCreateUsers(storedAuth.user.role);
-    const createAccountRoleTooltip = 'Chỉ Admin mới được thực hiện thao tác này.';
+    const createAccountRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();

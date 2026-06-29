@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ import {
 import {
   Search,
   AlertTriangle,
-  FileDown,
   FileUp,
   ChevronDown,
   X,
@@ -32,11 +31,9 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import {
-  useSupplies,
+  useAllSupplies,
   useSupplyGroups,
-  useSupplySearch,
 } from "@/hooks/use-supplies";
-import ApiDebug from "@/components/debug/ApiDebug";
 import Pagination from "@/components/ui/pagination";
 
 const getTypeLevel1 = (typeName?: string): string => {
@@ -73,31 +70,17 @@ export default function InventoryCatalog() {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [typeLevel1PopoverOpen, setTypeLevel1PopoverOpen] = useState(false);
   const [typeLevel2PopoverOpen, setTypeLevel2PopoverOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
   const { toast } = useToast();
-
-  // Hook cho danh sách thông thường
-  const normalList = useSupplies(1, 100);
-
-  // Hook cho tìm kiếm
-  const searchList = useSupplySearch(100);
-
-  // Chọn hook nào để dùng dựa trên searchInput
-  const isSearching = searchInput.trim().length > 0;
-  const activeHook = isSearching ? searchList : normalList;
 
   const {
     supplies,
     loading,
     error,
-    page,
-    pageSize,
     total,
-    totalPages,
-    setPage,
-    setPageSize,
-  } = activeHook;
-  const { groups: categories, loading: groupsLoading } = useSupplyGroups();
+  } = useAllSupplies();
+  const { groups: categories } = useSupplyGroups();
   const typeLevel1Options = useMemo(
     () =>
       [
@@ -145,13 +128,6 @@ export default function InventoryCatalog() {
     }
   }, [selectedTypeLevel1, selectedTypeLevel2]);
 
-  // Cập nhật keyword cho search hook khi searchInput thay đổi
-  useEffect(() => {
-    if (isSearching && "setKeyword" in searchList) {
-      searchList.setKeyword(searchInput.trim());
-    }
-  }, [searchInput, isSearching]);
-
   // Đọc filter từ URL khi component mount
   useEffect(() => {
     const filterParam = searchParams.get("filter");
@@ -177,9 +153,26 @@ export default function InventoryCatalog() {
     }
   }, [error, toast]);
 
-  // Filter dữ liệu TRÊN CLIENT (chỉ filter category và stock, không filter search)
+  // Filter trên toàn bộ catalog đã tải để tránh chỉ lọc trong trang hiện tại.
   const filteredItems = useMemo(() => {
     let filtered = supplies;
+
+    const keyword = searchInput.trim().toLowerCase();
+    if (keyword) {
+      filtered = filtered.filter((item) => {
+        const haystacks = [
+          item.tenVtyt,
+          item.maVtyt,
+          item.id,
+          item.tenThuongMai,
+          item.nhaThau,
+          item.maHieu,
+        ];
+        return haystacks.some((value) =>
+          (value || "").toLowerCase().includes(keyword),
+        );
+      });
+    }
 
     // Filter theo danh mục (nhiều danh mục)
     if (selectedCategories.length > 0) {
@@ -216,11 +209,35 @@ export default function InventoryCatalog() {
     return filtered;
   }, [
     supplies,
+    searchInput,
     selectedCategories,
     selectedTypeLevel1,
     selectedTypeLevel2,
     stockFilter,
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    searchInput,
+    selectedCategories,
+    selectedTypeLevel1,
+    selectedTypeLevel2,
+    stockFilter,
+    pageSize,
+  ]);
+
+  useEffect(() => {
+    if (page <= totalPages) return;
+    setPage(totalPages);
+  }, [page, totalPages]);
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredItems, page, pageSize]);
 
   // Tính toán lowStock từ dữ liệu supplies
   const lowStock = useMemo(() => {
@@ -351,44 +368,6 @@ export default function InventoryCatalog() {
     setSelectedTypeLevel2([]);
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Kiểm tra định dạng file
-      const validTypes = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
-        "application/vnd.ms-excel", // .xls
-        "text/csv", // .csv
-      ];
-
-      if (
-        !validTypes.includes(file.type) &&
-        !file.name.match(/\.(xlsx|xls|csv)$/i)
-      ) {
-        toast({
-          title: "Lỗi định dạng file",
-          description: "Vui lòng chọn file Excel (.xlsx, .xls) hoặc CSV (.csv)",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // TODO: Xử lý đọc và import dữ liệu từ file
-      toast({
-        title: "Tải file thành công",
-        description: `Đã chọn file: ${file.name}`,
-      });
-
-      console.log("File được chọn:", file);
-      // Reset input để có thể chọn lại cùng file
-      event.target.value = "";
-    }
-  };
-
   const handleExport = () => {
     // Chuẩn bị dữ liệu cho Excel
     const excelData = filteredItems.map((item, index) => ({
@@ -458,9 +437,6 @@ export default function InventoryCatalog() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      {/* Debug Component */}
-      {error && <ApiDebug />}
-
       <div className="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8 py-3 bg-tertiary/95 backdrop-blur supports-[backdrop-filter]:bg-tertiary/80 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground mb-2">
@@ -526,13 +502,6 @@ export default function InventoryCatalog() {
             <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
             Xuất file Excel
           </Button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
         </div>
       </div>
 
@@ -899,36 +868,33 @@ export default function InventoryCatalog() {
       {!loading && !error && (
         <>
           <InventoryTable
-            items={filteredItems}
+            items={paginatedItems}
             lowStockItems={lowStock}
             onRowClick={setSelectedItem}
             enableGrouping={true}
           />
 
-          {/* Pagination - chỉ hiển thị khi không filter */}
-          {!searchInput &&
-            selectedCategories.length === 0 &&
-            selectedTypeLevel1.length === 0 &&
-            selectedTypeLevel2.length === 0 &&
-            stockFilter === "all" && (
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                totalItems={total}
-                pageSize={pageSize}
-                onPageChange={setPage}
-              />
-            )}
+          {filteredItems.length > 0 && (
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              totalItems={filteredItems.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          )}
 
-          {/* Thông tin khi có filter */}
-          {(searchInput ||
-            selectedCategories.length > 0 ||
-            selectedTypeLevel1.length > 0 ||
-            selectedTypeLevel2.length > 0 ||
-            stockFilter !== "all") && (
+          {hasActiveFilters || searchInput.trim() ? (
             <div className="text-center text-sm text-muted-foreground">
-              Đang hiển thị {filteredItems.length} / {supplies.length} vật tư
-              (đã filter)
+              Đang hiển thị {paginatedItems.length} /{" "}
+              {filteredItems.length.toLocaleString("vi-VN")} vật tư trong kết
+              quả lọc, trên tổng {supplies.length.toLocaleString("vi-VN")} vật
+              tư
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground">
+              Đang hiển thị {paginatedItems.length} /{" "}
+              {total.toLocaleString("vi-VN")} vật tư
             </div>
           )}
         </>

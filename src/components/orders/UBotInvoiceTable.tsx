@@ -3,8 +3,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Pagination from '@/components/ui/pagination';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+import { apiService } from '@/services/api';
+import { canManageInvoiceWorkflow } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 const EMPTY_MATCHED_INVOICE_SET = new Set<string>();
 
 const normalizeInvoiceKey = (value?: string | null) => (value || '').trim().toLowerCase();
@@ -41,8 +43,9 @@ export default function UBotInvoiceTable({
     onExpandedInvoicesChange,
     currentPage: externalCurrentPage,
     onCurrentPageChange,
-}: UBotInvoiceTableProps) {
-    // Use external state if provided, otherwise use internal state
+	}: UBotInvoiceTableProps) {
+	    const { toast } = useToast();
+	    // Use external state if provided, otherwise use internal state
     const [internalSearchTerm, setInternalSearchTerm] = useState('');
     const [internalExpandedInvoices, setInternalExpandedInvoices] = useState<Set<string>>(new Set());
     const [internalCurrentPage, setInternalCurrentPage] = useState(1);
@@ -80,36 +83,31 @@ export default function UBotInvoiceTable({
     const [refreshing, setRefreshing] = useState(false);
     const pageSize = 100;
     const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
+    const storedAuth = useStoredAuth();
+    const currentRole = storedAuth?.user.role ?? '';
+    const canRefreshInvoices = useMemo(() => canManageInvoiceWorkflow(currentRole), [currentRole]);
+    const refreshPermissionTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được làm mới hóa đơn.';
 
-    const handleRefresh = async () => {
-        if (!onRefresh) return;
-        setRefreshing(true);
-        try {
-            const res = await fetch(`${API_BASE_URL}/hoa-don/refresh`, { method: 'POST' });
-            const text = await res.text();
-            
-            try {
-                const data = JSON.parse(text);
-                if (data.success) {
-                    alert(`${data.message}\n\nTổng: ${data.total} bản ghi`);
-                    onRefresh();
-                } else {
-                    console.error('Error details:', data);
-                    const tried = Array.isArray(data.tried) && data.tried.length > 0
-                        ? `\n\nTried runtimes:\n${data.tried.join('\n')}`
-                        : '';
-                    alert(`❌ ${data.error}\n\n${data.details || ''}${tried}\n\n${data.output?.substring(0, 500) || ''}`);
-                }
-            } catch (parseErr) {
-                console.error('Response:', text);
-                alert('❌ Lỗi parse JSON. Response: ' + text.substring(0, 200));
-            }
-        } catch (err: any) {
-            alert('❌ Lỗi: ' + err.message);
-        } finally {
-            setRefreshing(false);
-        }
-    };
+	    const handleRefresh = async () => {
+	        if (!onRefresh || !canRefreshInvoices) return;
+	        setRefreshing(true);
+	        try {
+	            const data = await apiService.refreshHoaDons();
+	            toast({
+	                title: 'Làm mới hóa đơn thành công',
+	                description: `${data.message}. Tổng: ${data.total} bản ghi.`,
+	            });
+	            onRefresh();
+	        } catch (err: unknown) {
+	            toast({
+	                title: 'Không làm mới được hóa đơn',
+	                description: err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định',
+	                variant: 'destructive',
+	            });
+	        } finally {
+	            setRefreshing(false);
+	        }
+	    };
 
     // Group theo invoice_id
     const invoiceGroups = useMemo(() => {
@@ -230,13 +228,15 @@ export default function UBotInvoiceTable({
                     className="flex-1"
                 />
                 {onRefresh && (
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {refreshing ? 'Đang cập nhật...' : 'Làm mới'}
-                    </button>
+                    <div title={!canRefreshInvoices ? refreshPermissionTooltip : undefined}>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={refreshing || !canRefreshInvoices}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {refreshing ? 'Đang cập nhật...' : 'Làm mới'}
+                        </button>
+                    </div>
                 )}
             </div>
 

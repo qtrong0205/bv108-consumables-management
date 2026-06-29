@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { HoaDonUBot } from '@/types';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+import { apiService } from '@/services/api';
 
 interface UseHoaDonUBotResult {
     hoaDons: HoaDonUBot[];
@@ -20,21 +19,33 @@ export function useHoaDonUBot(): UseHoaDonUBotResult {
             setLoading(true);
             setError(null);
 
-            const response = await fetch(`${API_BASE_URL}/hoa-don?limit=1000&offset=0`);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            const pageSize = 1000;
+            const firstResponse = await apiService.getHoaDons(pageSize, 0);
+            const firstPage = firstResponse.data || [];
+            const total = Math.max(firstResponse.total || 0, firstPage.length);
+
+            if (total <= firstPage.length || firstPage.length === 0) {
+                setHoaDons(firstPage);
+                return;
             }
 
-            const result = await response.json();
-            
-            if (result.data) {
-                setHoaDons(result.data);
-            } else {
-                setHoaDons([]);
+            const allRows = [...firstPage];
+            for (let offset = firstPage.length; offset < total; offset += pageSize) {
+                const nextResponse = await apiService.getHoaDons(pageSize, offset);
+                const nextPage = nextResponse.data || [];
+                if (nextPage.length === 0) {
+                    break;
+                }
+
+                allRows.push(...nextPage);
+
+                if (nextPage.length < pageSize) {
+                    break;
+                }
             }
+
+            setHoaDons(allRows);
         } catch (err) {
-            console.error('Lỗi khi fetch hóa đơn UBot:', err);
             setError(err instanceof Error ? err.message : 'Lỗi không xác định');
             setHoaDons([]);
         } finally {

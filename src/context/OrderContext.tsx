@@ -68,6 +68,7 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderI
 };
 
 const toManualPayload = (order: OrderRequest): CreateOrderItemRequest => ({
+    companyContactId: order.companyContactId,
     nhaThau: order.nhaThau,
     maQuanLy: order.maQuanLy,
     maVtytCu: order.maVtytCu,
@@ -81,6 +82,7 @@ const toManualPayload = (order: OrderRequest): CreateOrderItemRequest => ({
 });
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const WEBSOCKET_AUTH_PROTOCOL = 'bv108.auth';
 const RED_DOT_STORAGE_PREFIX = 'bv108_supplier_red_dot_';
 const ACTIVITY_NOTIFICATION_STORAGE_PREFIX = 'bv108_activity_notifications_';
 const ACTIVITY_NOTIFICATION_READ_AT_PREFIX = 'bv108_activity_notifications_read_at_';
@@ -88,9 +90,9 @@ const MAX_ACTIVITY_NOTIFICATIONS = 100;
 const ACTIVITY_NOTIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_PRUNE_INTERVAL_MS = 60 * 1000;
 
-const buildWebsocketUrl = (token: string) => {
+const buildWebsocketUrl = () => {
     const wsBase = API_BASE_URL.replace(/^http/i, 'ws');
-    return `${wsBase}/ws?token=${encodeURIComponent(token)}`;
+    return `${wsBase}/ws`;
 };
 
 const uniqueStrings = (values: string[]) => [...new Set(values.filter((value) => value && value.trim().length > 0))];
@@ -391,7 +393,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
             wsRef.current = null;
         }
 
-        const ws = new WebSocket(buildWebsocketUrl(storedAuth.token));
+        const ws = new WebSocket(buildWebsocketUrl(), [WEBSOCKET_AUTH_PROTOCOL, storedAuth.token]);
         wsRef.current = ws;
 
         ws.onmessage = (event) => {

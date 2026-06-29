@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronDown, Building2, Package, Calendar, CheckCircle2, CheckCircle, Plus } from 'lucide-react';
 import { buildOrderHistoryGroups, OrderBatchHistoryGroup, OrderHistoryGroupSource } from './orderHistoryUtils';
+import { getStoredAuth } from '@/services/api';
 
 interface OrderHistoryTableProps {
     orders: OrderHistory[];
@@ -11,8 +12,28 @@ interface OrderHistoryTableProps {
     setSelectedOrderIds: (ids: number[]) => void;
 }
 
+const getCurrentOrderHistorySessionKey = (): string => {
+    const auth = getStoredAuth();
+    if (!auth) {
+        return 'anonymous';
+    }
+
+    return `${auth.user.id}:${auth.expiresAt}`;
+};
+
 const orderHistoryUiCache = {
+    sessionKey: getCurrentOrderHistorySessionKey(),
     expandedGroups: [] as string[],
+};
+
+const ensureOrderHistoryUiCacheForCurrentSession = () => {
+    const currentSessionKey = getCurrentOrderHistorySessionKey();
+    if (orderHistoryUiCache.sessionKey === currentSessionKey) {
+        return;
+    }
+
+    orderHistoryUiCache.sessionKey = currentSessionKey;
+    orderHistoryUiCache.expandedGroups = [];
 };
 
 const formatDateTime = (date: string | Date | undefined) => {
@@ -33,6 +54,8 @@ const formatDateTime = (date: string | Date | undefined) => {
 };
 
 export default function OrderHistoryTable({ orders, selectedOrderIds, setSelectedOrderIds }: OrderHistoryTableProps) {
+    ensureOrderHistoryUiCacheForCurrentSession();
+
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(orderHistoryUiCache.expandedGroups));
     const checkboxRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 

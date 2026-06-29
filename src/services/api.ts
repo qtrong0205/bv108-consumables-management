@@ -1,4 +1,5 @@
 import { OrderHistory, OrderRequest } from '@/types';
+import { HoaDonUBot } from '@/types';
 import { AssignableRole, AuthRole } from '@/lib/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
@@ -8,6 +9,7 @@ export const AUTH_USER_KEY = 'bv108_auth_user';
 export const AUTH_EXPIRES_AT_KEY = 'bv108_auth_expires_at';
 export const AUTH_LAST_ACTIVITY_AT_KEY = 'bv108_auth_last_activity_at';
 export const AUTH_SESSION_INVALID_EVENT = 'bv108:auth-session-invalid';
+export const AUTH_STATE_CHANGED_EVENT = 'bv108:auth-state-changed';
 
 export interface ApiSupply {
   idx1: number;
@@ -51,6 +53,7 @@ export interface CreateForecastOrdersRequest {
 }
 
 export interface CreateOrderItemRequest {
+  companyContactId?: string;
   nhaThau: string;
   maQuanLy: string;
   maVtytCu: string;
@@ -235,6 +238,38 @@ export interface SaveInvoiceReconciliationsBulkRequest {
   items: SaveInvoiceReconciliationItemRequest[];
 }
 
+export interface UpsertInvoiceReconciliationItemRequest {
+  orderHistoryId: number;
+  orderBatchKey: string;
+  companyContactId?: string;
+  nhaThau: string;
+  maQuanLy: string;
+  maVtytCu: string;
+  tenVtytBv: string;
+  orderedQty: number;
+  orderTime?: string;
+  invoiceNumber: string;
+  invoiceIdHoaDon?: string;
+  invoiceRowId?: number;
+  invoiceCompanyContactId?: string;
+  invoiceCompanyName?: string;
+  invoiceItemCode?: string;
+  invoiceItemName?: string;
+  invoiceQty: number;
+  invoiceTime?: string;
+  hasInvoice: boolean;
+  detailStatus: string;
+  detailNote?: string;
+  matchScore: number;
+  quantityDiff: number;
+  note?: string;
+  status?: 'waiting' | 'done';
+}
+
+export interface UpsertInvoiceReconciliationsBulkRequest {
+  items: UpsertInvoiceReconciliationItemRequest[];
+}
+
 export interface ApiCompareSupply {
   stt: number;
   tenCongTy: { String: string; Valid: boolean } | null;
@@ -273,10 +308,31 @@ export interface CompareSuppliesResponse {
   total: number;
 }
 
+export interface HoaDonListResponse {
+  data: HoaDonUBot[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface RefreshInvoicesResponse {
+  success: boolean;
+  message: string;
+  total: number;
+}
+
 export interface ErrorResponse {
   error: string;
   message: string;
 }
+
+const shouldInvalidateAuthSession = (status: number, errorCode?: string): boolean => {
+  if (status === 401) {
+    return true;
+  }
+
+  return status === 403 && errorCode === 'ACCOUNT_DISABLED';
+};
 
 export interface AuthUser {
   id: number;
@@ -449,6 +505,14 @@ const dispatchAuthSessionInvalidEvent = (): void => {
   window.dispatchEvent(new Event(AUTH_SESSION_INVALID_EVENT));
 };
 
+const dispatchAuthStateChangedEvent = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_STATE_CHANGED_EVENT));
+};
+
 export const getNullableString = (value: { String: string; Valid: boolean } | null | undefined): string => {
   return value?.Valid ? value.String : '';
 };
@@ -463,6 +527,7 @@ export const storeAuth = (auth: AuthResponse): void => {
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(auth.user));
   localStorage.setItem(AUTH_EXPIRES_AT_KEY, auth.expiresAt);
   localStorage.setItem(AUTH_LAST_ACTIVITY_AT_KEY, new Date().toISOString());
+  dispatchAuthStateChangedEvent();
 };
 
 export const clearStoredAuth = (): void => {
@@ -470,6 +535,7 @@ export const clearStoredAuth = (): void => {
   localStorage.removeItem(AUTH_USER_KEY);
   localStorage.removeItem(AUTH_EXPIRES_AT_KEY);
   localStorage.removeItem(AUTH_LAST_ACTIVITY_AT_KEY);
+  dispatchAuthStateChangedEvent();
 };
 
 export const recordAuthActivity = (activityAt: string = new Date().toISOString()): void => {
@@ -534,6 +600,7 @@ export const updateStoredAuthUser = (updatedUser: AuthUser): StoredAuth | null =
   };
 
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextAuth.user));
+  dispatchAuthStateChangedEvent();
   return nextAuth;
 };
 
@@ -562,14 +629,16 @@ class ApiService {
 
     if (!response.ok) {
       let message = 'Yêu cầu thất bại';
+      let errorCode = '';
       try {
         const error = (await response.json()) as ErrorResponse;
+        errorCode = error.error || '';
         message = error.message || message;
       } catch {
         message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
       }
 
-      if (includeAuth && response.status === 401) {
+      if (includeAuth && shouldInvalidateAuthSession(response.status, errorCode)) {
         clearStoredAuth();
         dispatchAuthSessionInvalidEvent();
       }
@@ -674,12 +743,16 @@ class ApiService {
   }
 
   async getCompareLevel1Options(): Promise<{ groups: string[]; total: number }> {
-    return this.request<{ groups: string[]; total: number }>('/supplies/compare-level1');
+    return this.request<{ groups: string[]; total: number }>('/supplies/compare-level1', {
+      method: 'GET',
+    }, true);
   }
 
   async getCompareLevel2Options(level1: string = ''): Promise<{ groups: string[]; total: number }> {
     return this.request<{ groups: string[]; total: number }>(
       `/supplies/compare-level2?level1=${encodeURIComponent(level1)}`,
+      { method: 'GET' },
+      true,
     );
   }
 
@@ -692,6 +765,8 @@ class ApiService {
   ): Promise<PaginationResponse<ApiCompareSupply>> {
     return this.request<PaginationResponse<ApiCompareSupply>>(
       `/supplies/compare-catalog?keyword=${encodeURIComponent(keyword)}&page=${page}&pageSize=${pageSize}&level1Filter=${encodeURIComponent(level1Filter)}&level2Filter=${encodeURIComponent(level2Filter)}`,
+      { method: 'GET' },
+      true,
     );
   }
 
@@ -745,14 +820,16 @@ class ApiService {
 
     if (!response.ok) {
       let message = 'Không tải được file export';
+      let errorCode = '';
       try {
         const error = (await response.json()) as ErrorResponse;
+        errorCode = error.error || '';
         message = error.message || message;
       } catch {
         message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
       }
 
-      if (response.status === 401) {
+      if (shouldInvalidateAuthSession(response.status, errorCode)) {
         clearStoredAuth();
         dispatchAuthSessionInvalidEvent();
       }
@@ -781,7 +858,19 @@ class ApiService {
     return this.request<CompareSuppliesResponse>('/supplies/compare', {
       method: 'POST',
       body: JSON.stringify({ maThuVien }),
-    });
+    }, true);
+  }
+
+  async getHoaDons(limit: number = 1000, offset: number = 0): Promise<HoaDonListResponse> {
+    return this.request<HoaDonListResponse>(`/hoa-don?limit=${limit}&offset=${offset}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async refreshHoaDons(): Promise<RefreshInvoicesResponse> {
+    return this.request<RefreshInvoicesResponse>('/hoa-don/refresh', {
+      method: 'POST',
+    }, true);
   }
 
   async getPendingOrders(): Promise<OrderListResponse<OrderRequest>> {
@@ -853,6 +942,13 @@ class ApiService {
 
   async saveInvoiceReconciliationsBulk(payload: SaveInvoiceReconciliationsBulkRequest): Promise<MutationMessageResponse> {
     return this.request<MutationMessageResponse>('/orders/invoice-reconciliations/bulk', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
+  async upsertInvoiceReconciliationsBulk(payload: UpsertInvoiceReconciliationsBulkRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/orders/invoice-reconciliations/upsert', {
       method: 'POST',
       body: JSON.stringify(payload),
     }, true);

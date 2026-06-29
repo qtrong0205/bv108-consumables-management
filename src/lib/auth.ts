@@ -60,7 +60,45 @@ export const formatRoleLabel = (role: string): string => {
   }
 };
 
-export const canCreateUsers = (role?: string | null): boolean => normalizeRole(role) === 'admin';
+export const canCreateUsers = (role?: string | null): boolean => {
+  const normalizedRole = normalizeRole(role);
+  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
+};
+
+export const canAssignRole = (actorRole?: string | null, targetRole?: string | null): boolean => {
+  const normalizedActorRole = normalizeRole(actorRole);
+  const normalizedTargetRole = normalizeRole(targetRole);
+
+  if (!normalizedTargetRole) {
+    return false;
+  }
+
+  if (normalizedActorRole === 'admin') {
+    return true;
+  }
+
+  if (normalizedActorRole === 'chi_huy_khoa') {
+    return normalizedTargetRole === 'nhan_vien_kho'
+      || normalizedTargetRole === 'thu_kho'
+      || normalizedTargetRole === 'nhan_vien_ke_toan'
+      || normalizedTargetRole === 'nhan_vien_thau';
+  }
+
+  return false;
+};
+
+export const canManageUserRole = (actorRole?: string | null, targetRole?: string | null): boolean => {
+  const normalizedTargetRole = normalizeRole(targetRole);
+  if (!normalizedTargetRole) {
+    return false;
+  }
+
+  return canAssignRole(actorRole, normalizedTargetRole);
+};
+
+export const getAssignableRoleOptions = (actorRole?: string | null): Array<{ value: AssignableRole; label: string }> => (
+  ASSIGNABLE_ROLE_OPTIONS.filter((option) => canAssignRole(actorRole, option.value))
+);
 
 export const canCreateManualOrders = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);

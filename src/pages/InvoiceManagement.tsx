@@ -1,28 +1,62 @@
 ﻿import { useEffect, useState } from 'react';
-import { ApiInvoiceReconciliationRecord, apiService } from '@/services/api';
+import { ApiInvoiceReconciliationRecord, apiService, getStoredAuth } from '@/services/api';
 import InvoiceMatchHistoryTable from '@/components/orders/InvoiceMatchHistoryTable';
 
 const normalizeInvoiceKey = (value: string) => value.trim().toLowerCase();
 
-const invoiceUiCache = {
-    activeTab: 'reconcile',
-    tabStates: {
-        reconcile: {
-            searchTerm: '',
-            expandedSuppliers: new Set<string>(),
-            filterSupplierStatus: 'all' as 'all' | 'hasInvoice' | 'noInvoice',
-        },
-        ubot: {
-            searchTerm: '',
-            expandedInvoices: new Set<string>(),
-            currentPage: 1,
-        },
-        history: {
-            month: new Date().getMonth() + 1,
-            year: new Date().getFullYear(),
-            searchTerm: '',
-        },
+const getCurrentInvoiceSessionKey = (): string => {
+    const auth = getStoredAuth();
+    if (!auth) {
+        return 'anonymous';
+    }
+
+    return `${auth.user.id}:${auth.expiresAt}`;
+};
+
+const getCurrentInvoiceHistoryPeriod = () => ({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+});
+
+const getCurrentInvoicePeriodKey = () => {
+    const period = getCurrentInvoiceHistoryPeriod();
+    return `${period.year}-${String(period.month).padStart(2, '0')}`;
+};
+
+const createDefaultInvoiceTabStates = () => ({
+    reconcile: {
+        searchTerm: '',
+        expandedSuppliers: new Set<string>(),
+        filterSupplierStatus: 'all' as 'all' | 'hasInvoice' | 'noInvoice',
     },
+    ubot: {
+        searchTerm: '',
+        expandedInvoices: new Set<string>(),
+        currentPage: 1,
+    },
+    history: {
+        ...getCurrentInvoiceHistoryPeriod(),
+        searchTerm: '',
+    },
+});
+
+const invoiceUiCache = {
+    sessionKey: getCurrentInvoiceSessionKey(),
+    periodKey: getCurrentInvoicePeriodKey(),
+    activeTab: 'reconcile',
+    tabStates: createDefaultInvoiceTabStates(),
+};
+
+const ensureInvoiceUiCacheForCurrentSession = () => {
+    const currentSessionKey = getCurrentInvoiceSessionKey();
+    if (invoiceUiCache.sessionKey === currentSessionKey) {
+        return;
+    }
+
+    invoiceUiCache.sessionKey = currentSessionKey;
+    invoiceUiCache.periodKey = getCurrentInvoicePeriodKey();
+    invoiceUiCache.activeTab = 'reconcile';
+    invoiceUiCache.tabStates = createDefaultInvoiceTabStates();
 };
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +66,9 @@ import { useOrder } from '@/context/OrderContext';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
 
 export default function InvoiceManagement() {
+    ensureInvoiceUiCacheForCurrentSession();
+
+    const [currentPeriodKey, setCurrentPeriodKey] = useState(invoiceUiCache.periodKey);
     const [activeTab, setActiveTab] = useState(invoiceUiCache.activeTab);
     
     // Tab-specific state storage
@@ -65,6 +102,51 @@ export default function InvoiceManagement() {
         invoiceUiCache.tabStates = tabStates;
     }, [activeTab, tabStates]);
 
+    useEffect(() => {
+        const syncInvoicePeriod = () => {
+            const nextPeriodKey = getCurrentInvoicePeriodKey();
+            if (nextPeriodKey === currentPeriodKey) {
+                return;
+            }
+
+            const [previousYearRaw, previousMonthRaw] = currentPeriodKey.split('-');
+            const previousPeriod = {
+                year: Number(previousYearRaw) || getCurrentInvoiceHistoryPeriod().year,
+                month: Number(previousMonthRaw) || getCurrentInvoiceHistoryPeriod().month,
+            };
+            const nextPeriod = getCurrentInvoiceHistoryPeriod();
+
+            invoiceUiCache.periodKey = nextPeriodKey;
+            setCurrentPeriodKey(nextPeriodKey);
+            setTabStates((prev) => {
+                const shouldRollHistoryPeriod =
+                    prev.history.month === previousPeriod.month
+                    && prev.history.year === previousPeriod.year;
+
+                if (!shouldRollHistoryPeriod) {
+                    return prev;
+                }
+
+                return {
+                    ...prev,
+                    history: {
+                        ...prev.history,
+                        month: nextPeriod.month,
+                        year: nextPeriod.year,
+                        searchTerm: '',
+                    },
+                };
+            });
+        };
+
+        syncInvoicePeriod();
+        const intervalId = window.setInterval(syncInvoicePeriod, 60 * 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [currentPeriodKey]);
+
     const { orderHistory, refreshOrders, loadingOrders, realtimeEventVersion, lastRealtimeEvent } = useOrder();
     const { hoaDons, loading, error, refetch } = useHoaDonUBot();
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -97,7 +179,7 @@ export default function InvoiceManagement() {
             const normalized = new Set((response.data || []).map((value) => normalizeInvoiceKey(value)));
             setMatchedInvoiceNumbers(normalized);
         } catch (fetchError) {
-            console.error('Không tải được danh sách hóa đơn đã khớp:', fetchError);
+            setMatchedInvoiceNumbers(new Set());
         }
     };
 
@@ -107,7 +189,7 @@ export default function InvoiceManagement() {
             const response = await apiService.getMatchedOrderReconciliations();
             setMatchedOrderRecords(response.data || []);
         } catch (fetchError) {
-            console.error('Không tải được lịch sử đơn hàng đã khớp:', fetchError);
+            setMatchedOrderRecords([]);
         } finally {
             setMatchedOrdersLoaded(true);
         }

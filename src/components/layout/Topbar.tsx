@@ -203,7 +203,6 @@ export default function Topbar({ userRole, user, onLogout }: TopbarProps) {
                                 <DropdownMenuItem onClick={() => navigate('/tasks')} className="text-foreground cursor-pointer">Tác vụ</DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => navigate('/profile')} className="text-foreground cursor-pointer">Hồ sơ</DropdownMenuItem>
-                            <DropdownMenuItem className="text-foreground cursor-pointer">Cài đặt</DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={onLogout} className="text-destructive cursor-pointer">
                                 Đăng xuất

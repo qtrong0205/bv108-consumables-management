@@ -16,6 +16,7 @@ import { OrderProvider } from './context/OrderContext';
 import {
     AUTH_EXPIRES_AT_KEY,
     AUTH_LAST_ACTIVITY_AT_KEY,
+    AUTH_STATE_CHANGED_EVENT,
     AUTH_SESSION_INVALID_EVENT,
     AUTH_TOKEN_KEY,
     AUTH_USER_KEY,
@@ -27,7 +28,7 @@ import {
     recordAuthActivity,
     storeAuth,
 } from './services/api';
-import { canCreateUsers, canManageSupplyTasks, formatRoleLabel } from '@/lib/auth';
+import { canCreateUsers, canManageInvoiceWorkflow, canManageSupplyTasks, formatRoleLabel } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -208,12 +209,26 @@ function App() {
             handleLogout('server');
         };
 
+        const handleAuthStateChanged = () => {
+            const currentAuth = getStoredAuth();
+            lastActivityWriteRef.current = 0;
+
+            if (!currentAuth) {
+                clearSessionTimeout();
+                setAuthState(null);
+                return;
+            }
+
+            setAuthState(currentAuth);
+        };
+
         syncSession();
         SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
             window.addEventListener(eventName, handleActivity, { passive: true });
         });
         window.addEventListener('focus', handleFocus);
         window.addEventListener('storage', handleStorage);
+        window.addEventListener(AUTH_STATE_CHANGED_EVENT, handleAuthStateChanged);
         window.addEventListener(AUTH_SESSION_INVALID_EVENT, handleSessionInvalid);
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -224,6 +239,7 @@ function App() {
             });
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('storage', handleStorage);
+            window.removeEventListener(AUTH_STATE_CHANGED_EVENT, handleAuthStateChanged);
             window.removeEventListener(AUTH_SESSION_INVALID_EVENT, handleSessionInvalid);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
@@ -275,7 +291,10 @@ function App() {
                         <Route path="catalog" element={<InventoryCatalog />} />
                         <Route path="suppliers" element={<SupplierOrder />} />
                         <Route path="forecast" element={<MaterialForecast />} />
-                        <Route path="invoices" element={<InvoiceManagement />} />
+                        <Route
+                            path="invoices"
+                            element={canManageInvoiceWorkflow(userRole) ? <InvoiceManagement /> : <Navigate to="/dashboard" replace />}
+                        />
                         <Route
                             path="tasks"
                             element={canManageSupplyTasks(userRole) ? <TaskManagement /> : <Navigate to="/dashboard" replace />}

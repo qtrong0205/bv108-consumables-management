@@ -45,6 +45,8 @@ export interface UseSuppliesResult {
   refetch: () => void;
 }
 
+const allSuppliesPageSize = 10000;
+
 export const useSupplies = (initialPage: number = 1, initialPageSize: number = 20): UseSuppliesResult => {
   const [supplies, setSupplies] = useState<MedicalSupply[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,9 @@ export const useSupplies = (initialPage: number = 1, initialPageSize: number = 2
         setTotalPages(response.totalPages);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch supplies');
-        console.error('Error fetching supplies:', err);
+        setSupplies([]);
+        setTotal(0);
+        setTotalPages(0);
       } finally {
         setLoading(false);
       }
@@ -127,7 +131,9 @@ export const useSupplySearch = (initialPageSize: number = 20): UseSupplySearchRe
         setTotalPages(response.totalPages);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to search supplies');
-        console.error('Error searching supplies:', err);
+        setSupplies([]);
+        setTotal(0);
+        setTotalPages(0);
       } finally {
         setLoading(false);
       }
@@ -171,7 +177,7 @@ export const useSupplyGroups = () => {
         setGroups(response.groups);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch groups');
-        console.error('Error fetching groups:', err);
+        setGroups([]);
       } finally {
         setLoading(false);
       }
@@ -181,4 +187,73 @@ export const useSupplyGroups = () => {
   }, []);
 
   return { groups, loading, error };
+};
+
+export const useAllSupplies = (): Omit<UseSuppliesResult, 'page' | 'pageSize' | 'totalPages' | 'setPage' | 'setPageSize'> & {
+  total: number;
+} => {
+  const [supplies, setSupplies] = useState<MedicalSupply[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  useEffect(() => {
+    const fetchAllSupplies = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const firstPage = await apiService.getSupplies(1, allSuppliesPageSize);
+        const firstBatch = firstPage.data.map((item, index) =>
+          convertApiSupplyToMedicalSupply(item, index),
+        );
+
+        if (firstPage.totalPages <= 1) {
+          setSupplies(firstBatch);
+          setTotal(firstPage.total);
+          return;
+        }
+
+        const remainingResponses = await Promise.all(
+          Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
+            apiService.getSupplies(index + 2, allSuppliesPageSize),
+          ),
+        );
+
+        const combined = [firstPage, ...remainingResponses];
+        const convertedSupplies = combined.flatMap((response, responseIndex) =>
+          response.data.map((item, itemIndex) =>
+            convertApiSupplyToMedicalSupply(
+              item,
+              responseIndex * allSuppliesPageSize + itemIndex,
+            ),
+          ),
+        );
+
+        setSupplies(convertedSupplies);
+        setTotal(firstPage.total);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch all supplies');
+        setSupplies([]);
+        setTotal(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchAllSupplies();
+  }, [refetchTrigger]);
+
+  const refetch = () => {
+    setRefetchTrigger((prev) => prev + 1);
+  };
+
+  return {
+    supplies,
+    loading,
+    error,
+    total,
+    refetch,
+  };
 };

@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { useOrder } from '@/context/OrderContext';
+import { canManageInvoiceWorkflow } from '@/lib/auth';
 
 interface SidebarProps {
     currentPath: string;
+    userRole?: string;
 }
 
-export default function Sidebar({ currentPath }: SidebarProps) {
+export default function Sidebar({ currentPath, userRole }: SidebarProps) {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const { hasSupplierNotification } = useOrder();
 
@@ -18,13 +20,12 @@ export default function Sidebar({ currentPath }: SidebarProps) {
         { path: '/catalog', label: 'Danh mục vật tư' },
         { path: '/forecast', label: 'Dự trù vật tư' },
         { path: '/suppliers', label: 'Gọi Hàng' },
-        { path: '/invoices', label: 'Hóa đơn' },
         { path: '/reports', label: 'Báo cáo' },
     ];
 
-    const bottomItems = [
-        { path: '/settings', label: 'Cài đặt' },
-    ];
+    if (canManageInvoiceWorkflow(userRole)) {
+        navItems.splice(4, 0, { path: '/invoices', label: 'Hóa đơn' });
+    }
 
     const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
 
@@ -82,21 +83,6 @@ export default function Sidebar({ currentPath }: SidebarProps) {
                         );
                     })}
                 </nav>
-
-                <div className="p-4 border-t border-primary-foreground/20 space-y-1">
-                    {bottomItems.map((item) => {
-                        return (
-                            <Link
-                                key={item.path}
-                                to={item.path}
-                                onClick={() => setIsMobileOpen(false)}
-                                className="flex items-center gap-3 px-4 py-3 rounded-md hover:bg-primary-foreground/10 transition-colors cursor-pointer text-primary-foreground"
-                            >
-                                <span className="text-sm">{item.label}</span>
-                            </Link>
-                        );
-                    })}
-                </div>
             </aside>
 
             {isMobileOpen && (

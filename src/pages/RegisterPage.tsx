@@ -7,11 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
-import { apiService, getStoredAuth } from '@/services/api';
-import { ASSIGNABLE_ROLE_OPTIONS, AssignableRole, canCreateUsers } from '@/lib/auth';
+import { apiService } from '@/services/api';
+import { AssignableRole, canAssignRole, canCreateUsers, getAssignableRoleOptions } from '@/lib/auth';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 
 export default function RegisterPage() {
-    const storedAuth = useMemo(() => getStoredAuth(), []);
+    const storedAuth = useStoredAuth();
+    const currentUserRole = storedAuth?.user.role || '';
+    const availableRoleOptions = useMemo(() => getAssignableRoleOptions(currentUserRole), [currentUserRole]);
     const [staffName, setStaffName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -85,6 +88,15 @@ export default function RegisterPage() {
             return;
         }
 
+        if (!canAssignRole(currentUserRole, role)) {
+            toast({
+                title: "Lỗi",
+                description: "Bạn không có quyền tạo tài khoản với vai trò này",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setIsLoading(true);
         try {
             await apiService.register({
@@ -128,7 +140,7 @@ export default function RegisterPage() {
                         <CardTitle className="text-2xl font-semibold text-foreground">Tạo Tài Khoản</CardTitle>
                     </div>
                     <CardDescription className="text-muted-foreground">
-                        Admin tạo tài khoản nội bộ cho người dùng hệ thống
+                        Tạo tài khoản nội bộ cho người dùng hệ thống
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -214,7 +226,7 @@ export default function RegisterPage() {
                                     <SelectValue placeholder="Chọn vai trò" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {ASSIGNABLE_ROLE_OPTIONS.map((roleOption) => (
+                                    {availableRoleOptions.map((roleOption) => (
                                         <SelectItem key={roleOption.value} value={roleOption.value}>
                                             {roleOption.label}
                                         </SelectItem>

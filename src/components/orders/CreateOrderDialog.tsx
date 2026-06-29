@@ -20,6 +20,7 @@ const normalizeText = (value: string) => value.trim().toLowerCase();
 
 export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: CreateOrderDialogProps) {
     const [formData, setFormData] = useState<Partial<OrderRequest>>({
+        companyContactId: undefined,
         nhaThau: '',
         maQuanLy: '',
         maVtytCu: '',
@@ -42,10 +43,24 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
     const [isLoadingSupplySuggestions, setIsLoadingSupplySuggestions] = useState(false);
 
     const matchingCompany = useMemo(() => {
+        const selectedCompanyContactId = (formData.companyContactId || '').trim();
+        if (selectedCompanyContactId) {
+            return companySuggestions.find((item) => item.id === selectedCompanyContactId) || null;
+        }
+
         const currentCompany = normalizeText(formData.nhaThau || '');
         if (!currentCompany) return null;
         return companySuggestions.find((item) => normalizeText(item.companyName) === currentCompany) || null;
-    }, [companySuggestions, formData.nhaThau]);
+    }, [companySuggestions, formData.companyContactId, formData.nhaThau]);
+
+    const findCompanySuggestionById = (companyContactId?: string) => {
+        const normalizedCompanyContactId = (companyContactId || '').trim();
+        if (!normalizedCompanyContactId) {
+            return null;
+        }
+
+        return companySuggestions.find((item) => item.id === normalizedCompanyContactId) || null;
+    };
 
     const handleInputChange = (field: keyof OrderRequest, value: any) => {
         setFormData(prev => ({
@@ -62,11 +77,47 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         }
     };
 
+    const handleCompanyInputChange = (value: string) => {
+        setFormData((prev) => ({
+            ...(() => {
+                const previousContact = findCompanySuggestionById(prev.companyContactId);
+                const previousEmail = normalizeText(prev.email || '');
+                const previousContactEmail = normalizeText(previousContact?.email || '');
+                const shouldClearEmail = previousContactEmail !== '' && previousEmail === previousContactEmail;
+
+                return {
+                    ...prev,
+                    nhaThau: value,
+                    companyContactId: undefined,
+                    email: shouldClearEmail ? '' : prev.email,
+                };
+            })(),
+        }));
+
+        if (errors.nhaThau) {
+            setErrors((prev) => {
+                const newErrors = { ...prev };
+                delete newErrors.nhaThau;
+                return newErrors;
+            });
+        }
+    };
+
     const handleSelectCompany = (contact: CompanyContactSuggestion) => {
         setFormData((prev) => ({
-            ...prev,
-            nhaThau: contact.companyName,
-            email: contact.email || prev.email || '',
+            ...(() => {
+                const previousContact = findCompanySuggestionById(prev.companyContactId);
+                const previousEmail = normalizeText(prev.email || '');
+                const previousContactEmail = normalizeText(previousContact?.email || '');
+                const shouldReplaceEmail = !!contact.email || previousEmail === '' || previousEmail === previousContactEmail;
+
+                return {
+                    ...prev,
+                    companyContactId: contact.id,
+                    nhaThau: contact.companyName,
+                    email: shouldReplaceEmail ? (contact.email || '') : prev.email,
+                };
+            })(),
         }));
         setShowCompanySuggestions(false);
     };
@@ -189,6 +240,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
 
         const newOrder: OrderRequest = {
             id: Date.now(),
+            companyContactId: formData.companyContactId,
             nhaThau: formData.nhaThau || '',
             maQuanLy: formData.maQuanLy || '',
             maVtytCu: formData.maVtytCu || '',
@@ -208,6 +260,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
 
             // Reset form
             setFormData({
+                companyContactId: undefined,
                 nhaThau: '',
                 maQuanLy: '',
                 maVtytCu: '',
@@ -252,7 +305,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                         id="nhaThau"
                                         placeholder="Tên công ty nhà thầu"
                                         value={formData.nhaThau || ''}
-                                        onChange={(e) => handleInputChange('nhaThau', e.target.value)}
+                                        onChange={(e) => handleCompanyInputChange(e.target.value)}
                                         onFocus={() => {
                                             setShowCompanySuggestions(true);
                                             if (companySuggestions.length > 0) {
@@ -278,7 +331,11 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                                         className="w-full px-3 py-2 text-left hover:bg-muted/50"
                                                     >
                                                         <div className="text-sm font-medium text-foreground">{contact.companyName}</div>
-                                                        <div className="text-xs text-muted-foreground">{contact.email || 'Chưa có email'}</div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {contact.taxId ? `MST: ${contact.taxId}` : 'Chưa có mã số thuế'}
+                                                            {' • '}
+                                                            {contact.email || 'Chưa có email'}
+                                                        </div>
                                                     </button>
                                                 ))
                                             ) : (

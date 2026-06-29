@@ -5,13 +5,36 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown, Building2, Package, CheckCircle, Plus, Funnel, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getStoredAuth } from '@/services/api';
 
 type SortOrder = 'newest' | 'oldest';
 
+const getCurrentOrderRequestSessionKey = (): string => {
+    const auth = getStoredAuth();
+    if (!auth) {
+        return 'anonymous';
+    }
+
+    return `${auth.user.id}:${auth.expiresAt}`;
+};
+
 const orderRequestUiCache = {
+    sessionKey: getCurrentOrderRequestSessionKey(),
     expandedSuppliers: [] as string[],
     selectedCompany: 'all',
     sortOrder: 'newest' as SortOrder,
+};
+
+const ensureOrderRequestUiCacheForCurrentSession = () => {
+    const currentSessionKey = getCurrentOrderRequestSessionKey();
+    if (orderRequestUiCache.sessionKey === currentSessionKey) {
+        return;
+    }
+
+    orderRequestUiCache.sessionKey = currentSessionKey;
+    orderRequestUiCache.expandedSuppliers = [];
+    orderRequestUiCache.selectedCompany = 'all';
+    orderRequestUiCache.sortOrder = 'newest';
 };
 
 const getOrderTime = (order: OrderRequest): number => {
@@ -72,6 +95,8 @@ const isMissingCompanyContact = (order: OrderRequest): boolean => {
 };
 
 export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroupsRead, selectedOrders, setSelectedOrders }: OrderRequestTableProps) {
+    ensureOrderRequestUiCacheForCurrentSession();
+
     const [expandedSuppliers, setExpandedSuppliers] = useState<Set<string>>(new Set(orderRequestUiCache.expandedSuppliers));
     const [selectedCompany, setSelectedCompany] = useState(orderRequestUiCache.selectedCompany);
     const [sortOrder, setSortOrder] = useState<SortOrder>(orderRequestUiCache.sortOrder);

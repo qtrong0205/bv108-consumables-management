@@ -3,7 +3,7 @@ import { getNullableString } from './api';
 
 const GEMINI_API_KEY = ((import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '').trim();
 const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || 'gemini-2.5-flash-lite';
-const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'true').toLowerCase() !== 'false';
+const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'false').toLowerCase() !== 'false';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const GEMINI_MAX_OUTPUT_TOKENS = Number((import.meta.env.VITE_GEMINI_MAX_OUTPUT_TOKENS as string | undefined) || 4096);
 const GEMINI_MAX_CONTINUATIONS = Number((import.meta.env.VITE_GEMINI_MAX_CONTINUATIONS as string | undefined) || 4);

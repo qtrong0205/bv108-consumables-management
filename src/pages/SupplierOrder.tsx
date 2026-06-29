@@ -15,16 +15,49 @@ import { useToast } from '@/hooks/use-toast';
 import { useOrder } from '@/context/OrderContext';
 import { apiService, getStoredAuth } from '@/services/api';
 import { canCreateManualOrders, canPlaceOrders } from '@/lib/auth';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 
-const supplierOrderUiCache = {
+const getCurrentSupplierOrderSessionKey = (): string => {
+    const auth = getStoredAuth();
+    if (!auth) {
+        return 'anonymous';
+    }
+
+    return `${auth.user.id}:${auth.expiresAt}`;
+};
+
+type SupplierOrderUiCache = {
+    sessionKey: string;
+    activeTab: string;
+    selectedOrders: number[];
+    selectedHistoryOrders: number[];
+};
+
+const supplierOrderUiCache: SupplierOrderUiCache = {
+    sessionKey: getCurrentSupplierOrderSessionKey(),
     activeTab: 'active',
-    selectedOrders: [] as number[],
-    selectedHistoryOrders: [] as number[],
+    selectedOrders: [],
+    selectedHistoryOrders: [],
+};
+
+const ensureSupplierOrderUiCacheForCurrentSession = () => {
+    const currentSessionKey = getCurrentSupplierOrderSessionKey();
+    if (supplierOrderUiCache.sessionKey === currentSessionKey) {
+        return;
+    }
+
+    supplierOrderUiCache.sessionKey = currentSessionKey;
+    supplierOrderUiCache.activeTab = 'active';
+    supplierOrderUiCache.selectedOrders = [];
+    supplierOrderUiCache.selectedHistoryOrders = [];
 };
 
 export default function SupplierOrder() {
+    ensureSupplierOrderUiCacheForCurrentSession();
+
     const { toast } = useToast();
-    const currentRole = useMemo(() => getStoredAuth()?.user.role ?? '', []);
+    const storedAuth = useStoredAuth();
+    const currentRole = storedAuth?.user.role ?? '';
     const {
         approvedOrders,
         unreadGroupKeys,

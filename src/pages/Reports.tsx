@@ -5,7 +5,7 @@ import DailyUsageReport from "@/components/reports/DailyUsageReport";
 import CompareSuppliesTab from "@/components/reports/CompareSuppliesTab";
 import TenderProgressReport from "@/components/reports/TenderProgressReport";
 
-type ReportTab = "daily-usage" | "tender-progress";
+type ReportTab = "daily-usage" | "tender-progress" | "compare";
 
 export default function Report() {
   const [activeTab, setActiveTab] = useState<ReportTab>("daily-usage");

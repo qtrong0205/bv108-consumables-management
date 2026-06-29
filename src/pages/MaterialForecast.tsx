@@ -16,6 +16,7 @@ import { useOrder } from '@/context/OrderContext';
 import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSupply, getNullableNumber, getNullableString, getStoredAuth, SaveForecastApprovalRequest } from '@/services/api';
 import { useSupplyGroups } from '@/hooks/use-supplies';
 import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast, canSubmitForecast, normalizeRole } from '@/lib/auth';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 import * as XLSX from 'xlsx';
 
 // Trạng thái phê duyệt cho mỗi vật tư
@@ -30,7 +31,25 @@ const getCurrentForecastPeriod = (): { month: number; year: number } => {
     };
 };
 
+const getCurrentForecastSessionKey = (): string => {
+    const auth = getStoredAuth();
+    if (!auth) {
+        return 'anonymous';
+    }
+
+    return `${auth.user.id}:${auth.expiresAt}`;
+};
+
+const getForecastPeriodKey = (month: number, year: number): string => `${year}-${String(month).padStart(2, '0')}`;
+
+const getCurrentForecastPeriodKey = (): string => {
+    const period = getCurrentForecastPeriod();
+    return getForecastPeriodKey(period.month, period.year);
+};
+
 type MaterialForecastUiCache = {
+    sessionKey: string;
+    periodKey: string;
     searchTerm: string;
     selectedCategories: string[];
     selectedSuppliers: string[];
@@ -45,6 +64,8 @@ type MaterialForecastUiCache = {
 };
 
 const materialForecastUiCache: MaterialForecastUiCache = {
+    sessionKey: getCurrentForecastSessionKey(),
+    periodKey: getCurrentForecastPeriodKey(),
     searchTerm: '',
     selectedCategories: [],
     selectedSuppliers: [],
@@ -56,6 +77,31 @@ const materialForecastUiCache: MaterialForecastUiCache = {
     selectedRowKeys: [],
     forecastOverrides: {},
     statusFilter: 'all',
+};
+
+const ensureMaterialForecastUiCacheForCurrentPeriod = () => {
+    const currentSessionKey = getCurrentForecastSessionKey();
+    const currentPeriodKey = getCurrentForecastPeriodKey();
+    if (
+        materialForecastUiCache.sessionKey === currentSessionKey
+        && materialForecastUiCache.periodKey === currentPeriodKey
+    ) {
+        return;
+    }
+
+    materialForecastUiCache.sessionKey = currentSessionKey;
+    materialForecastUiCache.periodKey = currentPeriodKey;
+    materialForecastUiCache.searchTerm = '';
+    materialForecastUiCache.selectedCategories = [];
+    materialForecastUiCache.selectedSuppliers = [];
+    materialForecastUiCache.selectedTypeLevel1 = [];
+    materialForecastUiCache.selectedTypeLevel2 = [];
+    materialForecastUiCache.page = 1;
+    materialForecastUiCache.pageSize = 100;
+    materialForecastUiCache.activeTab = 'forecast';
+    materialForecastUiCache.selectedRowKeys = [];
+    materialForecastUiCache.forecastOverrides = {};
+    materialForecastUiCache.statusFilter = 'all';
 };
 
 const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
@@ -326,6 +372,9 @@ const applyForecastOverrides = (rows: IVatTuDuTru[]): IVatTuDuTru[] => {
 };
 
 export default function MaterialForecast() {
+    ensureMaterialForecastUiCacheForCurrentPeriod();
+
+    const [currentPeriodKey, setCurrentPeriodKey] = useState(getCurrentForecastPeriodKey());
     const [searchTerm, setSearchTerm] = useState(materialForecastUiCache.searchTerm);
     const [selectedCategories, setSelectedCategories] = useState<string[]>(materialForecastUiCache.selectedCategories);
     const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>(materialForecastUiCache.selectedSuppliers);
@@ -477,7 +526,7 @@ export default function MaterialForecast() {
 
     const isReadOnly = false;
 
-    const storedAuth = useMemo(() => getStoredAuth(), []);
+    const storedAuth = useStoredAuth();
     const currentUser = storedAuth?.user.username || 'Người dùng hệ thống';
     const currentRole = storedAuth?.user.role ?? '';
     const normalizedCurrentRole = normalizeRole(currentRole);
@@ -607,8 +656,8 @@ export default function MaterialForecast() {
 
         void refreshLatestForecastChanges().catch((fetchError) => {
             toast({
-                title: 'Lá»—i táº£i thay Ä‘á»•i dá»± trÃ¹',
-                description: fetchError instanceof Error ? fetchError.message : 'KhÃ´ng táº£i Ä‘Æ°á»£c dá»¯ liá»‡u dá»± trÃ¹ Ä‘Ã£ sá»­a',
+                title: 'Lỗi tải thay đổi dự trù',
+                description: fetchError instanceof Error ? fetchError.message : 'Không tải được dữ liệu dự trù đã sửa',
                 variant: 'destructive',
             });
         });
@@ -620,7 +669,7 @@ export default function MaterialForecast() {
                 variant: 'destructive',
             });
         });
-    }, [toast]);
+    }, [currentPeriodKey, toast]);
 
     useEffect(() => {
         if (!lastRealtimeEvent) {
@@ -692,7 +741,7 @@ export default function MaterialForecast() {
             isDisposed = true;
             clearTimeout(timeoutId);
         };
-    }, [searchTerm]);
+    }, [searchTerm, currentPeriodKey]);
 
     useEffect(() => {
         if (latestForecastChanges.length === 0) return;
@@ -941,6 +990,47 @@ export default function MaterialForecast() {
 
     // Lưu giá trị gốc khi focus vào input
     const [originalDuTru, setOriginalDuTru] = useState<{ rowKey: string; value: number } | null>(null);
+
+    useEffect(() => {
+        const syncForecastPeriod = () => {
+            const nextPeriodKey = getCurrentForecastPeriodKey();
+            if (nextPeriodKey === currentPeriodKey) {
+                return;
+            }
+
+            ensureMaterialForecastUiCacheForCurrentPeriod();
+            latestForecastChangesRef.current = [];
+
+            setCurrentPeriodKey(nextPeriodKey);
+            setSearchTerm(materialForecastUiCache.searchTerm);
+            setSelectedCategories(materialForecastUiCache.selectedCategories);
+            setSelectedSuppliers(materialForecastUiCache.selectedSuppliers);
+            setSelectedTypeLevel1(materialForecastUiCache.selectedTypeLevel1);
+            setSelectedTypeLevel2(materialForecastUiCache.selectedTypeLevel2);
+            setStatusFilter(materialForecastUiCache.statusFilter);
+            setPage(materialForecastUiCache.page);
+            setPageSize(materialForecastUiCache.pageSize);
+            setActiveTab(materialForecastUiCache.activeTab);
+            setSelectedRowKeys(materialForecastUiCache.selectedRowKeys);
+            setPendingForecastEdits({});
+            setOriginalDuTru(null);
+            setApprovalStates({});
+            setApprovalRecords([]);
+            setLatestForecastChanges([]);
+
+            toast({
+                title: 'Đã chuyển sang tháng mới',
+                description: 'Trang dự trù đã làm mới dữ liệu theo kỳ hiện tại.',
+            });
+        };
+
+        syncForecastPeriod();
+        const intervalId = window.setInterval(syncForecastPeriod, 60 * 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [currentPeriodKey, toast]);
 
     const isForecastEditable = (item: IVatTuDuTru) => {
         const status = getApprovalStatus(item);

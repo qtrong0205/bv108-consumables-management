@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
-import { apiService, ApiSupply, getNullableString, getStoredAuth, ManagedAccountUser } from '@/services/api';
-import { ASSIGNABLE_ROLE_OPTIONS, AssignableRole, formatRoleLabel, normalizeRole } from '@/lib/auth';
+import { apiService, ApiSupply, getNullableString, ManagedAccountUser } from '@/services/api';
+import { AssignableRole, canAssignRole, canManageUserRole, formatRoleLabel, getAssignableRoleOptions, normalizeRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
 import * as XLSX from 'xlsx';
 
 type AssignmentCatalogItem = {
@@ -62,7 +63,8 @@ const parseExcelNumericCell = (value: unknown): number | null => {
 
 export default function TaskManagement() {
   const { toast } = useToast();
-  const storedAuth = useMemo(() => getStoredAuth(), []);
+  const storedAuth = useStoredAuth();
+  const currentUserRole = storedAuth?.user.role || '';
   const currentUserId = storedAuth?.user.id || 0;
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -104,6 +106,10 @@ export default function TaskManagement() {
   );
 
   const selectedCount = selectedSupplyIds.size;
+  const assignableRoleOptions = useMemo(
+    () => getAssignableRoleOptions(currentUserRole),
+    [currentUserRole],
+  );
   const typeLevel1Options = useMemo(
     () => [...new Set(catalog.map((item) => getTypeLevel1(item.typeName)).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [catalog],
@@ -137,12 +143,19 @@ export default function TaskManagement() {
     setLoadingState(true);
     try {
       const response = await apiService.getSupplyTaskState();
+      const nextUsers = response.users || [];
       setHideForOtherRoles(response.hideForOtherRoles);
       setTotalSupplies(response.totalSupplies);
-      setUsers(response.users || []);
+      setUsers(nextUsers);
 
-      if (!selectedUserId && response.users.length > 0) {
-        setSelectedUserId(String(response.users[0].id));
+      const hasSelectedUser = nextUsers.some((user) => String(user.id) === selectedUserId);
+      if (!hasSelectedUser) {
+        if (nextUsers.length > 0) {
+          setSelectedUserId(String(nextUsers[0].id));
+        } else {
+          setSelectedUserId('');
+          setSelectedSupplyIds(new Set());
+        }
       }
     } catch (error) {
       toast({
@@ -499,6 +512,11 @@ export default function TaskManagement() {
       return;
     }
 
+    if (!canAssignRole(currentUserRole, staffRole)) {
+      toast({ title: 'Lỗi', description: 'Bạn không có quyền tạo tài khoản với vai trò này', variant: 'destructive' });
+      return;
+    }
+
     setCreatingUser(true);
     try {
       await apiService.register({
@@ -536,6 +554,24 @@ export default function TaskManagement() {
       return;
     }
 
+    if (!canManageUserRole(currentUserRole, user.role)) {
+      toast({
+        title: 'Không thể đổi role',
+        description: 'Bạn không có quyền quản lý tài khoản này.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!canAssignRole(currentUserRole, role)) {
+      toast({
+        title: 'Không thể đổi role',
+        description: 'Bạn không có quyền gán vai trò này.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setUpdatingRoleUserId(user.id);
     try {
       await apiService.updateManagedUserRole(user.id, { role });
@@ -560,6 +596,15 @@ export default function TaskManagement() {
       toast({
         title: 'Không thể xóa tài khoản',
         description: 'Không thể xóa chính tài khoản đang đăng nhập.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!canManageUserRole(currentUserRole, user.role)) {
+      toast({
+        title: 'Không thể xóa tài khoản',
+        description: 'Bạn không có quyền xóa tài khoản này.',
         variant: 'destructive',
       });
       return;
@@ -833,7 +878,7 @@ export default function TaskManagement() {
                       <SelectValue placeholder="Chọn vai trò" />
                     </SelectTrigger>
                     <SelectContent>
-                      {ASSIGNABLE_ROLE_OPTIONS.map((roleOption) => (
+                      {assignableRoleOptions.map((roleOption) => (
                         <SelectItem key={roleOption.value} value={roleOption.value}>
                           {roleOption.label}
                         </SelectItem>
@@ -888,7 +933,7 @@ export default function TaskManagement() {
                 <div className="space-y-2">
                   {managedUsers.map((user) => {
                     const normalizedRole = normalizeRole(user.role);
-                    const canMutate = user.id !== currentUserId;
+                    const canMutate = user.id !== currentUserId && canManageUserRole(currentUserRole, user.role);
 
                     return (
                       <div key={user.id} className="flex flex-col lg:flex-row lg:items-center gap-3 border border-slate-200 rounded-md p-3 bg-slate-50/50">
@@ -899,7 +944,7 @@ export default function TaskManagement() {
                         </div>
 
                         <div className="w-full lg:w-64">
-                          {normalizedRole ? (
+                          {normalizedRole && canMutate ? (
                             <Select
                               value={normalizedRole}
                               onValueChange={(value) => void handleUpdateUserRole(user, value as AssignableRole)}
@@ -909,7 +954,7 @@ export default function TaskManagement() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {ASSIGNABLE_ROLE_OPTIONS.map((roleOption) => (
+                                {assignableRoleOptions.map((roleOption) => (
                                   <SelectItem key={roleOption.value} value={roleOption.value}>
                                     {roleOption.label}
                                   </SelectItem>

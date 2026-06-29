@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSupplies } from "@/hooks/use-supplies";
+import { useAllSupplies } from "@/hooks/use-supplies";
 import { MedicalSupply } from "@/types";
 
 interface SupplyItem {
@@ -96,7 +96,8 @@ function calculateWarning(
 }
 
 export default function DailyUsageReport() {
-  const { supplies: rawSupplies, loading } = useSupplies(1, 1500);
+  const { supplies: rawSupplies, loading } = useAllSupplies();
+  const reportActionTooltip = "Chức năng này chưa được triển khai.";
 
   const supplies = useMemo(() => {
     return rawSupplies.map(mapMedicalSupplyToSupplyItem);
@@ -162,18 +163,6 @@ export default function DailyUsageReport() {
 
     setDraftFilters(resetFilters);
     setAppliedFilters(null);
-  };
-
-  const handleExportExcel = () => {
-    console.log("Xuất Excel");
-  };
-
-  const handleExportPdf = () => {
-    console.log("Xuất PDF");
-  };
-
-  const handleSendEmail = () => {
-    console.log("Gửi Email");
   };
 
   return (
@@ -265,15 +254,15 @@ export default function DailyUsageReport() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={handleExportExcel}>
+        <Button variant="outline" disabled title={reportActionTooltip}>
           <FileSpreadsheet className="h-4 w-4" />
           Xuất Excel
         </Button>
-        <Button variant="outline" onClick={handleExportPdf}>
+        <Button variant="outline" disabled title={reportActionTooltip}>
           <FileDown className="h-4 w-4" />
           Xuất PDF
         </Button>
-        <Button variant="outline" onClick={handleSendEmail}>
+        <Button variant="outline" disabled title={reportActionTooltip}>
           <Mail className="h-4 w-4" />
           Gửi Email
         </Button>
