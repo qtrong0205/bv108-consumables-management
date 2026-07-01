@@ -5,7 +5,6 @@ import {
     SaveInvoiceReconciliationItemRequest,
     UpsertInvoiceReconciliationItemRequest,
     apiService,
-    getStoredAuth,
 } from '@/services/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ import {
     ChevronRight,
     Package,
 } from 'lucide-react';
-import { canEditInvoiceNotes, canManageInvoiceWorkflow } from '@/lib/auth';
+import { canEditInvoiceNotes } from '@/lib/auth';
 import { useStoredAuth } from '@/hooks/use-stored-auth';
 
 interface InvoiceTableProps {
@@ -106,6 +105,7 @@ interface ModalPairRow {
 
 interface NoteEditorState {
     orderHistoryId: number;
+    groupId: string;
 }
 
 const normalize = (value?: string | null) => {
@@ -429,9 +429,7 @@ export default function InvoiceTable({
     const storedAuth = useStoredAuth();
     const currentRole = storedAuth?.user.role ?? '';
     const canSaveInvoiceNotes = canEditInvoiceNotes(currentRole);
-    const canUpdateInvoiceWorkflow = canManageInvoiceWorkflow(currentRole);
-    const invoiceNoteRoleTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được thực hiện thao tác này.';
-    const invoiceWorkflowRoleTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Nhân viên kế toán mới được thực hiện thao tác này.';
+    const invoiceNoteRoleTooltip = 'Chỉ Thủ kho mới được thêm ghi chú và lưu đối chiếu hóa đơn.';
     // Use external state if provided, otherwise use internal state
     const [internalExpandedSuppliers, setInternalExpandedSuppliers] = useState<Set<string>>(new Set());
     const [internalSearchTerm, setInternalSearchTerm] = useState('');
@@ -471,7 +469,7 @@ export default function InvoiceTable({
     const [noteEditor, setNoteEditor] = useState<NoteEditorState | null>(null);
     const [localMatchedMap, setLocalMatchedMap] = useState<Map<number, ApiInvoiceReconciliationRecord>>(new Map());
     const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
-    const [groupActionState, setGroupActionState] = useState<Record<string, 'saving' | 'approving'>>({});
+    const [groupActionState, setGroupActionState] = useState<Record<string, 'saving'>>({});
     const matchedInvoiceKeySet = matchedInvoiceNumbers ?? EMPTY_MATCHED_INVOICE_SET;
     const matchedHistoryMap = useMemo(
         () => buildReconciliationRecordMap(matchedReconciliations || []),
@@ -903,7 +901,7 @@ export default function InvoiceTable({
         if (!canSaveInvoiceNotes) {
             toast({
                 title: 'Không có quyền sửa ghi chú',
-                description: 'Chỉ Nhân viên kế toán mới được chỉnh sửa ghi chú hóa đơn.',
+                description: 'Chỉ Thủ kho mới được chỉnh sửa ghi chú hóa đơn.',
                 variant: 'destructive',
             });
             return;
@@ -911,6 +909,7 @@ export default function InvoiceTable({
 
         setNoteEditor({
             orderHistoryId: Number(result.order.id),
+            groupId: getOrderBatchKey(result.order),
         });
     };
 
@@ -1002,20 +1001,11 @@ export default function InvoiceTable({
         return refreshedMap;
     };
 
-    const persistGroup = async (group: SupplierGroup, status: WorkflowStatus) => {
-        if (status === WORKFLOW_STATUS_PENDING && !canSaveInvoiceNotes) {
+    const persistGroup = async (group: SupplierGroup, options?: { closeNoteEditor?: boolean }) => {
+        if (!canSaveInvoiceNotes) {
             toast({
                 title: 'Không có quyền lưu ghi chú',
-                description: 'Chỉ Nhân viên kế toán mới được lưu ghi chú trên trang hóa đơn.',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        if (status === WORKFLOW_STATUS_DONE && !canUpdateInvoiceWorkflow) {
-            toast({
-                title: 'Không có quyền duyệt hóa đơn',
-                description: 'Bạn không có quyền chuyển nhóm hóa đơn này sang trạng thái đã duyệt.',
+                description: 'Chỉ Thủ kho mới được lưu ghi chú trên trang hóa đơn.',
                 variant: 'destructive',
             });
             return;
@@ -1033,26 +1023,25 @@ export default function InvoiceTable({
             return;
         }
 
-        const items = status === WORKFLOW_STATUS_DONE
-            ? buildStatusUpdatePayload(group, recordMap)
-            : buildNoteUpdatePayload(group, recordMap);
+        const noteItems = buildNoteUpdatePayload(group, recordMap);
+        const statusItems = buildStatusUpdatePayload(group, recordMap);
+        const items = [...noteItems, ...statusItems];
 
         if (items.length === 0) {
             toast({
-                title: status === WORKFLOW_STATUS_DONE ? 'Không có dữ liệu để duyệt' : 'Không có ghi chú thay đổi để lưu',
-                description: status === WORKFLOW_STATUS_DONE
-                    ? 'Nhóm đối chiếu này chưa có bản ghi tương ứng trong bảng order_invoice_reconciliation để cập nhật.'
-                    : 'Hiện chưa có dòng ghi chú nào thay đổi để cập nhật vào bảng order_invoice_reconciliation.',
+                title: 'Không có dữ liệu để lưu',
+                description: 'Nhóm đối chiếu này không có thay đổi mới để lưu hoặc đã ở trạng thái đã duyệt.',
                 variant: 'destructive',
             });
             return;
         }
 
-        const actionState = status === WORKFLOW_STATUS_DONE ? 'approving' : 'saving';
-        setGroupActionState((prev) => ({ ...prev, [group.groupId]: actionState }));
+        setGroupActionState((prev) => ({ ...prev, [group.groupId]: 'saving' }));
 
         try {
             await apiService.saveInvoiceReconciliationsBulk({ items });
+            const noteUpdatedRecordIds = new Set(noteItems.map((item) => item.id));
+            const statusUpdatedRecordIds = new Set(statusItems.map((item) => item.id));
             const updatedRecordIds = new Set(items.map((item) => item.id));
 
             setLocalMatchedMap((prev) => {
@@ -1066,10 +1055,10 @@ export default function InvoiceTable({
 
                     next.set(orderHistoryId, {
                         ...persistedRecord,
-                        note: status === WORKFLOW_STATUS_DONE
-                            ? persistedRecord.note
-                            : getDraftNote(item).trim(),
-                        status: status === WORKFLOW_STATUS_DONE
+                        note: noteUpdatedRecordIds.has(persistedRecord.id)
+                            ? getDraftNote(item).trim()
+                            : persistedRecord.note,
+                        status: statusUpdatedRecordIds.has(persistedRecord.id)
                             ? WORKFLOW_STATUS_DONE
                             : persistedRecord.status,
                     });
@@ -1078,20 +1067,20 @@ export default function InvoiceTable({
                 return next;
             });
 
-            if (status !== WORKFLOW_STATUS_DONE) {
+            if (noteItems.length > 0) {
                 setNoteDrafts((prev) => {
                     const next = { ...prev };
                     group.results.forEach((item) => {
                         const persistedRecord = getPersistedRecord(item, recordMap);
                         if (!persistedRecord?.id) return;
-                        if (!updatedRecordIds.has(persistedRecord.id)) return;
+                        if (!noteUpdatedRecordIds.has(persistedRecord.id)) return;
                         delete next[Number(item.order.id)];
                     });
                     return next;
                 });
             }
 
-            if (status === WORKFLOW_STATUS_DONE && onMatchedInvoicesSaved) {
+            if (statusItems.length > 0 && onMatchedInvoicesSaved) {
                 const approvedInvoiceNumbers = Array.from(
                     new Set(
                         group.results
@@ -1103,14 +1092,16 @@ export default function InvoiceTable({
             }
 
             toast({
-                title: status === WORKFLOW_STATUS_DONE ? 'Duyệt hóa đơn thành công' : 'Lưu ghi chú thành công',
-                description: status === WORKFLOW_STATUS_DONE
-                    ? `Hóa đơn của ${group.nhaThau} đã được chuyển sang lịch sử đã khớp.`
-                    : `Đã cập nhật ghi chú cho hóa đơn của ${group.nhaThau}.`,
+                title: 'Lưu đối chiếu hóa đơn thành công',
+                description: `Đối chiếu của ${group.nhaThau} đã được lưu và chuyển sang lịch sử đã khớp.`,
             });
+
+            if (options?.closeNoteEditor) {
+                setNoteEditor(null);
+            }
         } catch (error) {
             toast({
-                title: status === WORKFLOW_STATUS_DONE ? 'Duyệt hóa đơn thất bại' : 'Lưu ghi chú thất bại',
+                title: 'Lưu đối chiếu hóa đơn thất bại',
                 description: error instanceof Error ? error.message : 'Không thể cập nhật đối chiếu hóa đơn.',
                 variant: 'destructive',
             });
@@ -1193,6 +1184,45 @@ export default function InvoiceTable({
             ),
         );
     }, [allSupplierGroups, searchTerm]);
+
+    const supplierGroupById = useMemo(() => {
+        const map = new Map<string, SupplierGroup>();
+        rawSupplierGroups.forEach((group) => {
+            map.set(group.groupId, group);
+        });
+        return map;
+    }, [rawSupplierGroups]);
+
+    const discardNoteEditorDraft = (editor: NoteEditorState | null) => {
+        if (!editor) return;
+
+        setNoteDrafts((prev) => {
+            if (!Object.prototype.hasOwnProperty.call(prev, editor.orderHistoryId)) {
+                return prev;
+            }
+
+            const next = { ...prev };
+            delete next[editor.orderHistoryId];
+            return next;
+        });
+        setNoteEditor(null);
+    };
+
+    const handleSaveNoteEditor = async () => {
+        if (!noteEditor) return;
+
+        const group = supplierGroupById.get(noteEditor.groupId);
+        if (!group) {
+            toast({
+                title: 'Không tìm thấy nhóm đối chiếu',
+                description: 'Không thể xác định nhóm nhà thầu tương ứng để lưu ghi chú.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        await persistGroup(group, { closeNoteEditor: true });
+    };
 
     const toggleExpand = (groupId: string, anchorElement?: HTMLElement | null) => {
         const beforeTop = anchorElement?.getBoundingClientRect().top;
@@ -1510,7 +1540,6 @@ export default function InvoiceTable({
                                 const isExpanded = expandedSuppliers.has(group.groupId);
                                 const workflowBadge = getGroupWorkflowBadge(group);
                                 const isSavingGroup = groupActionState[group.groupId] === 'saving';
-                                const isApprovingGroup = groupActionState[group.groupId] === 'approving';
 
                                 return (
                                     <React.Fragment key={group.groupId}>
@@ -1594,10 +1623,10 @@ export default function InvoiceTable({
                                                                 </Badge>
                                                                 {group.stats.hasInvoice > 0 ? (
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        Lưu chỉ cập nhật ghi chú, duyệt chỉ cập nhật trạng thái sang đã duyệt.
+                                                                        Thủ kho có thể thêm ghi chú; khi bấm Lưu, hệ thống sẽ lưu ghi chú và chấp nhận toàn bộ nhóm hóa đơn này.
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-xs text-muted-foreground">Không có hóa đơn để lưu hoặc duyệt.</span>
+                                                                    <span className="text-xs text-muted-foreground">Không có hóa đơn để lưu.</span>
                                                                 )}
                                                             </div>
 
@@ -1610,25 +1639,11 @@ export default function InvoiceTable({
                                                                         >
                                                                             <Button
                                                                                 type="button"
-                                                                                variant="outline"
                                                                                 size="sm"
-                                                                                disabled={!canSaveInvoiceNotes || isSavingGroup || isApprovingGroup}
-                                                                                onClick={() => void persistGroup(group, WORKFLOW_STATUS_PENDING)}
+                                                                                disabled={!canSaveInvoiceNotes || isSavingGroup}
+                                                                                onClick={() => void persistGroup(group)}
                                                                             >
                                                                                 {isSavingGroup ? 'Đang lưu...' : 'Lưu'}
-                                                                            </Button>
-                                                                        </span>
-                                                                        <span
-                                                                            className="inline-flex"
-                                                                            title={!canUpdateInvoiceWorkflow ? invoiceWorkflowRoleTooltip : undefined}
-                                                                        >
-                                                                            <Button
-                                                                                type="button"
-                                                                                size="sm"
-                                                                                disabled={!canUpdateInvoiceWorkflow || isSavingGroup || isApprovingGroup}
-                                                                                onClick={() => void persistGroup(group, WORKFLOW_STATUS_DONE)}
-                                                                            >
-                                                                                {isApprovingGroup ? 'Đang duyệt...' : 'Duyệt'}
                                                                             </Button>
                                                                         </span>
                                                                         <button
@@ -1800,7 +1815,14 @@ export default function InvoiceTable({
                 </div>
             </div>
 
-            <Dialog open={!!noteEditor} onOpenChange={(open) => { if (!open) setNoteEditor(null); }}>
+            <Dialog
+                open={!!noteEditor}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        discardNoteEditorDraft(noteEditor);
+                    }
+                }}
+            >
                 {noteEditor ? (
                     <DialogContent className="sm:max-w-xl">
                         <DialogHeader>
@@ -1836,14 +1858,25 @@ export default function InvoiceTable({
                             })()}
                             <p className="text-xs text-muted-foreground">
                                 {canSaveInvoiceNotes
-                                    ? 'Ghi chú sẽ được lưu khi bấm nút Lưu ở nhóm nhà thầu.'
+                                    ? 'Ghi chú sẽ được lưu khi bấm nút Lưu ở nhóm nhà thầu, đồng thời nhóm hóa đơn sẽ được chuyển sang đã duyệt.'
                                     : 'Bạn chỉ có quyền xem ghi chú, không thể chỉnh sửa.'}
                             </p>
                         </div>
 
-                        <div className="flex justify-end">
-                            <Button type="button" variant="outline" onClick={() => setNoteEditor(null)}>
-                                Đóng
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => discardNoteEditorDraft(noteEditor)}
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={() => void handleSaveNoteEditor()}
+                                disabled={!canSaveInvoiceNotes || groupActionState[noteEditor.groupId] === 'saving'}
+                            >
+                                {groupActionState[noteEditor.groupId] === 'saving' ? 'Đang lưu...' : 'Lưu'}
                             </Button>
                         </div>
                     </DialogContent>

@@ -3,11 +3,11 @@ import { useAllSupplies } from '@/hooks/use-supplies';
 import { useOrder } from '@/context/OrderContext';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
 import { apiService, ApiForecastApproval } from '@/services/api';
-import { MedicalSupply, HoaDonUBot } from '@/types';
+import { MedicalSupply } from '@/types';
 import { 
     Package, AlertTriangle, ShoppingCart, CheckCircle, 
-    TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, 
-    Percent, Filter, RefreshCw, X, FileText, ChevronRight
+    DollarSign, ArrowUpRight, ArrowDownRight, 
+    Percent, Filter, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -57,11 +57,14 @@ export default function Dashboard() {
     // 1. Fetching core data hooks
     const { supplies, loading: loadingSupplies } = useAllSupplies();
     const { orderHistory, approvedOrders, loadingOrders } = useOrder();
-    const { hoaDons, loading: loadingInvoices, refetch: refetchInvoices } = useHoaDonUBot();
+    const { hoaDons, loading: loadingInvoices } = useHoaDonUBot();
     const supplyGroups = useMemo(() => {
         const list = supplies.map(item => item.tenNhom).filter(Boolean);
         return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
     }, [supplies]);
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
 
     // 2. Local state variables
     const [forecastApprovals, setForecastApprovals] = useState<ApiForecastApproval[]>([]);
@@ -74,17 +77,13 @@ export default function Dashboard() {
     const [selectedTypeLevel2, setSelectedTypeLevel2] = useState<string>('all');
     const [selectedTypeLevel3, setSelectedTypeLevel3] = useState<string>('all');
     const [selectedSupplier, setSelectedSupplier] = useState<string>('all');
-    const [selectedMonth, setSelectedMonth] = useState<string>('all');
-    const [selectedYear, setSelectedYear] = useState<string>('all');
 
-    // Fetch forecast approvals for selected time period
+    // Dashboard luôn bám theo kỳ hiện tại; bộ lọc tháng/năm đã bị loại bỏ để tránh lọc sai kỳ.
     useEffect(() => {
         const fetchForecastApprovals = async () => {
             try {
                 setLoadingForecast(true);
-                const monthVal = selectedMonth === 'all' ? new Date().getMonth() + 1 : parseInt(selectedMonth);
-                const yearVal = selectedYear === 'all' ? new Date().getFullYear() : parseInt(selectedYear);
-                const res = await apiService.getForecastApprovals(monthVal, yearVal);
+                const res = await apiService.getForecastApprovals(currentMonth, currentYear);
                 setForecastApprovals(res.data || []);
             } catch (e) {
                 setForecastApprovals([]);
@@ -93,7 +92,7 @@ export default function Dashboard() {
             }
         };
         fetchForecastApprovals();
-    }, [selectedMonth, selectedYear]);
+    }, [currentMonth, currentYear]);
 
     // Scroll to top on load
     useEffect(() => {
@@ -144,8 +143,6 @@ export default function Dashboard() {
         setSelectedTypeLevel2('all');
         setSelectedTypeLevel3('all');
         setSelectedSupplier('all');
-        setSelectedMonth('all');
-        setSelectedYear('all');
     };
 
     // 4. Filtering Logic for Supplies
@@ -292,12 +289,11 @@ export default function Dashboard() {
     // 7. Visualizations charts calculations
     // (a) Monthly Usage trend line
     const usageTrendData = useMemo(() => {
-        const year = selectedYear === 'all' ? new Date().getFullYear() : parseInt(selectedYear);
         const monthlyTotals = Array(12).fill(0);
 
         orderHistory.forEach(order => {
             const date = order.ngayDatHang ? new Date(order.ngayDatHang) : null;
-            if (!date || Number.isNaN(date.getTime()) || date.getFullYear() !== year) {
+            if (!date || Number.isNaN(date.getTime()) || date.getFullYear() !== currentYear) {
                 return;
             }
             
@@ -317,7 +313,7 @@ export default function Dashboard() {
             month: `T${index + 1}`,
             value: value
         }));
-    }, [orderHistory, selectedYear, filteredSupplies, supplies]);
+    }, [currentYear, orderHistory, filteredSupplies, supplies]);
 
     // (b) Top 10 Consumables horizontal bar
     const topConsumablesData = useMemo(() => {
@@ -490,35 +486,6 @@ export default function Dashboard() {
                                 </select>
                             </div>
 
-                            {/* Filter: Thời gian */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tháng</label>
-                                    <select
-                                        value={selectedMonth}
-                                        onChange={(e) => setSelectedMonth(e.target.value)}
-                                        className="w-full bg-tertiary border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                                    >
-                                        <option value="all">Cả năm</option>
-                                        {Array.from({ length: 12 }, (_, i) => (
-                                            <option key={i + 1} value={i + 1}>T{i + 1}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Năm</label>
-                                    <select
-                                        value={selectedYear}
-                                        onChange={(e) => setSelectedYear(e.target.value)}
-                                        className="w-full bg-tertiary border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-                                    >
-                                        <option value="all">Tất cả</option>
-                                        <option value="2025">2025</option>
-                                        <option value="2026">2026</option>
-                                        <option value="2027">2027</option>
-                                    </select>
-                                </div>
-                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -669,7 +636,7 @@ export default function Dashboard() {
                         <Card className="bg-neutral border-border">
                             <CardHeader>
                                 <CardTitle className="text-base font-semibold text-foreground">Biểu đồ xu hướng gọi hàng theo tháng</CardTitle>
-                                <CardDescription>Số lượng vật tư gọi trong năm {selectedYear === 'all' ? new Date().getFullYear() : selectedYear}</CardDescription>
+                                <CardDescription>Số lượng vật tư gọi trong năm {currentYear}</CardDescription>
                             </CardHeader>
                             <CardContent className="pt-0">
                                 <div className="h-80 w-full">

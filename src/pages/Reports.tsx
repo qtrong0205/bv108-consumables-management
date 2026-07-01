@@ -4,18 +4,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyUsageReport from "@/components/reports/DailyUsageReport";
 import CompareSuppliesTab from "@/components/reports/CompareSuppliesTab";
 import TenderProgressReport from "@/components/reports/TenderProgressReport";
+import { useAllSupplies } from "@/hooks/use-supplies";
 
 type ReportTab = "daily-usage" | "tender-progress" | "compare";
 
 export default function Report() {
   const [activeTab, setActiveTab] = useState<ReportTab>("daily-usage");
+  const { supplies, loading } = useAllSupplies();
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-foreground">Báo cáo</h1>
         <p className="text-sm text-muted-foreground">
-          Xem và xuất các báo cáo vật tư theo kỳ
+          Xem các báo cáo vật tư và đối chiếu dữ liệu
         </p>
       </div>
 
@@ -55,11 +57,11 @@ export default function Report() {
         </Card>
 
         <TabsContent value="daily-usage" className="mt-0">
-          <DailyUsageReport />
+          <DailyUsageReport supplies={supplies} loading={loading} />
         </TabsContent>
 
         <TabsContent value="tender-progress" className="mt-0">
-          <TenderProgressReport />
+          <TenderProgressReport supplies={supplies} loading={loading} />
         </TabsContent>
 
         <TabsContent value="compare" className="mt-0">

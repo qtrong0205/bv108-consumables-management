@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileDown, FileSpreadsheet, Mail, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -12,8 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAllSupplies } from "@/hooks/use-supplies";
+import Pagination from "@/components/ui/pagination";
 import { MedicalSupply } from "@/types";
+
+interface DailyUsageReportProps {
+  supplies: MedicalSupply[];
+  loading: boolean;
+}
 
 interface SupplyItem {
   mã_vt: string;
@@ -95,9 +99,9 @@ function calculateWarning(
   return { label: "Theo dõi", tone: "success" };
 }
 
-export default function DailyUsageReport() {
-  const { supplies: rawSupplies, loading } = useAllSupplies();
-  const reportActionTooltip = "Chức năng này chưa được triển khai.";
+const PAGE_SIZE = 100;
+
+export default function DailyUsageReport({ supplies: rawSupplies, loading }: DailyUsageReportProps) {
 
   const supplies = useMemo(() => {
     return rawSupplies.map(mapMedicalSupplyToSupplyItem);
@@ -108,6 +112,7 @@ export default function DailyUsageReport() {
     mãCap2: "all",
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters | null>(null);
+  const [page, setPage] = useState(1);
 
   const level1Options = useMemo(() => {
     const list = supplies.map((item) => item.mã_cap1).filter(Boolean);
@@ -151,8 +156,19 @@ export default function DailyUsageReport() {
     });
   }, [supplies, appliedFilters]);
 
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return visibleRows.slice(start, start + PAGE_SIZE);
+  }, [page, visibleRows]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
   const handleApply = () => {
-    setAppliedFilters(draftFilters);
+    setAppliedFilters({ ...draftFilters });
+    setPage(1);
   };
 
   const handleReset = () => {
@@ -163,6 +179,7 @@ export default function DailyUsageReport() {
 
     setDraftFilters(resetFilters);
     setAppliedFilters(null);
+    setPage(1);
   };
 
   return (
@@ -253,21 +270,6 @@ export default function DailyUsageReport() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" disabled title={reportActionTooltip}>
-          <FileSpreadsheet className="h-4 w-4" />
-          Xuất Excel
-        </Button>
-        <Button variant="outline" disabled title={reportActionTooltip}>
-          <FileDown className="h-4 w-4" />
-          Xuất PDF
-        </Button>
-        <Button variant="outline" disabled title={reportActionTooltip}>
-          <Mail className="h-4 w-4" />
-          Gửi Email
-        </Button>
-      </div>
-
       <Card className="bg-neutral border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg text-foreground">
@@ -323,7 +325,7 @@ export default function DailyUsageReport() {
                     </td>
                   </tr>
                 ) : (
-                  visibleRows.map((item, index) => {
+                  paginatedRows.map((item, index) => {
                     const mucDungNgay = item.xuat_trong_ky / periodDays;
                     const doi =
                       mucDungNgay > 0
@@ -337,7 +339,7 @@ export default function DailyUsageReport() {
                         className="hover:bg-tertiary/60 transition-colors"
                       >
                         <td className="px-4 py-3 text-sm text-foreground">
-                          {index + 1}
+                          {(page - 1) * PAGE_SIZE + index + 1}
                         </td>
                         <td className="px-4 py-3 text-sm text-foreground font-medium">
                           {item.mã_vt}
@@ -386,6 +388,17 @@ export default function DailyUsageReport() {
               </tbody>
             </table>
           </div>
+          {visibleRows.length > 0 && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={visibleRows.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

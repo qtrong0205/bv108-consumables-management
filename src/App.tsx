@@ -28,7 +28,7 @@ import {
     recordAuthActivity,
     storeAuth,
 } from './services/api';
-import { canCreateUsers, canManageInvoiceWorkflow, canManageSupplyTasks, formatRoleLabel } from '@/lib/auth';
+import { canCreateUsers, canManageSupplyTasks, canViewInvoices, formatRoleLabel } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -293,7 +293,7 @@ function App() {
                         <Route path="forecast" element={<MaterialForecast />} />
                         <Route
                             path="invoices"
-                            element={canManageInvoiceWorkflow(userRole) ? <InvoiceManagement /> : <Navigate to="/dashboard" replace />}
+                            element={canViewInvoices(userRole) ? <InvoiceManagement /> : <Navigate to="/dashboard" replace />}
                         />
                         <Route
                             path="tasks"

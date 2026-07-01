@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { useOrder } from '@/context/OrderContext';
-import { canManageInvoiceWorkflow } from '@/lib/auth';
+import { canViewInvoices } from '@/lib/auth';
 
 interface SidebarProps {
     currentPath: string;
@@ -23,7 +23,7 @@ export default function Sidebar({ currentPath, userRole }: SidebarProps) {
         { path: '/reports', label: 'Báo cáo' },
     ];
 
-    if (canManageInvoiceWorkflow(userRole)) {
+    if (canViewInvoices(userRole)) {
         navItems.splice(4, 0, { path: '/invoices', label: 'Hóa đơn' });
     }
 

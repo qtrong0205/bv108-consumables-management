@@ -7,7 +7,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Bot, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, GripVertical } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 
 const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined): string => {
     if (!value?.Valid) return '';
@@ -62,8 +62,6 @@ interface ResultDialogProps {
     collapsedRows: string[];
     onCollapsedRowsChange: (rows: string[]) => void;
     onOpenChatbot: () => void;
-    onExportExcel: () => void;
-    onExportPdf: () => void;
 }
 
 const ResultDialog = ({
@@ -75,8 +73,6 @@ const ResultDialog = ({
     collapsedRows,
     onCollapsedRowsChange,
     onOpenChatbot,
-    onExportExcel,
-    onExportPdf,
 }: ResultDialogProps) => {
     const [dragColIdx, setDragColIdx] = useState<number | null>(null);
     const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
@@ -187,14 +183,6 @@ const ResultDialog = ({
                         <Button variant="outline" size="sm" onClick={onOpenChatbot}>
                             <Bot className="w-4 h-4 mr-2" />
                             Chatbot tư vấn
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={onExportExcel}>
-                            <FileSpreadsheet className="w-4 h-4 mr-2" />
-                            Xuất Excel
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={onExportPdf}>
-                            <FileDown className="w-4 h-4 mr-2" />
-                            Xuất PDF
                         </Button>
                     </div>
                 </div>

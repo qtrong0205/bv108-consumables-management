@@ -11,7 +11,6 @@ import {
   getNullableString,
 } from '@/services/api';
 import { Search } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 import ChatBotDialog, { ChatMessage } from './dialog/ChatBotDialog';
 import ResultDialog from './dialog/ResultDialog';
@@ -25,16 +24,6 @@ const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: numb
 
 const getMaThuVien = (item: ApiCompareSupply): string => getNullableString(item.maThuVien);
 const getTenVatTu = (item: ApiCompareSupply): string => getNullableString(item.tenVatTu);
-
-const escapeHtml = (input: string): string =>
-  input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
-const formatHtmlMultiline = (input: string): string => escapeHtml(input).replace(/\r?\n/g, '<br/>');
 
 const COMPARE_FIELDS: Array<{
   label: string;
@@ -231,97 +220,6 @@ export default function CompareSuppliesTab() {
     } finally {
       setLoadingCompare(false);
     }
-  };
-
-  const handleExportExcel = () => {
-    if (comparedItems.length === 0) {
-      setError('Chưa có dữ liệu so sánh để xuất Excel');
-      return;
-    }
-
-    const rows = COMPARE_FIELDS.map((field) => {
-      const row: Record<string, string> = { 'Thuộc tính': field.label };
-      comparedItems.forEach((item, index) => {
-        const code = getMaThuVien(item) || `Mã ${index + 1}`;
-        const name = getTenVatTu(item) || 'Vật tư';
-        row[`${code} - ${name}`] = field.value(item) || '';
-      });
-      return row;
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'SoSanhVatTu');
-
-    const now = new Date();
-    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    XLSX.writeFile(workbook, `so_sanh_vat_tu_${ts}.xlsx`);
-  };
-
-  const handleExportPdf = () => {
-    if (comparedItems.length === 0) {
-      setError('Chưa có dữ liệu so sánh để xuất PDF');
-      return;
-    }
-
-    const headers = comparedItems
-      .map((item, index) => {
-        const code = escapeHtml(getMaThuVien(item) || `Mã ${index + 1}`);
-        const name = escapeHtml(getTenVatTu(item) || 'Vật tư');
-        return `<th>${code}<br/><span style="font-weight:400">${name}</span></th>`;
-      })
-      .join('');
-
-    const body = COMPARE_FIELDS
-      .map((field) => {
-        const cells = comparedItems
-          .map((item) => `<td>${formatHtmlMultiline(field.value(item) || '')}</td>`)
-          .join('');
-        return `<tr><td><strong>${escapeHtml(field.label)}</strong></td>${cells}</tr>`;
-      })
-      .join('');
-
-    const html = `
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Bảng so sánh vật tư</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 16px; color: #1f2937; }
-            h2 { margin: 0 0 12px; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 12px; }
-            th { background: #0f3a68; color: #fff; }
-            td:first-child { background: #f3f4f6; width: 240px; }
-          </style>
-        </head>
-        <body>
-          <h2>Bảng so sánh vật tư</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Thuộc tính</th>
-                ${headers}
-              </tr>
-            </thead>
-            <tbody>${body}</tbody>
-          </table>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      setError('Không thể mở cửa sổ in PDF. Hãy kiểm tra popup blocker.');
-      return;
-    }
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
   };
 
   const openChatbot = () => {
@@ -537,8 +435,6 @@ export default function CompareSuppliesTab() {
         collapsedRows={collapsedRows}
         onCollapsedRowsChange={setCollapsedRows}
         onOpenChatbot={openChatbot}
-        onExportExcel={handleExportExcel}
-        onExportPdf={handleExportPdf}
       />
 
       {/* Dialog Chatbot */}

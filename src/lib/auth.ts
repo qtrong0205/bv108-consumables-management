@@ -135,7 +135,11 @@ export const canSubmitForecast = (role?: string | null): boolean => {
 
 export const canEditInvoiceNotes = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
-  return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa' || normalizedRole === 'nhan_vien_ke_toan';
+  return normalizedRole === 'thu_kho';
+};
+
+export const canViewInvoices = (role?: string | null): boolean => {
+  return normalizeRole(role) !== '';
 };
 
 export const canManageInvoiceWorkflow = (role?: string | null): boolean => {
