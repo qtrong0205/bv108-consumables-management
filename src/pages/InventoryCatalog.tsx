@@ -23,7 +23,7 @@ import { MedicalSupply } from "@/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
-import { downloadCSV } from "@/lib/csv";
+import { downloadExcel } from "@/lib/excel";
 import {
   Popover,
   PopoverContent,
@@ -392,11 +392,11 @@ export default function InventoryCatalog() {
       "Tồn hiện tại": item.soLuongTon,
       "Số lượng tiêu hao": item.soLuongTieuHao,
     }));
-    const fileName = `danh_muc_ton_kho_${new Date().toISOString().split("T")[0]}.csv`;
-    downloadCSV(fileName, rows);
+    const fileName = `danh_muc_ton_kho_${new Date().toISOString().split("T")[0]}.xls`;
+    downloadExcel(fileName, rows);
 
     toast({
-      title: "Xuất file CSV thành công",
+      title: "Xuất file Excel thành công",
       description: `File "${fileName}" đã được tải xuống`,
     });
   };
@@ -466,7 +466,7 @@ export default function InventoryCatalog() {
             onClick={handleExport}
           >
             <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
-            Xuất file CSV
+            Xuất file Excel
           </Button>
         </div>
       </div>

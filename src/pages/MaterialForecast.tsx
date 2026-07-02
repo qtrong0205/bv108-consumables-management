@@ -17,7 +17,7 @@ import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSup
 import { useSupplyGroups } from '@/hooks/use-supplies';
 import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast, canSubmitForecast, normalizeRole } from '@/lib/auth';
 import { useStoredAuth } from '@/hooks/use-stored-auth';
-import { downloadCSV } from '@/lib/csv';
+import { downloadExcel } from '@/lib/excel';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'submitted';
@@ -1236,11 +1236,11 @@ export default function MaterialForecast() {
             'Dự trù': totalForecast,
             'Gọi hàng': totalOrder,
         });
-        const fileName = `bang_du_tru_${new Date().toISOString().split('T')[0]}.csv`;
-        downloadCSV(fileName, rows);
+        const fileName = `bang_du_tru_${new Date().toISOString().split('T')[0]}.xls`;
+        downloadExcel(fileName, rows);
 
         toast({
-            title: "Xuất file CSV thành công",
+            title: "Xuất file Excel thành công",
             description: `File "${fileName}" đã được tải xuống`,
         });
     };
@@ -1781,7 +1781,7 @@ export default function MaterialForecast() {
                         onClick={handleExport}
                     >
                         <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
-                        Xuất CSV
+                        Xuất Excel
                     </Button>
                     {canEditForecastValues && (
                         <Button
