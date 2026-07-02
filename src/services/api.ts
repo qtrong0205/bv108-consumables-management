@@ -453,15 +453,6 @@ export interface UpdateSupplyTaskAssignmentsRequest {
   supplyIdx1List: number[];
 }
 
-export interface ImportSupplyTaskAssignmentsItem {
-  idx1: number;
-  userId: number | null;
-}
-
-export interface ImportSupplyTaskAssignmentsRequest {
-  items: ImportSupplyTaskAssignmentsItem[];
-}
-
 export interface ImportSupplyTaskAssignmentsResponse {
   message: string;
   updatedCount: number;
@@ -803,6 +794,66 @@ class ApiService {
     );
   }
 
+  async exportCompareCatalogExcel(): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/supplies/compare-export`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(true),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      let message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json() as ErrorResponse;
+        if (errorData?.message) {
+          message = errorData.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const matchedFilename = disposition.match(/filename="?([^"]+)"?/i)?.[1];
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = matchedFilename || 'so-sanh-vat-tu-template.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  async importCompareCatalogExcel(file: File): Promise<MutationMessageResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/supplies/compare-import`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(true),
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      let message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json() as ErrorResponse;
+        if (errorData?.message) {
+          message = errorData.message;
+        }
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<MutationMessageResponse>;
+  }
+
   async getForecastCatalog(keyword: string = ''): Promise<{ data: ApiSupply[]; total: number }> {
     return this.request<{ data: ApiSupply[]; total: number }>(
       `/supplies/forecast-catalog?keyword=${encodeURIComponent(keyword)}`,
@@ -876,15 +927,40 @@ class ApiService {
 
     return {
       blob,
-      filename: matchedFilename || 'phan-quyen-vat-tu.csv',
+      filename: matchedFilename || 'phan-quyen-vat-tu.xlsx',
     };
   }
 
-  async importSupplyTaskAssignments(payload: ImportSupplyTaskAssignmentsRequest): Promise<ImportSupplyTaskAssignmentsResponse> {
-    return this.request<ImportSupplyTaskAssignmentsResponse>('/supply-tasks/assignments/import', {
+  async importSupplyTaskAssignments(file: File): Promise<ImportSupplyTaskAssignmentsResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/supply-tasks/assignments/import`, {
       method: 'POST',
-      body: JSON.stringify(payload),
-    }, true);
+      headers: this.getAuthHeaders(true),
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let message = 'Không import được file phân quyền';
+      let errorCode = '';
+      try {
+        const error = (await response.json()) as ErrorResponse;
+        errorCode = error.error || '';
+        message = error.message || message;
+      } catch {
+        message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      }
+
+      if (shouldInvalidateAuthSession(response.status, errorCode)) {
+        clearStoredAuth();
+        dispatchAuthSessionInvalidEvent();
+      }
+
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<ImportSupplyTaskAssignmentsResponse>;
   }
 
   async compareSupplies(maThuVien: string[]): Promise<CompareSuppliesResponse> {

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +11,14 @@ import {
   getNullableNumber,
   getNullableString,
 } from '@/services/api';
-import { Search } from 'lucide-react';
+import { Download, Search, Upload } from 'lucide-react';
 import { askGeminiCompare, resetGeminiChat } from '@/services/gemini';
 import ChatBotDialog, { ChatMessage } from './dialog/ChatBotDialog';
 import ResultDialog from './dialog/ResultDialog';
 import Pagination from '@/components/ui/pagination';
+import { useToast } from '@/hooks/use-toast';
+import { useStoredAuth } from '@/hooks/use-stored-auth';
+import { canImportCompareCatalog } from '@/lib/auth';
 
 const formatNumber = (value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined): string => {
   if (!value?.Valid) return '';
@@ -61,6 +65,10 @@ const COMPARE_FIELDS: Array<{
   ];
 
 export default function CompareSuppliesTab() {
+  const { toast } = useToast();
+  const storedAuth = useStoredAuth();
+  const currentUserRole = storedAuth?.user.role || '';
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [keyword, setKeyword] = useState('');
   const [selectedLevel1, setSelectedLevel1] = useState('all');
   const [selectedLevel2, setSelectedLevel2] = useState('all');
@@ -89,6 +97,9 @@ export default function CompareSuppliesTab() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [chatInitialized, setChatInitialized] = useState(false);
   const [columnOrder, setColumnOrder] = useState<number[]>([]);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const loadLevel1Options = async () => {
@@ -154,7 +165,7 @@ export default function CompareSuppliesTab() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [keyword, page, pageSize, selectedLevel1, selectedLevel2]);
+  }, [keyword, page, pageSize, selectedLevel1, selectedLevel2, reloadToken]);
 
   const selectedCount = selectedCodes.length;
 
@@ -272,11 +283,88 @@ export default function CompareSuppliesTab() {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      await apiService.exportCompareCatalogExcel();
+    } catch (err) {
+      toast({
+        title: 'Không xuất được Excel',
+        description: err instanceof Error ? err.message : 'Đã xảy ra lỗi khi xuất Excel',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const handleOpenImportDialog = () => {
+    importFileInputRef.current?.click();
+  };
+
+  const handleImportExcelFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Nạp Excel mới sẽ xóa toàn bộ dữ liệu so sánh vật tư cũ trong DB và chèn lại dữ liệu từ file này. Tiếp tục?',
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setImportingExcel(true);
+      const response = await apiService.importCompareCatalogExcel(file);
+      setSelectedCodes([]);
+      setComparedItems([]);
+      setCompareDialogOpen(false);
+      setReloadToken((prev) => prev + 1);
+      toast({
+        title: 'Import Excel thành công',
+        description: response.message || 'Dữ liệu so sánh vật tư đã được thay thế.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Không import được Excel',
+        description: err instanceof Error ? err.message : 'Đã xảy ra lỗi khi import Excel',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
       <Card className="bg-neutral border-border">
         <CardHeader className="space-y-3">
           <CardTitle className="text-foreground">Chọn vật tư để so sánh</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => void handleExportExcel()} disabled={exportingExcel}>
+              <Download className="w-4 h-4 mr-2" />
+              {exportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
+            </Button>
+            {canImportCompareCatalog(currentUserRole) && (
+              <>
+                <input
+                  ref={importFileInputRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(event) => void handleImportExcelFile(event)}
+                />
+                <Button variant="outline" onClick={handleOpenImportDialog} disabled={importingExcel}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {importingExcel ? 'Đang nạp...' : 'Nạp Excel mới'}
+                </Button>
+              </>
+            )}
+          </div>
           <div className="flex flex-col md:flex-row gap-3 md:items-center">
             <div className="relative max-w-xl flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />

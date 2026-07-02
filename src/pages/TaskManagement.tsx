@@ -14,7 +14,6 @@ import { apiService, ApiSupply, getNullableString, ManagedAccountUser } from '@/
 import { AssignableRole, canAssignRole, canManageUserRole, canResetUserPassword, formatRoleLabel, getAssignableRoleOptions, normalizeRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useStoredAuth } from '@/hooks/use-stored-auth';
-import { parseCSVRows } from '@/lib/csv';
 
 type AssignmentCatalogItem = {
   idx1: number;
@@ -41,26 +40,6 @@ const toCatalogItem = (item: ApiSupply): AssignmentCatalogItem => ({
   name: getNullableString(item.name),
   typeName: getNullableString(item.typeName),
 });
-
-const normalizeImportHeader = (value: unknown): string => String(value ?? '').trim().toUpperCase().replace(/\s+/g, '');
-
-const parseNumericCell = (value: unknown): number | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const normalized = value.trim().replace(/,/g, '');
-    if (!normalized) {
-      return null;
-    }
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-};
 
 export default function TaskManagement() {
   const { toast } = useToast();
@@ -368,7 +347,7 @@ export default function TaskManagement() {
 
       toast({
         title: 'Đã xuất file phân quyền',
-        description: 'File CSV đã được tải xuống. Có thể mở và chỉnh sửa bằng bảng tính thông thường.',
+        description: 'File Excel đã được tải xuống. Có thể mở, chỉnh sửa và import lại đúng file này.',
       });
     } catch (error) {
       toast({
@@ -396,58 +375,7 @@ export default function TaskManagement() {
     setImportingAssignments(true);
 
     try {
-      const content = await file.text();
-      const rows = parseCSVRows(content);
-
-      if (rows.length < 2) {
-        throw new Error('File import không có dòng dữ liệu.');
-      }
-
-      const headers = rows[0].map((value) => normalizeImportHeader(value));
-      const idx1Column = headers.findIndex((value) => value === 'IDX1');
-      const assigneeColumn = headers.findIndex((value) => value === 'ID_THU_KI_PHU_TRACH');
-
-      if (idx1Column === -1 || assigneeColumn === -1) {
-        throw new Error('File import phải chứa cột IDX1 và id_thu_ki_phu_trach.');
-      }
-
-      const seenIDX1 = new Set<number>();
-      const items: Array<{ idx1: number; userId: number | null }> = [];
-
-      for (let index = 1; index < rows.length; index += 1) {
-        const row = rows[index] || [];
-        const idx1Value = parseNumericCell(row[idx1Column]);
-        const userIdValue = parseNumericCell(row[assigneeColumn]);
-        const hasAnyData = row.some((cell) => String(cell ?? '').trim() !== '');
-
-        if (!hasAnyData) {
-          continue;
-        }
-
-        if (idx1Value === null || !Number.isInteger(idx1Value) || idx1Value <= 0) {
-          throw new Error(`Dòng ${index + 1} có IDX1 không hợp lệ.`);
-        }
-
-        if (seenIDX1.has(idx1Value)) {
-          throw new Error(`Dòng ${index + 1} bị trùng IDX1 ${idx1Value}.`);
-        }
-        seenIDX1.add(idx1Value);
-
-        if (userIdValue !== null && (!Number.isInteger(userIdValue) || userIdValue <= 0)) {
-          throw new Error(`Dòng ${index + 1} có id_thu_ki_phu_trach không hợp lệ.`);
-        }
-
-        items.push({
-          idx1: idx1Value,
-          userId: userIdValue === null ? null : userIdValue,
-        });
-      }
-
-      if (items.length === 0) {
-        throw new Error('File import không có dòng dữ liệu hợp lệ để cập nhật.');
-      }
-
-      const response = await apiService.importSupplyTaskAssignments({ items });
+      const response = await apiService.importSupplyTaskAssignments(file);
       await Promise.all([
         loadState(),
         selectedUserId ? loadAssignments(Number(selectedUserId)) : Promise.resolve(),
@@ -853,23 +781,23 @@ export default function TaskManagement() {
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => void handleExportAssignments()} disabled={exportingAssignments}>
                   {exportingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                  Xuất CSV
+                  Xuất Excel
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={handleTriggerImportAssignments} disabled={importingAssignments}>
                   {importingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                  Giao lại quản lí từ CSV
+                  Import Excel phân công
                 </Button>
                 <input
                   ref={importFileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".xlsx"
                   className="hidden"
                   onChange={(event) => void handleImportAssignmentsFile(event)}
                 />
               </div>
 
               <p className="text-xs text-muted-foreground">
-                File export giữ nguyên format dữ liệu vật tư hiện tại và thêm cột cuối <code>id_thu_ki_phu_trach</code>. Cột này chỉ được nhập ID của tài khoản có role Nhân viên thầu.
+                File export Excel giữ nguyên format dữ liệu vật tư hiện tại và thêm cột cuối <code>id_thu_ki_phu_trach</code>. Cột này chỉ được nhập ID của tài khoản có role Nhân viên thầu.
               </p>
 
               <div className="border border-slate-300 rounded-md max-h-[420px] overflow-y-auto bg-slate-50/50">
