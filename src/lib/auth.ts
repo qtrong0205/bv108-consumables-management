@@ -151,3 +151,7 @@ export const canManageSupplyTasks = (role?: string | null): boolean => {
   const normalizedRole = normalizeRole(role);
   return normalizedRole === 'admin' || normalizedRole === 'chi_huy_khoa';
 };
+
+export const canResetUserPassword = (role?: string | null): boolean => {
+  return normalizeRole(role) === 'admin';
+};

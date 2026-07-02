@@ -1,7 +1,7 @@
 export type OrderSource = 'forecast' | 'manual';
 
 export interface MedicalSupply {
-    id: number;                // MA_QUAN_LY
+    id: string;                // Synthetic UI key
     maVtyt: string;            // MA_VTYT_C
     tenVtyt: string;           // TEN_VTYT_B
     tenThuongMai: string;      // TEN_THUON

@@ -24,18 +24,6 @@ interface ScatterDataPoint {
     group: string;
 }
 
-// Màu sắc cho các nhóm (nếu muốn phân biệt theo nhóm)
-const getColorByGroup = (group: string): string => {
-    const colorMap: Record<string, string> = {
-        'Dính dán y tế': '#3b82f6',
-        'Dịch truyền': '#ef4444',
-        'Chăm sóc vết mổ': '#8b5cf6',
-        'Kỹ thuật y tế': '#ec4899',
-        'Vật tư khác': '#10b981',
-    };
-    return colorMap[group] || '#06b6d4';
-};
-
 export default function PriceUsageScatterChart({ supplies, loading = false }: PriceUsageScatterChartProps) {
     // Xử lý dữ liệu từ supplies
     const chartData = useMemo(() => {

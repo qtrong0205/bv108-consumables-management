@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Pagination from "@/components/ui/pagination";
-import { IVatTuDuTru } from "@/data/mockData";
+import { IVatTuDuTru } from "@/types/forecast";
 import { TabsContent } from "@radix-ui/react-tabs";
 import {
   Calculator,

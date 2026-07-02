@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MedicalSupply } from "@/types";
 import { ChevronRight, ChevronDown, AlertTriangle } from "lucide-react";
-import React, { useMemo, useState, useEffect } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 interface InventoryTableProps {
   items: MedicalSupply[];
@@ -40,7 +40,7 @@ const groupSuppliesByParent = (
   items: MedicalSupply[],
 ): (MedicalSupply | SupplyGroup)[] => {
   const parentMap = new Map<string, SupplyGroup>();
-  const processedIds = new Set<number>();
+  const processedIds = new Set<string>();
 
   // Bước 1: Tìm các vật tư cha và các con của nó
   items.forEach((item) => {
@@ -106,9 +106,9 @@ export default function InventoryTable({
 
   // State cho expanded groups
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const topScrollRef = React.useRef<HTMLDivElement>(null);
-  const tableScrollRef = React.useRef<HTMLDivElement>(null);
-  const isSyncingScrollRef = React.useRef(false);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingScrollRef = useRef(false);
   const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   useEffect(() => {
@@ -287,7 +287,7 @@ export default function InventoryTable({
                 const group = dataItem.data as SupplyGroup;
                 const isExpanded = expandedGroups.has(group.key);
                 return (
-                  <React.Fragment key={`group-${group.key}`}>
+                  <Fragment key={`group-${group.key}`}>
                     {/* Group Header */}
                     <div
                       onClick={() => toggleGroup(group.key)}
@@ -380,7 +380,7 @@ export default function InventoryTable({
                           </div>
                         </div>
                       ))}
-                  </React.Fragment>
+                  </Fragment>
                 );
               } else {
                 const item = dataItem.data as MedicalSupply;
@@ -514,7 +514,7 @@ export default function InventoryTable({
                     const group = dataItem.data as SupplyGroup;
                     const isExpanded = expandedGroups.has(group.key);
                     return (
-                      <React.Fragment key={`group-${group.key}`}>
+                      <Fragment key={`group-${group.key}`}>
                         {/* Group Header Row */}
                         <tr
                           className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
@@ -551,7 +551,7 @@ export default function InventoryTable({
                           group.allItems.map((item) =>
                             renderItemRow(item, true),
                           )}
-                      </React.Fragment>
+                      </Fragment>
                     );
                   } else {
                     const item = dataItem.data as MedicalSupply;

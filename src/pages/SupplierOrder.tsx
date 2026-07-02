@@ -66,14 +66,11 @@ export default function SupplierOrder() {
         markGroupsAsRead,
         orderHistory,
         addManualOrder,
-        placeOrders,
-        reorderHistoryOrders,
         loadingOrders,
         refreshOrders,
     } = useOrder();
     const canCreateOrders = canCreateManualOrders(currentRole);
     const canSubmitOrders = canPlaceOrders(currentRole);
-    const createOrderRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
     const placeOrderRoleTooltip = 'Chỉ Admin, Chỉ huy khoa, Thủ kho hoặc Nhân viên thầu mới được thực hiện thao tác này.';
 
     const [activeTab, setActiveTab] = useState(supplierOrderUiCache.activeTab);

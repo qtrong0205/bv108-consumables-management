@@ -201,7 +201,7 @@ export default function Dashboard() {
 
         // Submitted Forecast requests
         const submittedRequests = forecastApprovals.filter(req => {
-            const matchStatus = req.status === 'submitted' || req.status === 'pending';
+            const matchStatus = req.status === 'submitted';
             const matchSupply = filteredSupplies.some(s => s.maVtyt === req.maQuanLy || s.id === req.maQuanLy);
             return matchStatus && matchSupply;
         }).length;
@@ -682,14 +682,14 @@ export default function Dashboard() {
                                                 <YAxis dataKey="name" type="category" stroke="hsl(210, 10%, 40%)" fontSize={10} width={120} />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: 'hsl(0, 0%, 100%)', border: '1px solid hsl(210, 14%, 90%)', borderRadius: '8px' }}
-                                                    formatter={(value: number, name: string, props: any) => [
+                                                    formatter={(value: number, _name: string, props: any) => [
                                                         `${value.toLocaleString('vi-VN')} ${props.payload.unit}`, 
                                                         'Tiêu hao'
                                                     ]}
-                                                    labelFormatter={(label, items) => items[0]?.payload.fullName || label}
+                                                    labelFormatter={(label: string, items: any[]) => items[0]?.payload.fullName || label}
                                                 />
                                                 <Bar dataKey="volume" fill="hsl(215, 90%, 50%)" radius={[0, 4, 4, 0]} maxBarSize={15}>
-                                                    {topConsumablesData.map((entry, index) => (
+                                                    {topConsumablesData.map((_, index) => (
                                                         <Cell key={`cell-${index}`} fill={`hsl(215, 90%, ${45 + index * 4}%)`} />
                                                     ))}
                                                 </Bar>
@@ -717,11 +717,11 @@ export default function Dashboard() {
                                             <BarChart data={financialComparisonData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 14%, 90%)" />
                                                 <XAxis dataKey="name" stroke="hsl(210, 10%, 40%)" fontSize={11} />
-                                                <YAxis stroke="hsl(210, 10%, 40%)" fontSize={11} formatter={(v: number) => `${(v / 1e6).toFixed(0)}M`} />
+                                                <YAxis stroke="hsl(210, 10%, 40%)" fontSize={11} tickFormatter={(v: number) => `${(v / 1e6).toFixed(0)}M`} />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: 'hsl(0, 0%, 100%)', border: '1px solid hsl(210, 14%, 90%)', borderRadius: '8px' }}
                                                     formatter={(value: number) => [formatVND(value), 'Giá trị']}
-                                                    labelFormatter={(label, items) => items[0]?.payload.fullName || label}
+                                                    labelFormatter={(label: string, items: any[]) => items[0]?.payload.fullName || label}
                                                 />
                                                 <Legend />
                                                 <Bar dataKey="Nhập trong kỳ" fill="hsl(199, 89%, 48%)" radius={[4, 4, 0, 0]} maxBarSize={20} />

@@ -235,7 +235,7 @@ export default function CompareSuppliesTab() {
           );
           setChatMessages([{ role: 'bot', content: botReply }]);
         } catch (err) {
-          setChatMessages([{ role: 'bot', content: `Lỗi kết nối Gemini: ${err instanceof Error ? err.message : 'Không xác định'}` }]);
+          setChatMessages([{ role: 'bot', content: `Lỗi kết nối trợ lý: ${err instanceof Error ? err.message : 'Không xác định'}` }]);
         } finally {
           setIsSendingChat(false);
         }

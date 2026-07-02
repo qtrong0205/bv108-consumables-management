@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { HoaDonUBot, OrderHistory } from '@/types';
 import {
     ApiInvoiceReconciliationRecord,
@@ -220,7 +220,7 @@ const getOrderBatchKey = (order: OrderHistory) => {
     return `${getOrderSupplierKey(order)}__${String(order.ngayDatHang)}`;
 };
 
-const getInvoiceDocumentCompanyContactId = (document: InvoiceDocument): number | undefined => {
+const getInvoiceDocumentCompanyContactId = (document: InvoiceDocument): string | undefined => {
     const first = document.lines[0]?.data?.companyContactId;
     return first === undefined || first === null ? undefined : first;
 };
@@ -268,6 +268,8 @@ const deduplicateInvoiceDocuments = (documents: InvoiceDocument[]) => {
 const getInvoiceDocumentUniqueKey = (document: InvoiceDocument) => {
     return `${document.invoiceNumber}__${document.lines.length}`;
 };
+
+const isDefined = <T,>(value: T | null | undefined): value is T => value !== null && value !== undefined;
 
 const selectCandidateDocsForBatch = (batchOrders: OrderHistory[], uniqueDocs: InvoiceDocument[]) => {
     if (batchOrders.length === 0) return uniqueDocs;
@@ -933,7 +935,7 @@ export default function InvoiceTable({
                     note: nextNote,
                 };
             })
-            .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
+            .filter(isDefined);
     };
 
     const buildStatusUpdatePayload = (
@@ -952,7 +954,7 @@ export default function InvoiceTable({
                     status: WORKFLOW_STATUS_DONE,
                 };
             })
-            .filter((item): item is SaveInvoiceReconciliationItemRequest => !!item);
+            .filter(isDefined);
     };
 
     const buildUpsertPayload = (group: SupplierGroup): UpsertInvoiceReconciliationItemRequest[] => {
@@ -1542,7 +1544,7 @@ export default function InvoiceTable({
                                 const isSavingGroup = groupActionState[group.groupId] === 'saving';
 
                                 return (
-                                    <React.Fragment key={group.groupId}>
+                                    <Fragment key={group.groupId}>
                                         {/* Dòng nhà thầu */}
                                         <tr
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
@@ -1686,7 +1688,7 @@ export default function InvoiceTable({
                                                                 {group.results.map((result) => {
                                                                     const detailKey = getResultKey(result);
                                                                     return (
-                                                                        <React.Fragment key={detailKey}>
+                                                                        <Fragment key={detailKey}>
                                                                             <tr
                                                                                 className={`border-b border-border/50 text-xs hover:bg-muted/30 ${
                                                                                     result.detailStatus === 'material-mismatch' || result.detailStatus === 'surplus'
@@ -1798,7 +1800,7 @@ export default function InvoiceTable({
                                                                                     {formatDate(result.order.ngayDatHang)}
                                                                                 </td>
                                                                             </tr>
-                                                                        </React.Fragment>
+                                                                        </Fragment>
                                                                     );
                                                                 })}
                                                             </tbody>
@@ -1807,7 +1809,7 @@ export default function InvoiceTable({
                                                 </td>
                                             </tr>
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 );
                             })}
                         </tbody>

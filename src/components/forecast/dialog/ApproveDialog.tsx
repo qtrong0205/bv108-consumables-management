@@ -1,4 +1,4 @@
-import { IVatTuDuTru } from "@/data/mockData";
+import { IVatTuDuTru } from "@/types/forecast";
 import { ApprovalState } from "@/data/forecast/type";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,7 @@ const ApproveDialog = ({
     const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
     const { onApprove, onReject, onEditAndSave, approveLabel = 'Phê duyệt' } = actions;
-    const { canApproveReject, canEditForecast, approveRejectTooltip, lockApproveReject, lockApproveRejectTooltip } = permissions;
+    const { canApproveReject, canEditForecast, lockApproveReject, lockApproveRejectTooltip } = permissions;
 
     const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>): string => {
         const maVtytCu = (item.maVtytCu || '').trim();
@@ -85,8 +85,6 @@ const ApproveDialog = ({
         && typeof selectedItemApproval.duTruSua !== 'number';
     const canShowActionButtons = !selectedItemApproval || selectedItemApproval.status === 'edited' || selectedItemApproval.status === 'submitted' || selectedItemApproval.status === 'approved';
     const currentGoiHang = isEditMode ? editDuTru : selectedItem?.goiHang ?? 0;
-    const approveRejectRoleTooltip = approveRejectTooltip || 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được thực hiện thao tác này.';
-    const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
     const approvedLockTooltip = 'Vật tư đã được duyệt, không thể từ chối hoặc gửi duyệt lại.';
     const isApproveRejectLocked = Boolean(lockApproveReject) || isApprovedLocked;
     const approveRejectLockTooltip = isApprovedLocked

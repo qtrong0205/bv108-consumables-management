@@ -308,6 +308,28 @@ export interface CompareSuppliesResponse {
   total: number;
 }
 
+export interface GeminiTextPart {
+  text: string;
+}
+
+export interface GeminiContent {
+  role: 'user' | 'model';
+  parts: GeminiTextPart[];
+}
+
+export interface GeminiGenerateRequest {
+  contents: GeminiContent[];
+}
+
+export interface GeminiGenerateResponse {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+    groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> };
+    finishReason?: string;
+  }>;
+  error?: { message?: string };
+}
+
 export interface HoaDonListResponse {
   data: HoaDonUBot[];
   total: number;
@@ -387,6 +409,10 @@ export interface ManagedUsersResponse {
 
 export interface UpdateManagedUserRoleRequest {
   role: AssignableRole;
+}
+
+export interface ResetManagedUserPasswordRequest {
+  password: string;
 }
 
 export interface GetProfileResponse {
@@ -700,6 +726,13 @@ class ApiService {
     }, true);
   }
 
+  async resetManagedUserPassword(userId: number, payload: ResetManagedUserPasswordRequest): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>(`/auth/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+  }
+
   async deleteManagedUser(userId: number): Promise<MutationMessageResponse> {
     return this.request<MutationMessageResponse>(`/auth/users/${userId}`, {
       method: 'DELETE',
@@ -858,6 +891,13 @@ class ApiService {
     return this.request<CompareSuppliesResponse>('/supplies/compare', {
       method: 'POST',
       body: JSON.stringify({ maThuVien }),
+    }, true);
+  }
+
+  async generateGeminiCompare(payload: GeminiGenerateRequest): Promise<GeminiGenerateResponse> {
+    return this.request<GeminiGenerateResponse>('/reports/gemini-compare', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }, true);
   }
 

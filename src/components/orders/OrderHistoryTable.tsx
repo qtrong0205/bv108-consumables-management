@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect, useRef } from 'react';
+﻿import { Dispatch, Fragment, SetStateAction, useState, useMemo, useEffect, useRef } from 'react';
 import { OrderHistory } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { getStoredAuth } from '@/services/api';
 interface OrderHistoryTableProps {
     orders: OrderHistory[];
     selectedOrderIds: number[];
-    setSelectedOrderIds: (ids: number[]) => void;
+    setSelectedOrderIds: Dispatch<SetStateAction<number[]>>;
 }
 
 const getCurrentOrderHistorySessionKey = (): string => {
@@ -259,7 +259,7 @@ export default function OrderHistoryTable({ orders, selectedOrderIds, setSelecte
                                 const groupCheckState = getGroupCheckState(group);
 
                                 return (
-                                    <React.Fragment key={group.groupKey}>
+                                    <Fragment key={group.groupKey}>
                                         <tr
                                             className="border-b border-border bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
                                             onClick={() => toggleExpand(group.groupKey)}
@@ -396,7 +396,7 @@ export default function OrderHistoryTable({ orders, selectedOrderIds, setSelecte
                                                 </td>
                                             </tr>
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 );
                             })}
                         </tbody>

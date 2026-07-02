@@ -8,12 +8,6 @@ interface LowStockChartProps {
     loading?: boolean;
 }
 
-interface ChartDataPoint {
-    name: string;
-    soLuongTon: number;
-    soLuongToiThieu: number;
-}
-
 // Hàm rút ngắn tên vật tư để tránh chiều dài quá lớn
 const truncateName = (name: string, maxLength: number = 25): string => {
     if (!name) return 'Không xác định';

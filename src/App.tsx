@@ -1,17 +1,9 @@
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardLayout from './layouts/DashboardLayout';
-import Dashboard from './pages/Dashboard';
-import InventoryCatalog from './pages/InventoryCatalog';
-import Reports from './pages/Reports';
 import { Toaster } from '@/components/ui/toaster';
-import SupplierOrder from './pages/SupplierOrder';
-import MaterialForecast from './pages/MaterialForecast';
-import InvoiceManagement from './pages/InvoiceManagement';
-import ProfilePage from './pages/ProfilePage';
-import TaskManagement from './pages/TaskManagement';
 import { OrderProvider } from './context/OrderContext';
 import {
     AUTH_EXPIRES_AT_KEY,
@@ -30,6 +22,15 @@ import {
 } from './services/api';
 import { canCreateUsers, canManageSupplyTasks, canViewInvoices, formatRoleLabel } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const InventoryCatalog = lazy(() => import('./pages/InventoryCatalog'));
+const Reports = lazy(() => import('./pages/Reports'));
+const SupplierOrder = lazy(() => import('./pages/SupplierOrder'));
+const MaterialForecast = lazy(() => import('./pages/MaterialForecast'));
+const InvoiceManagement = lazy(() => import('./pages/InvoiceManagement'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const TaskManagement = lazy(() => import('./pages/TaskManagement'));
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_WRITE_THROTTLE_MS = 15 * 1000;
@@ -69,6 +70,20 @@ const isSameAuth = (left: StoredAuth | null, right: StoredAuth | null): boolean 
 };
 
 type LogoutReason = 'manual' | 'idle' | 'expired' | 'server';
+
+function PageFallback() {
+    return (
+        <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+            Đang tải màn hình...
+        </div>
+    );
+}
+
+const withSuspense = (element: JSX.Element) => (
+    <Suspense fallback={<PageFallback />}>
+        {element}
+    </Suspense>
+);
 
 function App() {
     const [auth, setAuth] = useState<StoredAuth | null>(() => getStoredAuth());
@@ -287,20 +302,20 @@ function App() {
                         }
                     >
                         <Route index element={<Navigate to="/dashboard" replace />} />
-                        <Route path="dashboard" element={<Dashboard />} />
-                        <Route path="catalog" element={<InventoryCatalog />} />
-                        <Route path="suppliers" element={<SupplierOrder />} />
-                        <Route path="forecast" element={<MaterialForecast />} />
+                        <Route path="dashboard" element={withSuspense(<Dashboard />)} />
+                        <Route path="catalog" element={withSuspense(<InventoryCatalog />)} />
+                        <Route path="suppliers" element={withSuspense(<SupplierOrder />)} />
+                        <Route path="forecast" element={withSuspense(<MaterialForecast />)} />
                         <Route
                             path="invoices"
-                            element={canViewInvoices(userRole) ? <InvoiceManagement /> : <Navigate to="/dashboard" replace />}
+                            element={canViewInvoices(userRole) ? withSuspense(<InvoiceManagement />) : <Navigate to="/dashboard" replace />}
                         />
                         <Route
                             path="tasks"
-                            element={canManageSupplyTasks(userRole) ? <TaskManagement /> : <Navigate to="/dashboard" replace />}
+                            element={canManageSupplyTasks(userRole) ? withSuspense(<TaskManagement />) : <Navigate to="/dashboard" replace />}
                         />
-                        <Route path="reports" element={<Reports />} />
-                        <Route path="profile" element={<ProfilePage />} />
+                        <Route path="reports" element={withSuspense(<Reports />)} />
+                        <Route path="profile" element={withSuspense(<ProfilePage />)} />
                     </Route>
                     <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>

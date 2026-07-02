@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileUp, Save, Calculator, CheckCircle2, XCircle, FilePen, CheckCheck, History, Calendar, Loader2 } from 'lucide-react';
-import { IVatTuDuTru } from '@/data/mockData';
+import { IVatTuDuTru } from '@/types/forecast';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,7 @@ import { apiService, ApiForecastApproval, ApiForecastChangeHistoryRecord, ApiSup
 import { useSupplyGroups } from '@/hooks/use-supplies';
 import { canApproveAllForecast, canApproveForecast as canApproveForecastRole, canEditForecast, canSubmitForecast, normalizeRole } from '@/lib/auth';
 import { useStoredAuth } from '@/hooks/use-stored-auth';
-import * as XLSX from 'xlsx';
+import { downloadCSV } from '@/lib/csv';
 
 // Trạng thái phê duyệt cho mỗi vật tư
 type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'submitted';
@@ -430,8 +430,10 @@ export default function MaterialForecast() {
         if (statusFilter !== 'all') {
             filtered = filtered.filter((item) => approvalStates[getMaterialKey(item)]?.status === statusFilter);
             return [...filtered].sort((a, b) => {
-                const aTime = approvalStates[getMaterialKey(a)]?.thoiGian ? new Date(approvalStates[getMaterialKey(a)].thoiGian).getTime() : 0;
-                const bTime = approvalStates[getMaterialKey(b)]?.thoiGian ? new Date(approvalStates[getMaterialKey(b)].thoiGian).getTime() : 0;
+                const aApprovalTime = approvalStates[getMaterialKey(a)]?.thoiGian;
+                const bApprovalTime = approvalStates[getMaterialKey(b)]?.thoiGian;
+                const aTime = aApprovalTime ? new Date(aApprovalTime).getTime() : 0;
+                const bTime = bApprovalTime ? new Date(bApprovalTime).getTime() : 0;
                 if (aTime !== bTime) {
                     return bTime - aTime;
                 }
@@ -494,7 +496,7 @@ export default function MaterialForecast() {
     const [activeTab, setActiveTab] = useState(materialForecastUiCache.activeTab);
 
     // Sử dụng OrderContext để chuyển dữ liệu sang trang gọi hàng
-    const { addApprovedOrder, addApprovedOrdersBulk, realtimeEventVersion, lastRealtimeEvent, refreshOrders } = useOrder();
+    const { addApprovedOrder, realtimeEventVersion, lastRealtimeEvent, refreshOrders } = useOrder();
 
     // State cho dialog phê duyệt
     const [selectedItem, setSelectedItem] = useState<IVatTuDuTru | null>(null);
@@ -535,8 +537,6 @@ export default function MaterialForecast() {
     const canSubmitForecastItems = canSubmitForecast(currentRole);
     const canApproveForecastItems = canApproveForecastRole(currentRole);
     const canApproveAllForecastItems = canApproveAllForecast(currentRole);
-    const editForecastRoleTooltip = 'Chỉ Admin hoặc Nhân viên thầu mới được thực hiện thao tác này.';
-    const approveAllRoleTooltip = 'Chỉ Admin hoặc Chỉ huy khoa mới được thực hiện thao tác này.';
     const approveRejectDialogTooltip = 'Chỉ Admin, Chỉ huy khoa hoặc Thủ kho mới được thực hiện thao tác này.';
 
     useEffect(() => {
@@ -909,7 +909,7 @@ export default function MaterialForecast() {
         return approvalStates[getMaterialKey(item)]?.status ?? 'pending';
     };
 
-    const isRowSelectable = (item: IVatTuDuTru) => {
+    const isRowSelectable = (_item: IVatTuDuTru) => {
         return true;
     };
 
@@ -1203,10 +1203,8 @@ export default function MaterialForecast() {
         }
     };
 
-    // Xuất Excel với thư viện xlsx
     const handleExport = () => {
-        // Chuẩn bị dữ liệu cho Excel
-        const excelData = filteredData.map((item) => ({
+        const rows = filteredData.map((item) => ({
             'STT': item.stt,
             'Mã VT': item.maVtytCu,
             'Tên vật tư': item.tenVtytBv,
@@ -1223,7 +1221,7 @@ export default function MaterialForecast() {
         }));
 
         // Thêm dòng tổng cộng
-        excelData.push({
+        rows.push({
             'STT': '' as any,
             'Mã VT': '',
             'Tên vật tư': '',
@@ -1238,36 +1236,11 @@ export default function MaterialForecast() {
             'Dự trù': totalForecast,
             'Gọi hàng': totalOrder,
         });
-
-        // Tạo workbook và worksheet
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Dự trù vật tư');
-
-        // Điều chỉnh độ rộng cột
-        const colWidths = [
-            { wch: 3 },   // STT
-            { wch: 8 },  // Mã VT
-            { wch: 30 },  // Tên vật tư
-            { wch: 12 },  // Mã hiệu
-            { wch: 12 },  // Hãng SX
-            { wch: 18 },  // Quy cách
-            { wch: 10 },  // Đơn giá
-            { wch: 8 },  // SL Xuất
-            { wch: 8 },  // SL Nhập
-            { wch: 8 },  // SL Tồn
-            { wch: 15 },  // Nhà thầu
-            { wch: 8 },  // Dự trù
-            { wch: 8 },  // Gọi hàng
-        ];
-        ws['!cols'] = colWidths;
-
-        // Xuất file
-        const fileName = `bang_du_tru_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        const fileName = `bang_du_tru_${new Date().toISOString().split('T')[0]}.csv`;
+        downloadCSV(fileName, rows);
 
         toast({
-            title: "Xuất file thành công",
+            title: "Xuất file CSV thành công",
             description: `File "${fileName}" đã được tải xuống`,
         });
     };
@@ -1808,7 +1781,7 @@ export default function MaterialForecast() {
                         onClick={handleExport}
                     >
                         <FileUp className="w-4 h-4 mr-2" strokeWidth={2} />
-                        Xuất Excel
+                        Xuất CSV
                     </Button>
                     {canEditForecastValues && (
                         <Button

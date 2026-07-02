@@ -1,4 +1,4 @@
-import { HistoryEntry } from "@/pages/MaterialForecast";
+import { HistoryEntry } from "@/data/forecast/type";
 import {
     Dialog,
     DialogContent,
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 interface IRejectReasonDetailDialogProps {
     isHistoryDetailDialogOpen: boolean;
     setIsHistoryDetailDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    selectedHistoryEntry: HistoryEntry
+    selectedHistoryEntry: HistoryEntry | null
 }
 
 const RejectReasonDetailDialog = ({

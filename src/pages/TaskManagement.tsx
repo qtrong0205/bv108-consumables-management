@@ -6,14 +6,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { apiService, ApiSupply, getNullableString, ManagedAccountUser } from '@/services/api';
-import { AssignableRole, canAssignRole, canManageUserRole, formatRoleLabel, getAssignableRoleOptions, normalizeRole } from '@/lib/auth';
+import { AssignableRole, canAssignRole, canManageUserRole, canResetUserPassword, formatRoleLabel, getAssignableRoleOptions, normalizeRole } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useStoredAuth } from '@/hooks/use-stored-auth';
-import * as XLSX from 'xlsx';
+import { parseCSVRows } from '@/lib/csv';
 
 type AssignmentCatalogItem = {
   idx1: number;
@@ -43,7 +44,7 @@ const toCatalogItem = (item: ApiSupply): AssignmentCatalogItem => ({
 
 const normalizeImportHeader = (value: unknown): string => String(value ?? '').trim().toUpperCase().replace(/\s+/g, '');
 
-const parseExcelNumericCell = (value: unknown): number | null => {
+const parseNumericCell = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
@@ -99,6 +100,10 @@ export default function TaskManagement() {
   const [staffPassword, setStaffPassword] = useState('');
   const [staffConfirmPassword, setStaffConfirmPassword] = useState('');
   const [staffRole, setStaffRole] = useState<AssignableRole | ''>('');
+  const [resetPasswordUser, setResetPasswordUser] = useState<ManagedAccountUser | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordConfirmValue, setResetPasswordConfirmValue] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const selectedUser = useMemo(
     () => users.find((user) => String(user.id) === selectedUserId) || null,
@@ -363,7 +368,7 @@ export default function TaskManagement() {
 
       toast({
         title: 'Đã xuất file phân quyền',
-        description: 'File CSV đã được tải xuống. Có thể mở và chỉnh sửa bằng Excel.',
+        description: 'File CSV đã được tải xuống. Có thể mở và chỉnh sửa bằng bảng tính thông thường.',
       });
     } catch (error) {
       toast({
@@ -391,21 +396,8 @@ export default function TaskManagement() {
     setImportingAssignments(true);
 
     try {
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-
-      if (!worksheet) {
-        throw new Error('File không có sheet dữ liệu hợp lệ.');
-      }
-
-      const rows = XLSX.utils.sheet_to_json<Array<unknown>>(worksheet, {
-        header: 1,
-        blankrows: false,
-        defval: '',
-        raw: true,
-      });
+      const content = await file.text();
+      const rows = parseCSVRows(content);
 
       if (rows.length < 2) {
         throw new Error('File import không có dòng dữ liệu.');
@@ -424,8 +416,8 @@ export default function TaskManagement() {
 
       for (let index = 1; index < rows.length; index += 1) {
         const row = rows[index] || [];
-        const idx1Value = parseExcelNumericCell(row[idx1Column]);
-        const userIdValue = parseExcelNumericCell(row[assigneeColumn]);
+        const idx1Value = parseNumericCell(row[idx1Column]);
+        const userIdValue = parseNumericCell(row[assigneeColumn]);
         const hasAnyData = row.some((cell) => String(cell ?? '').trim() !== '');
 
         if (!hasAnyData) {
@@ -634,6 +626,82 @@ export default function TaskManagement() {
     }
   };
 
+  const openResetPasswordDialog = (user: ManagedAccountUser) => {
+    if (user.id === currentUserId) {
+      toast({
+        title: 'Không thể đặt lại mật khẩu',
+        description: 'Không thể đặt lại mật khẩu của chính tài khoản đang đăng nhập tại màn này.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!canResetUserPassword(currentUserRole) || !canManageUserRole(currentUserRole, user.role)) {
+      toast({
+        title: 'Không thể đặt lại mật khẩu',
+        description: 'Bạn không có quyền đặt lại mật khẩu cho tài khoản này.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setResetPasswordUser(user);
+    setResetPasswordValue('');
+    setResetPasswordConfirmValue('');
+  };
+
+  const closeResetPasswordDialog = () => {
+    if (resettingPassword) {
+      return;
+    }
+
+    setResetPasswordUser(null);
+    setResetPasswordValue('');
+    setResetPasswordConfirmValue('');
+  };
+
+  const handleResetUserPassword = async () => {
+    if (!resetPasswordUser) {
+      return;
+    }
+
+    if (resetPasswordValue.trim().length < 6) {
+      toast({
+        title: 'Mật khẩu không hợp lệ',
+        description: 'Mật khẩu mới phải có ít nhất 6 ký tự.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (resetPasswordValue !== resetPasswordConfirmValue) {
+      toast({
+        title: 'Mật khẩu không khớp',
+        description: 'Mật khẩu xác nhận không khớp.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      await apiService.resetManagedUserPassword(resetPasswordUser.id, { password: resetPasswordValue });
+      toast({
+        title: 'Đã đặt lại mật khẩu',
+        description: `Mật khẩu mới của ${resetPasswordUser.username} đã được lưu. Hãy gửi lại mật khẩu này cho nhân viên.`,
+      });
+      closeResetPasswordDialog();
+    } catch (error) {
+      toast({
+        title: 'Không đặt lại được mật khẩu',
+        description: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi đặt lại mật khẩu',
+        variant: 'destructive',
+      });
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   if (loadingState) {
     return (
       <div className="p-6 lg:p-8">
@@ -785,16 +853,16 @@ export default function TaskManagement() {
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => void handleExportAssignments()} disabled={exportingAssignments}>
                   {exportingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                  Xuất Excel
+                  Xuất CSV
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={handleTriggerImportAssignments} disabled={importingAssignments}>
                   {importingAssignments ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                  Giao lại quản lí từ Excel
+                  Giao lại quản lí từ CSV
                 </Button>
                 <input
                   ref={importFileInputRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv"
                   className="hidden"
                   onChange={(event) => void handleImportAssignmentsFile(event)}
                 />
@@ -849,26 +917,32 @@ export default function TaskManagement() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleCreateUser} className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <form onSubmit={handleCreateUser} autoComplete="off" className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="staffName">Họ và tên</Label>
                   <Input
                     id="staffName"
+                    name="staff-account-name"
                     value={staffName}
                     onChange={(event) => setStaffName(event.target.value)}
                     placeholder="Nhập họ và tên"
                     className="bg-slate-50 border-slate-300"
+                    autoComplete="off"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="staffEmail">Email</Label>
                   <Input
                     id="staffEmail"
+                    name="staff-account-email"
                     type="email"
                     value={staffEmail}
                     onChange={(event) => setStaffEmail(event.target.value)}
                     placeholder="Nhập email"
                     className="bg-slate-50 border-slate-300"
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                   />
                 </div>
                 <div className="space-y-2">
@@ -890,22 +964,30 @@ export default function TaskManagement() {
                   <Label htmlFor="staffPassword">Mật khẩu</Label>
                   <Input
                     id="staffPassword"
+                    name="staff-account-password"
                     type="password"
                     value={staffPassword}
                     onChange={(event) => setStaffPassword(event.target.value)}
                     placeholder="Ít nhất 6 ký tự"
                     className="bg-slate-50 border-slate-300"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="staffConfirmPassword">Xác nhận mật khẩu</Label>
                   <Input
                     id="staffConfirmPassword"
+                    name="staff-account-password-confirm"
                     type="password"
                     value={staffConfirmPassword}
                     onChange={(event) => setStaffConfirmPassword(event.target.value)}
                     placeholder="Nhập lại mật khẩu"
                     className="bg-slate-50 border-slate-300"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                   />
                 </div>
                 <div className="flex items-end">
@@ -934,6 +1016,9 @@ export default function TaskManagement() {
                   {managedUsers.map((user) => {
                     const normalizedRole = normalizeRole(user.role);
                     const canMutate = user.id !== currentUserId && canManageUserRole(currentUserRole, user.role);
+                    const canResetPassword = user.id !== currentUserId
+                      && canManageUserRole(currentUserRole, user.role)
+                      && canResetUserPassword(currentUserRole);
 
                     return (
                       <div key={user.id} className="flex flex-col lg:flex-row lg:items-center gap-3 border border-slate-200 rounded-md p-3 bg-slate-50/50">
@@ -972,6 +1057,15 @@ export default function TaskManagement() {
                           )}
                           <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!canResetPassword || resettingPassword}
+                            onClick={() => openResetPasswordDialog(user)}
+                          >
+                            Đặt lại mật khẩu
+                          </Button>
+                          <Button
+                            type="button"
                             variant="destructive"
                             size="sm"
                             disabled={!canMutate || deletingUserId === user.id}
@@ -990,6 +1084,59 @@ export default function TaskManagement() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={resetPasswordUser !== null} onOpenChange={(open) => { if (!open) closeResetPasswordDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đặt lại mật khẩu</DialogTitle>
+            <DialogDescription>
+              {resetPasswordUser
+                ? `Nhập mật khẩu mới cho ${resetPasswordUser.username} (${resetPasswordUser.email}).`
+                : 'Nhập mật khẩu mới cho tài khoản.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resetUserPassword">Mật khẩu mới</Label>
+              <Input
+                id="resetUserPassword"
+                name="reset-user-password"
+                type="password"
+                value={resetPasswordValue}
+                onChange={(event) => setResetPasswordValue(event.target.value)}
+                placeholder="Ít nhất 6 ký tự"
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-1p-ignore="true"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resetUserPasswordConfirm">Xác nhận mật khẩu mới</Label>
+              <Input
+                id="resetUserPasswordConfirm"
+                name="reset-user-password-confirm"
+                type="password"
+                value={resetPasswordConfirmValue}
+                onChange={(event) => setResetPasswordConfirmValue(event.target.value)}
+                placeholder="Nhập lại mật khẩu mới"
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-1p-ignore="true"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeResetPasswordDialog} disabled={resettingPassword}>
+              Hủy
+            </Button>
+            <Button type="button" onClick={() => void handleResetUserPassword()} disabled={resettingPassword}>
+              {resettingPassword ? 'Đang lưu...' : 'Lưu mật khẩu mới'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

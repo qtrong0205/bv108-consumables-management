@@ -1,48 +1,13 @@
-import type { ApiCompareSupply } from './api';
-import { getNullableString } from './api';
+import type {
+  ApiCompareSupply,
+  GeminiContent,
+  GeminiGenerateResponse,
+} from './api';
+import { apiService, getNullableString } from './api';
 
-const GEMINI_API_KEY = ((import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '').trim();
-const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || 'gemini-2.5-flash-lite';
-const ENABLE_WEB_SEARCH = ((import.meta.env.VITE_GEMINI_WEB_SEARCH as string) || 'false').toLowerCase() !== 'false';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-const GEMINI_MAX_OUTPUT_TOKENS = Number((import.meta.env.VITE_GEMINI_MAX_OUTPUT_TOKENS as string | undefined) || 4096);
-const GEMINI_MAX_CONTINUATIONS = Number((import.meta.env.VITE_GEMINI_MAX_CONTINUATIONS as string | undefined) || 4);
+const GEMINI_MAX_CONTINUATIONS = 4;
 
-type GeminiRole = 'user' | 'model';
-type GeminiContent = { role: GeminiRole; parts: Array<{ text: string }> };
 type GroundingChunk = { web?: { uri?: string; title?: string } };
-type GeminiApiResponse = {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
-    groundingMetadata?: { groundingChunks?: GroundingChunk[] };
-    finishReason?: string;
-  }>;
-  error?: { message?: string };
-};
-
-const normalizeGeminiError = (message: string, status: number): string => {
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes('reported as leaked')) {
-    return 'Gemini API key đã bị Google khóa do bị lộ. Hãy tạo key mới và redeploy frontend với VITE_GEMINI_API_KEY mới.';
-  }
-
-  if (
-    normalized.includes('api key not valid') ||
-    normalized.includes('invalid api key') ||
-    normalized.includes('permission denied') ||
-    status === 401 ||
-    status === 403
-  ) {
-    return 'Gemini API key không hợp lệ hoặc không có quyền. Hãy kiểm tra lại key và quyền Generative Language API.';
-  }
-
-  if (status === 429 || normalized.includes('quota')) {
-    return 'Gemini API đã vượt quota/tốc độ giới hạn. Vui lòng thử lại sau.';
-  }
-
-  return message || `Gemini API lỗi (${status})`;
-};
 
 const formatNullableNumber = (
   value: { Int32: number; Valid: boolean } | { Float64: number; Valid: boolean } | null | undefined,
@@ -138,6 +103,7 @@ Luôn trả lời theo đúng khung sau:
 
 ## Rủi ro cần kiểm tra
 - 3-5 rủi ro ngắn gọn cần xác minh trước khi chốt thầu.`;
+
 let chatHistory: GeminiContent[] = [];
 let lastItemsKey = '';
 
@@ -164,7 +130,7 @@ const initHistory = (itemsKey: string, comparedItems: ApiCompareSupply[]) => {
   lastItemsKey = itemsKey;
 };
 
-const extractAnswerText = (data: GeminiApiResponse): string => {
+const extractAnswerText = (data: GeminiGenerateResponse): string => {
   const parts = data.candidates?.[0]?.content?.parts || [];
   return parts
     .map((part) => part.text || '')
@@ -173,13 +139,13 @@ const extractAnswerText = (data: GeminiApiResponse): string => {
     .trim();
 };
 
-const shouldContinueResponse = (data: GeminiApiResponse): boolean => {
+const shouldContinueResponse = (data: GeminiGenerateResponse): boolean => {
   const reason = (data.candidates?.[0]?.finishReason || '').toUpperCase();
   return reason === 'MAX_TOKENS' || reason === 'LENGTH';
 };
 
-const buildSourcesMarkdown = (data: GeminiApiResponse): string => {
-  const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+const buildSourcesMarkdown = (data: GeminiGenerateResponse): string => {
+  const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[] || [];
   const dedup = new Map<string, string>();
 
   for (const chunk of chunks) {
@@ -197,33 +163,8 @@ const buildSourcesMarkdown = (data: GeminiApiResponse): string => {
   return `\n\n## Nguồn web tham khảo\n${lines.join('\n')}`;
 };
 
-const callGemini = async (contents: GeminiContent[]): Promise<GeminiApiResponse> => {
-  const payload: Record<string, unknown> = {
-    contents,
-    generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
-    },
-  };
-
-  if (ENABLE_WEB_SEARCH) {
-    payload.tools = [{ google_search: {} }];
-  }
-
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': GEMINI_API_KEY,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = (await response.json()) as GeminiApiResponse;
-  if (!response.ok) {
-    throw new Error(normalizeGeminiError(data.error?.message || '', response.status));
-  }
-  return data;
+const callGemini = async (contents: GeminiContent[]): Promise<GeminiGenerateResponse> => {
+  return apiService.generateGeminiCompare({ contents });
 };
 
 const CONTINUE_PROMPT =
@@ -270,10 +211,6 @@ export async function askGeminiCompare(
   comparedItems: ApiCompareSupply[],
   question: string,
 ): Promise<string> {
-  if (!GEMINI_API_KEY) {
-    throw new Error('Chưa cấu hình Gemini API key (VITE_GEMINI_API_KEY) khi build frontend.');
-  }
-
   const itemsKey = comparedItems.map((i) => getNullableString(i.maThuVien)).join(',');
   if (chatHistory.length === 0 || itemsKey !== lastItemsKey) {
     initHistory(itemsKey, comparedItems);
@@ -289,9 +226,9 @@ export async function askGeminiCompare(
   try {
     const { answer, sources, stillTruncated } = await getCompleteGeminiAnswer(chatHistory);
     const truncationNotice = stillTruncated
-      ? '\n\n> Lưu ý: Nội dung dài, Gemini vẫn còn có thể bị cắt. Bạn có thể nhắn: \"tiếp tục phần còn lại\".'
+      ? '\n\n> Lưu ý: Nội dung dài, Gemini vẫn còn có thể bị cắt. Bạn có thể nhắn: "tiếp tục phần còn lại".'
       : '';
-    const finalAnswer = ENABLE_WEB_SEARCH ? `${answer}${sources}${truncationNotice}` : `${answer}${truncationNotice}`;
+    const finalAnswer = `${answer}${sources}${truncationNotice}`;
     chatHistory.push({ role: 'model', parts: [{ text: finalAnswer }] });
     trimHistory();
     return finalAnswer;
