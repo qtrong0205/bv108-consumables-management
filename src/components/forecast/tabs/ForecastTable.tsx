@@ -128,6 +128,8 @@ const ForecastTable = ({
   tableData,
   handlers,
 }: IForecastTableProps) => {
+  const formatTenderProgress = (item: IVatTuDuTru) =>
+    `${item.tongNhap.toLocaleString("vi-VN")} / ${item.tongThau || "0"}`;
   const [supplierSearchTerm, setSupplierSearchTerm] = React.useState("");
   const { totalForecast, totalValue, approvedCount } = statistics;
   const {
@@ -948,8 +950,8 @@ const ForecastTable = ({
                       <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">
                         SL Xuất
                       </th>
-                      <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">
-                        SL Nhập
+                      <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[108px]">
+                        % thầu
                       </th>
                       <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap bg-blue-600 w-[56px]">
                         SL Tồn
@@ -1123,8 +1125,8 @@ const ForecastTable = ({
                                 <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
                                   {item.slXuat}
                                 </td>
-                                <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
-                                  {item.slNhap}
+                                <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30 whitespace-nowrap">
+                                  {formatTenderProgress(item)}
                                 </td>
                                 <td className="px-2 py-3 text-xs text-foreground text-center bg-blue-50 dark:bg-blue-950/30">
                                   <Badge

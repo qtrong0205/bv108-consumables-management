@@ -208,7 +208,10 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
         donGia: getNullableNumber(item.price),
         slXuat: getNullableNumber(item.xuatTrongKy), // SL xuất trong kỳ
         slNhap: getNullableNumber(item.nhapTrongKy), // SL nhập trong kỳ
+        tongNhap: getNullableNumber(item.tongNhap),
+        tongThau: getNullableString(item.tongThau),
         slTon: slTon, // SL tồn đầu kỳ
+        slTonTrongKy: item.tonCuoiKy,
         nhaThau: getNullableString(item.nhaCungCap),
         duTru,
         goiHang: calculateOrderQuantity(duTru, slTrongQuyCach),
@@ -1213,7 +1216,7 @@ export default function MaterialForecast() {
             'Quy cách': `${item.quyCach} (${item.slTrongQuyCach} ${item.donViTinh})`,
             'Đơn giá': item.donGia,
             'SL Xuất': item.slXuat,
-            'SL Nhập': item.slNhap,
+            '% thầu': `${item.tongNhap.toLocaleString('vi-VN')} / ${item.tongThau || '0'}`,
             'SL Tồn': item.slTon,
             'Nhà thầu': item.nhaThau,
             'Dự trù': item.duTru,
@@ -1230,7 +1233,7 @@ export default function MaterialForecast() {
             'Quy cách': '',
             'Đơn giá': '' as any,
             'SL Xuất': '' as any,
-            'SL Nhập': '' as any,
+            '% thầu': '' as any,
             'SL Tồn': '' as any,
             'Nhà thầu': 'Tổng cộng:',
             'Dự trù': totalForecast,
@@ -1950,6 +1953,7 @@ export default function MaterialForecast() {
                     selectedItem,
                     approvalStates,
                     getStatusBadge,
+                    period: getCurrentForecastPeriod(),
                 }}
                 editMode={{
                     isActive: isEditMode,

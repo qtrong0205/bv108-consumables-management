@@ -13,7 +13,10 @@ export interface IVatTuDuTru {
     donGia: number;
     slXuat: number;
     slNhap: number;
+    tongNhap: number;
+    tongThau: string;
     slTon: number;
+    slTonTrongKy: number;
     nhaThau: string;
     duTru: number;
     goiHang: number;

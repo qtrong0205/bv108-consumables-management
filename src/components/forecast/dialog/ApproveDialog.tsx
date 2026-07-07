@@ -21,6 +21,10 @@ interface IApproveDialogProps {
         selectedItem: IVatTuDuTru | null;
         approvalStates: ApprovalState;
         getStatusBadge: (item: IVatTuDuTru) => React.ReactNode;
+        period: {
+            month: number;
+            year: number;
+        };
     };
     editMode: {
         isActive: boolean;
@@ -56,7 +60,7 @@ const ApproveDialog = ({
     actions,
     permissions,
 }: IApproveDialogProps) => {
-    const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge } = dialog;
+    const { open, onOpenChange, selectedItem, approvalStates, getStatusBadge, period } = dialog;
     const { isActive: isEditMode, setActive: setIsEditMode, editValue: editDuTru, setEditValue: setEditDuTru } = editMode;
     const { isActive: isRejectMode, setActive: setIsRejectMode, reason: lyDoTuChoi, setReason: setLyDoTuChoi } = rejectMode;
     const { onApprove, onReject, onEditAndSave, approveLabel = 'Phê duyệt' } = actions;
@@ -90,6 +94,12 @@ const ApproveDialog = ({
     const approveRejectLockTooltip = isApprovedLocked
         ? approvedLockTooltip
         : (lockApproveRejectTooltip || 'Vật tư đã gửi CHK. Thủ kho chỉ có thể hủy duyệt gửi ở danh sách bên ngoài.');
+    const daysInPeriod = new Date(period.year, period.month, 0).getDate();
+    const averageDailyUsage = selectedItem ? selectedItem.slXuat / daysInPeriod : 0;
+    const formatAverageUsage = (value: number) => value.toLocaleString('vi-VN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -143,16 +153,16 @@ const ApproveDialog = ({
                         {/* Số liệu trong kỳ */}
                         <div className="grid grid-cols-4 gap-2">
                             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
-                                <p className="text-[10px] text-muted-foreground">SL Xuất</p>
-                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slXuat.toLocaleString('vi-VN')}</p>
+                                <p className="text-[10px] text-muted-foreground">SDTB</p>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{formatAverageUsage(averageDailyUsage)}</p>
                             </div>
                             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
-                                <p className="text-[10px] text-muted-foreground">SL Nhập</p>
+                                <p className="text-[10px] text-muted-foreground">SL Nhập trong kỳ</p>
                                 <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slNhap.toLocaleString('vi-VN')}</p>
                             </div>
                             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg p-2.5 text-center">
-                                <p className="text-[10px] text-muted-foreground">SL Tồn</p>
-                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slTon.toLocaleString('vi-VN')}</p>
+                                <p className="text-[10px] text-muted-foreground">SL tồn trong kỳ</p>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">{selectedItem.slTonTrongKy.toLocaleString('vi-VN')}</p>
                             </div>
                             <div className="bg-tertiary border border-border rounded-lg p-2.5 text-center">
                                 <p className="text-[10px] text-muted-foreground">Đơn giá</p>
