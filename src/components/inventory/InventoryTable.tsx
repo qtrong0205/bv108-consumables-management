@@ -100,6 +100,13 @@ export default function InventoryTable({
   const isLowStock = (maVtyt: string) => lowStockItems.includes(maVtyt);
   const isOutOfStock = (item: MedicalSupply) =>
     typeof item.soLuongTon === "number" && item.soLuongTon === 0;
+  const getTenDayAverageUsage = (item: MedicalSupply) =>
+    (item.soLuongTieuHao || 0) / 3;
+  const formatUsageValue = (value: number) =>
+    value.toLocaleString("vi-VN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
 
   // Helper để hiển thị giá trị hoặc để trống
   const displayValue = (value: any) => value || "";
@@ -202,11 +209,11 @@ export default function InventoryTable({
       className={`hover:bg-tertiary transition-colors cursor-pointer ${isOutOfStock(item) ? "bg-red-500/5" : isLowStock(item.maVtyt) ? "bg-warning/5" : ""} ${isIndented ? "bg-muted/20" : ""}`}
     >
       <td
-        className={`px-4 py-3 text-xs font-mono text-foreground whitespace-nowrap ${isIndented ? "pl-12" : ""}`}
+        className={`px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap align-top ${isIndented ? "pl-12" : ""}`}
       >
         {displayValue(item.maVtyt)}
       </td>
-      <td className="px-4 py-3 text-xs text-foreground">
+      <td className="px-3 py-3 text-xs text-foreground align-top">
         <div>
           <p
             className="font-semibold text-sm break-words"
@@ -222,33 +229,38 @@ export default function InventoryTable({
           </p>
         </div>
       </td>
-      <td className="px-4 py-3 text-xs text-foreground">
+      <td className="px-3 py-3 text-xs text-foreground align-top">
         <div
-          className="max-w-[330px] truncate whitespace-nowrap"
+          className="max-w-full whitespace-normal break-words leading-5"
           title={displayValue(item.maHieu)}
         >
           {displayValue(item.maHieu)}
         </div>
       </td>
-      <td className="px-4 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap">
+      <td className="px-3 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap w-[96px]">
+        {formatUsageValue(getTenDayAverageUsage(item))}
+      </td>
+      <td className="px-3 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap">
         {typeof item.soLuongTon === "number" ? item.soLuongTon : 0}
       </td>
-      <td className="px-4 py-3 text-xs text-foreground text-center">
+      <td className="px-3 py-3 text-xs text-foreground text-center">
         <div
-          className="max-w-[56px] truncate mx-auto"
+          className="max-w-[72px] truncate mx-auto"
           title={displayValue(item.donViTinh)}
         >
           {displayValue(item.donViTinh)}
         </div>
       </td>
-      <td className="px-4 py-3 text-xs text-foreground text-center font-medium">
+      <td className="px-3 py-3 text-xs text-foreground text-center font-medium whitespace-nowrap">
         {item.tongThau || ""}
       </td>
-      <td className="px-4 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
+      <td className="px-3 py-3 text-xs text-foreground text-right font-medium whitespace-nowrap">
         {(item.donGia || 0).toLocaleString("vi-VN")}
       </td>
-      <td className="px-4 py-3 text-xs text-foreground text-center font-medium w-[128px]"></td>
-      <td className="px-4 py-3 text-center">
+      <td className="px-3 py-3 text-xs text-foreground text-center font-medium w-[128px] whitespace-nowrap">
+        {formatUsageValue(item.soLuongTieuHao || 0)}
+      </td>
+      <td className="px-3 py-3 text-center align-top">
         {isOutOfStock(item) ? (
           <Badge
             variant="outline"
@@ -373,6 +385,12 @@ export default function InventoryTable({
                                   {item.tongThau || ""}
                                 </span>
                               </span>
+                              <span className="text-muted-foreground">
+                                TB10 ngày:{" "}
+                                <span className="text-foreground font-medium">
+                                  {formatUsageValue(getTenDayAverageUsage(item))}
+                                </span>
+                              </span>
                             </div>
                             <span className="text-sm font-semibold text-primary">
                               {(item.donGia || 0).toLocaleString("vi-VN")}đ
@@ -444,6 +462,12 @@ export default function InventoryTable({
                             {item.tongThau || ""}
                           </span>
                         </span>
+                        <span className="text-muted-foreground">
+                          TB10 ngày:{" "}
+                          <span className="text-foreground font-medium">
+                            {formatUsageValue(getTenDayAverageUsage(item))}
+                          </span>
+                        </span>
                       </div>
                       <span className="text-sm font-semibold text-primary">
                         {(item.donGia || 0).toLocaleString("vi-VN")}đ
@@ -476,34 +500,37 @@ export default function InventoryTable({
             onScroll={handleTableScroll}
             className="overflow-x-auto"
           >
-            <table className="w-full min-w-[920px]">
+            <table className="w-full min-w-[1260px] table-fixed">
               <thead className="bg-primary text-primary-foreground">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-[90px]">
+                  <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[88px]">
                     Mã VT
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium w-[480px]">
+                  <th className="px-3 py-3 text-left text-xs font-medium w-[280px]">
                     Tên vật tư
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap w-[400px]">
+                  <th className="px-3 py-3 text-left text-xs font-medium w-[180px]">
                     Mã hiệu
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-[96px]">
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[108px]">
+                    TB10 ngày
+                  </th>
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[96px]">
                     Tồn kho
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-[78px]">
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[96px]">
                     Đơn vị tính
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[110px]">
                     Tổng thầu
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium whitespace-nowrap">
+                  <th className="px-3 py-3 text-right text-xs font-medium whitespace-nowrap w-[120px]">
                     Đơn giá
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap w-[128px]">
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[128px]">
                     Tổng số lượng sử dụng
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium whitespace-nowrap">
+                  <th className="px-3 py-3 text-center text-xs font-medium whitespace-nowrap w-[120px]">
                     Trạng thái
                   </th>
                 </tr>
@@ -520,7 +547,7 @@ export default function InventoryTable({
                           className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
                           onClick={() => toggleGroup(group.key)}
                         >
-                          <td colSpan={9} className="px-4 py-3">
+                          <td colSpan={10} className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {isExpanded ? (
                                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />

@@ -211,8 +211,8 @@ export default function Dashboard() {
         let totalImportValue = 0;
         let totalExportValue = 0;
         let belowMinStockCount = 0;
-        let totalTenderQty = 0;
-        let totalTenderImportedQty = 0;
+        let totalTenderContractValue = 0;
+        let totalTenderImportedValue = 0;
 
         filteredSupplies.forEach(item => {
             const price = item.donGia || 0;
@@ -226,14 +226,14 @@ export default function Dashboard() {
 
             const thauQty = parseFloat(item.tongThau) || 0;
             const importedQty = item.tongNhap || 0;
-            if (thauQty > 0) {
-                totalTenderQty += thauQty;
-                totalTenderImportedQty += importedQty;
+            if (thauQty > 0 && price > 0) {
+                totalTenderContractValue += thauQty * price;
+                totalTenderImportedValue += importedQty * price;
             }
         });
 
-        const tenderExecutionRate = totalTenderQty > 0 
-            ? (totalTenderImportedQty / totalTenderQty) * 100 
+        const tenderExecutionRate = totalTenderContractValue > 0 
+            ? (totalTenderImportedValue / totalTenderContractValue) * 100 
             : 0;
 
         return {

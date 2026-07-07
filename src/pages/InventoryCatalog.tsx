@@ -376,6 +376,7 @@ export default function InventoryCatalog() {
       "Tên vật tư": item.tenVtyt,
       "Tên thương mại": item.tenThuongMai,
       "Mã hiệu": item.maHieu,
+      "TB10 ngày": (item.soLuongTieuHao || 0) / 3,
       "Hãng sản xuất": item.hangSanXuat,
       "Nước sản xuất": item.nuocSanXuat,
       "Mã nhóm": item.maNhom,
