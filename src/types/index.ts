@@ -76,6 +76,7 @@ export interface HoaDonUBot {
     trangThaiHoaDon: string;
     loaiHoaDon: string;
     soHoaDon: string;
+    kyHieu?: string;
     ngayHoaDon: string;        // ISO date string
     maSoThueNguoiBan: string;
     congTy: string;
