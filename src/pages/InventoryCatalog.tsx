@@ -16,7 +16,11 @@ import {
   ChevronDown,
   X,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
+import { useStoredAuth } from "@/hooks/use-stored-auth";
+import { canRunInternalSupplySync } from "@/lib/auth";
+import { apiService } from "@/services/api";
 import InventoryTable from "@/components/inventory/InventoryTable";
 import ItemDetailModal from "@/components/inventory/ItemDetailModal";
 import { MedicalSupply } from "@/types";
@@ -73,13 +77,36 @@ export default function InventoryCatalog() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const { toast } = useToast();
+  const auth = useStoredAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const {
     supplies,
     loading,
     error,
     total,
+    refetch,
   } = useAllSupplies();
+
+  const handleInternalSync = async () => {
+    try {
+      setIsSyncing(true);
+      const res = await apiService.syncInternalSupplies();
+      toast({
+        title: "Đồng bộ thành công",
+        description: res.message || `Đã đồng bộ thành công vật tư y tế.`,
+      });
+      refetch();
+    } catch (err) {
+      toast({
+        title: "Đồng bộ thất bại",
+        description: err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   const { groups: categories } = useSupplyGroups();
   const typeLevel1Options = useMemo(
     () =>
@@ -459,6 +486,22 @@ export default function InventoryCatalog() {
                 {outOfStockCount} vật tư đã hết
               </span>
             </div>
+          )}
+
+          {canRunInternalSupplySync(auth?.user?.role) && (
+            <Button
+              variant="outline"
+              className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 font-medium"
+              onClick={handleInternalSync}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Đồng bộ vật tư
+            </Button>
           )}
 
           <Button

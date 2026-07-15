@@ -862,6 +862,12 @@ class ApiService {
     );
   }
 
+  async syncInternalSupplies(): Promise<MutationMessageResponse> {
+    return this.request<MutationMessageResponse>('/supplies/internal-sync', {
+      method: 'POST',
+    }, true);
+  }
+
   async getSupplyTaskState(): Promise<SupplyTaskStateResponse> {
     return this.request<SupplyTaskStateResponse>('/supply-tasks/state', {
       method: 'GET',
