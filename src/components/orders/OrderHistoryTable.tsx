@@ -360,8 +360,8 @@ export default function OrderHistoryTable({ orders, selectedOrderIds, setSelecte
                                                                         <td className="px-3 py-2 text-xs text-muted-foreground text-center">
                                                                             {index + 1}
                                                                         </td>
-                                                                        <td className="px-3 py-2 text-xs font-mono text-foreground truncate" title={order.maVtytCu}>
-                                                                            {order.maVtytCu}
+														<td className="px-3 py-2 text-xs font-mono text-foreground truncate" title={order.maQuanLy || order.maVtytCu}>
+															{order.maQuanLy || order.maVtytCu}
                                                                         </td>
                                                                         <td className="px-3 py-2 text-xs text-foreground">
                                                                             <p className="font-medium truncate" title={order.tenVtytBv}>{order.tenVtytBv}</p>

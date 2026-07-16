@@ -55,8 +55,8 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderI
 
     return {
         nhaThau: item.nhaThau,
-        maQuanLy: item.maQuanLy || '',
-        maVtytCu: item.maVtytCu,
+		maQuanLy: item.maQuanLy || item.maVtytCu || '',
+		maVtytCu: item.maVtytCu || '',
         tenVtytBv: item.tenVtytBv,
         maHieu: item.maHieu,
         hangSx: item.hangSx,
@@ -70,8 +70,8 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number): CreateOrderI
 const toManualPayload = (order: OrderRequest): CreateOrderItemRequest => ({
     companyContactId: order.companyContactId,
     nhaThau: order.nhaThau,
-    maQuanLy: order.maQuanLy,
-    maVtytCu: order.maVtytCu,
+	maQuanLy: order.maQuanLy || order.maVtytCu || '',
+	maVtytCu: order.maVtytCu || '',
     tenVtytBv: order.tenVtytBv,
     maHieu: order.maHieu,
     hangSx: order.hangSx,

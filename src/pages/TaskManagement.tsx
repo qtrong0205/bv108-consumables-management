@@ -36,7 +36,7 @@ const getTypeLevel1 = (typeName?: string): string => {
 
 const toCatalogItem = (item: ApiSupply): AssignmentCatalogItem => ({
   idx1: item.idx1,
-  code: getNullableString(item.id),
+	code: String(item.materialCode || '').trim() || getNullableString(item.typeName) || getNullableString(item.id),
   name: getNullableString(item.name),
   typeName: getNullableString(item.typeName),
 });

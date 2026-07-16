@@ -31,6 +31,7 @@ import { useStoredAuth } from '@/hooks/use-stored-auth';
 interface InvoiceTableProps {
     orders: OrderHistory[];
     hoaDons: HoaDonUBot[];
+    supplyCodeIdentities?: SupplyCodeIdentity[];
     matchedInvoiceNumbers?: Set<string>;
     matchedReconciliations?: ApiInvoiceReconciliationRecord[];
     onMatchedInvoicesSaved?: (invoiceNumbers: string[]) => void;
@@ -107,6 +108,13 @@ interface NoteEditorState {
     orderHistoryId: number;
     groupId: string;
 }
+
+interface SupplyCodeIdentity {
+    legacyCode: string;
+    typeName?: string;
+}
+
+type MaterialCodeAliasMap = ReadonlyMap<string, ReadonlySet<string>>;
 
 const normalize = (value?: string | null) => {
     if (!value) return '';
@@ -245,7 +253,22 @@ const extractPotentialMaterialCodes = (value?: string | null) => {
     return Array.from(new Set(codeLike));
 };
 
-const getOrderCodeKeys = (order: OrderHistory) => {
+const buildMaterialCodeAliasMap = (identities: SupplyCodeIdentity[]): MaterialCodeAliasMap => {
+    const aliases = new Map<string, Set<string>>();
+
+    identities.forEach(({ legacyCode, typeName }) => {
+        const codes = Array.from(new Set([normalize(legacyCode), normalize(typeName)].filter(Boolean)));
+        codes.forEach((code) => {
+            const values = aliases.get(code) || new Set<string>();
+            codes.forEach((candidate) => values.add(candidate));
+            aliases.set(code, values);
+        });
+    });
+
+    return aliases;
+};
+
+const getOrderCodeKeys = (order: OrderHistory, aliasMap?: MaterialCodeAliasMap) => {
     const keys = new Set<string>();
     const baseCodes = [order.maQuanLy, order.maVtytCu, order.tenVtytBv];
     baseCodes.forEach((raw) => {
@@ -253,8 +276,21 @@ const getOrderCodeKeys = (order: OrderHistory) => {
         if (normalized) keys.add(normalized);
         extractPotentialMaterialCodes(raw).forEach((code) => keys.add(code));
     });
+
+    const managementCode = normalize(order.maQuanLy);
+    const legacyCode = normalize(order.maVtytCu);
+    const legacyAliases = legacyCode ? aliasMap?.get(legacyCode) : undefined;
+    const hasKnownIdentifierPair = !!managementCode && !!legacyCode && !!legacyAliases?.has(managementCode);
+    if (!hasKnownIdentifierPair && aliasMap) {
+        Array.from(keys).forEach((key) => {
+            aliasMap.get(key)?.forEach((alias) => keys.add(alias));
+        });
+    }
+
     return Array.from(keys);
 };
+
+const getPrimaryOrderMaterialCode = (order: OrderHistory) => order.maQuanLy || order.maVtytCu || '';
 
 const deduplicateInvoiceDocuments = (documents: InvoiceDocument[]) => {
     const map = new Map<string, InvoiceDocument>();
@@ -318,8 +354,12 @@ const selectCandidateDocsForBatch = (batchOrders: OrderHistory[], uniqueDocs: In
     return candidateDocs;
 };
 
-const scoreOrderWithInvoiceLine = (order: OrderHistory, candidate: InvoiceLine) => {
-    const orderCodeKeys = getOrderCodeKeys(order);
+const scoreOrderWithInvoiceLine = (
+    order: OrderHistory,
+    candidate: InvoiceLine,
+    aliasMap?: MaterialCodeAliasMap,
+) => {
+    const orderCodeKeys = getOrderCodeKeys(order, aliasMap);
     const orderName = normalize(order.tenVtytBv);
     const orderUnit = normalize(order.donViTinh);
     const orderDate = parseDate(order.ngayDatHang);
@@ -358,7 +398,11 @@ const scoreOrderWithInvoiceLine = (order: OrderHistory, candidate: InvoiceLine) 
     return score;
 };
 
-const evaluateInvoiceDocument = (orders: OrderHistory[], document: InvoiceDocument) => {
+const evaluateInvoiceDocument = (
+    orders: OrderHistory[],
+    document: InvoiceDocument,
+    aliasMap?: MaterialCodeAliasMap,
+) => {
     const usedInvoiceRows = new Set<number>();
     let matchedCount = 0;
     let matchScoreTotal = 0;
@@ -371,7 +415,7 @@ const evaluateInvoiceDocument = (orders: OrderHistory[], document: InvoiceDocume
 
         document.lines.forEach((candidate) => {
             if (usedInvoiceRows.has(candidate.data.id)) return;
-            const score = scoreOrderWithInvoiceLine(order, candidate);
+            const score = scoreOrderWithInvoiceLine(order, candidate, aliasMap);
             if (score > bestScore) {
                 bestScore = score;
                 bestCandidate = candidate;
@@ -385,7 +429,7 @@ const evaluateInvoiceDocument = (orders: OrderHistory[], document: InvoiceDocume
             const quantityDiff = Math.abs(Number(bestCandidate.data.soLuong) - Number(order.dotGoiHang));
             quantityDiffTotal += quantityDiff;
 
-            const orderCodeKeys = getOrderCodeKeys(order);
+            const orderCodeKeys = getOrderCodeKeys(order, aliasMap);
             const orderName = normalize(order.tenVtytBv);
             const invoiceHasCode = !!bestCandidate.codeKey;
             const codeMatched = !!bestCandidate.codeKey && orderCodeKeys.includes(bestCandidate.codeKey);
@@ -417,6 +461,7 @@ const evaluateInvoiceDocument = (orders: OrderHistory[], document: InvoiceDocume
 export default function InvoiceTable({ 
     orders, 
     hoaDons,
+    supplyCodeIdentities = [],
     matchedInvoiceNumbers,
     matchedReconciliations,
     onMatchedInvoicesSaved,
@@ -432,6 +477,10 @@ export default function InvoiceTable({
     const currentRole = storedAuth?.user.role ?? '';
     const canSaveInvoiceNotes = canEditInvoiceNotes(currentRole);
     const invoiceNoteRoleTooltip = 'Chỉ Thủ kho mới được thêm ghi chú và lưu đối chiếu hóa đơn.';
+    const materialCodeAliasMap = useMemo(
+        () => buildMaterialCodeAliasMap(supplyCodeIdentities),
+        [supplyCodeIdentities],
+    );
     // Use external state if provided, otherwise use internal state
     const [internalExpandedSuppliers, setInternalExpandedSuppliers] = useState<Set<string>>(new Set());
     const [internalSearchTerm, setInternalSearchTerm] = useState('');
@@ -708,7 +757,7 @@ export default function InvoiceTable({
                 );
                 const candidateDocs = selectCandidateDocsForBatch(batch.orders, availableDocs);
                 candidateDocs.forEach((doc) => {
-                    const evalDoc = evaluateInvoiceDocument(batch.orders, doc);
+                    const evalDoc = evaluateInvoiceDocument(batch.orders, doc, materialCodeAliasMap);
                     if (evalDoc.matchedCount <= 0 || evalDoc.totalScore <= 0) return;
                     scores.push({
                         batchKey: batch.batchKey,
@@ -751,7 +800,7 @@ export default function InvoiceTable({
         });
 
         return result;
-    }, [orders, invoiceDocumentsBySupplier]);
+    }, [orders, invoiceDocumentsBySupplier, materialCodeAliasMap]);
 
     const reconciliations = useMemo((): ReconciliationResult[] => {
         const emailSentOrders = orders.filter((order) => order.emailSent === true && !approvedOrderIdSet.has(Number(order.id)));
@@ -798,7 +847,7 @@ export default function InvoiceTable({
 
             candidates.forEach((candidate) => {
                 if (usedRows.has(candidate.data.id)) return;
-                const score = scoreOrderWithInvoiceLine(order, candidate);
+                const score = scoreOrderWithInvoiceLine(order, candidate, materialCodeAliasMap);
                 if (score > bestScore) {
                     bestScore = score;
                     bestCandidate = candidate;
@@ -818,7 +867,7 @@ export default function InvoiceTable({
             usedRows.add(bestCandidate.data.id);
             const quantityDiff = Number((Number(bestCandidate.data.soLuong) - Number(order.dotGoiHang)).toFixed(3));
 
-            const orderCodeKeys = getOrderCodeKeys(order);
+            const orderCodeKeys = getOrderCodeKeys(order, materialCodeAliasMap);
             const orderName = normalize(order.tenVtytBv);
             const invoiceHasCode = !!bestCandidate.codeKey;
             const codeMatched = !!bestCandidate.codeKey && orderCodeKeys.includes(bestCandidate.codeKey);
@@ -831,7 +880,7 @@ export default function InvoiceTable({
             if (!materialMatched) {
                 detailStatus = 'material-mismatch';
                 detailNote = invoiceHasCode
-                    ? 'Mã hàng hóa hóa đơn chưa khớp Mã QL'
+                    ? 'Mã hàng hóa hóa đơn chưa khớp ID hoặc TYPENAME của vật tư'
                     : 'Tên vật tư chưa trùng khớp 100%';
             } else if (quantityDiff < 0) {
                 detailStatus = 'shortage';
@@ -858,7 +907,7 @@ export default function InvoiceTable({
                 matchedInvoiceNumber: selectedDoc?.invoiceNumber,
             };
         });
-    }, [orders, approvedOrderIdSet, bestInvoiceDocumentByBatch, persistedReconciliationMap, hoaDons, invoiceRowById]);
+    }, [orders, approvedOrderIdSet, bestInvoiceDocumentByBatch, persistedReconciliationMap, hoaDons, invoiceRowById, materialCodeAliasMap]);
 
     const getPersistedNote = (result: ReconciliationResult) => {
         return (result.note || '').trim();
@@ -1180,6 +1229,7 @@ export default function InvoiceTable({
         return allSupplierGroups.filter((group) =>
             group.results.some((result) =>
                 result.order.maQuanLy.toLowerCase().includes(term) ||
+                result.order.maVtytCu.toLowerCase().includes(term) ||
                 result.order.tenVtytBv.toLowerCase().includes(term) ||
                 result.order.nhaThau.toLowerCase().includes(term) ||
                 (result.invoice?.soHoaDon || result.matchedInvoiceNumber || '').toLowerCase().includes(term),
@@ -1674,7 +1724,7 @@ export default function InvoiceTable({
                                                             </colgroup>
                                                             <thead className="bg-blue-50 border-b border-blue-200">
                                                                 <tr className="text-xs">
-                                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Mã QL</th>
+                                                                    <th className="px-3 py-2 text-left font-medium text-muted-foreground">Mã QL / TYPENAME</th>
                                                                     <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tên vật tư</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL đặt</th>
                                                                     <th className="px-3 py-2 text-center font-medium text-muted-foreground">SL HĐ</th>
@@ -1699,8 +1749,8 @@ export default function InvoiceTable({
                                                                                 }`}
                                                                             >
                                                                                 <td className="px-3 py-2">
-                                                                                    <span className="font-mono text-xs truncate" title={result.order.maQuanLy}>
-                                                                                        {result.order.maQuanLy}
+                                                                                    <span className="font-mono text-xs truncate" title={getPrimaryOrderMaterialCode(result.order)}>
+                                                                                        {getPrimaryOrderMaterialCode(result.order) || '—'}
                                                                                     </span>
                                                                                 </td>
                                                                                 <td className="px-3 py-2">
@@ -1949,7 +1999,7 @@ export default function InvoiceTable({
                                         </colgroup>
                                         <thead className="bg-red-100/50">
                                             <tr>
-                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL / TYPENAME</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
                                                 <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-red-400">SL đặt</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-red-400">Mã hàng hóa</th>
@@ -1960,7 +2010,7 @@ export default function InvoiceTable({
                                         <tbody>
                                             {redRows.map((row, idx) => (
                                                 <tr key={`red-row-${idx}`} className="border-t border-red-100 align-top">
-                                                    <td className="px-3 py-2 font-mono bg-red-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 font-mono bg-red-50/30">{row.left ? (getPrimaryOrderMaterialCode(row.left.order) || '—') : '—'}</td>
                                                     <td className="px-3 py-2 bg-red-50/30">{row.left?.order.tenVtytBv || '—'}</td>
                                                     <td className="px-3 py-2 text-center font-semibold border-r-4 border-red-400 bg-red-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
                                                     <td className="px-3 py-2 font-mono border-l-4 border-red-400">{row.right?.maHangHoa || '—'}</td>
@@ -1991,7 +2041,7 @@ export default function InvoiceTable({
                                         </colgroup>
                                         <thead className="bg-amber-100/50">
                                             <tr>
-                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL / TYPENAME</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
                                                 <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-amber-400">SL đặt</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-amber-400">Mã hàng hóa</th>
@@ -2002,7 +2052,7 @@ export default function InvoiceTable({
                                         <tbody>
                                             {yellowRows.map((row, idx) => (
                                                 <tr key={`yellow-row-${idx}`} className="border-t border-amber-100 align-top">
-                                                    <td className="px-3 py-2 font-mono bg-amber-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 font-mono bg-amber-50/30">{row.left ? (getPrimaryOrderMaterialCode(row.left.order) || '—') : '—'}</td>
                                                     <td className="px-3 py-2 bg-amber-50/30">{row.left?.order.tenVtytBv || '—'}</td>
                                                     <td className="px-3 py-2 text-center font-semibold border-r-4 border-amber-400 bg-amber-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
                                                     <td className="px-3 py-2 font-mono border-l-4 border-amber-400">{row.right?.maHangHoa || '—'}</td>
@@ -2033,7 +2083,7 @@ export default function InvoiceTable({
                                         </colgroup>
                                         <thead className="bg-emerald-100/50">
                                             <tr>
-                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL</th>
+                                                <th className="px-3 py-2 text-left whitespace-nowrap">Mã QL / TYPENAME</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap">Tên vật tư (Order)</th>
                                                 <th className="px-3 py-2 text-center whitespace-nowrap border-r-4 border-emerald-400">SL đặt</th>
                                                 <th className="px-3 py-2 text-left whitespace-nowrap border-l-4 border-emerald-400">Mã hàng hóa</th>
@@ -2044,7 +2094,7 @@ export default function InvoiceTable({
                                         <tbody>
                                             {greenRows.map((row, idx) => (
                                                 <tr key={`green-row-${idx}`} className="border-t border-emerald-100 opacity-50 line-through decoration-slate-300 align-top">
-                                                    <td className="px-3 py-2 font-mono bg-emerald-50/30">{row.left?.order.maQuanLy || '—'}</td>
+                                                    <td className="px-3 py-2 font-mono bg-emerald-50/30">{row.left ? (getPrimaryOrderMaterialCode(row.left.order) || '—') : '—'}</td>
                                                     <td className="px-3 py-2 bg-emerald-50/30">{row.left?.order.tenVtytBv || '—'}</td>
                                                     <td className="px-3 py-2 text-center font-semibold border-r-4 border-emerald-400 bg-emerald-50/30">{row.left ? row.left.order.dotGoiHang : '—'}</td>
                                                     <td className="px-3 py-2 font-mono border-l-4 border-emerald-400">{row.right?.maHangHoa || '—'}</td>

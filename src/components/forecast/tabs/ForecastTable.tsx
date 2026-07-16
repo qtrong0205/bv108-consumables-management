@@ -1085,7 +1085,7 @@ const ForecastTable = ({
                                   })()}
                                 </td>
                                 <td className="px-2 py-3 text-xs font-mono text-foreground whitespace-nowrap">
-                                  {item.maVtytCu}
+								  {item.maQuanLy || item.maVtytCu}
                                 </td>
                                 <td className="px-2 py-3 text-xs text-foreground">
                                   <div className="max-w-[300px]">

@@ -108,14 +108,14 @@ const getMaterialKey = (item: Pick<IVatTuDuTru, 'maVtytCu' | 'maQuanLy' | 'stt'>
     const maVtytCu = (item.maVtytCu || '').trim();
     const maQuanLy = (item.maQuanLy || '').trim();
 
-    if (maVtytCu && maQuanLy) {
-        return `${maVtytCu}::${maQuanLy}`;
-    }
-    if (maVtytCu) {
-        return maVtytCu;
+    if (maQuanLy && maVtytCu) {
+        return `${maQuanLy.toLowerCase()}::${maVtytCu.toLowerCase()}`;
     }
     if (maQuanLy) {
-        return maQuanLy;
+        return maQuanLy.toLowerCase();
+    }
+    if (maVtytCu) {
+        return maVtytCu.toLowerCase();
     }
     return `stt:${item.stt}`;
 };
@@ -186,6 +186,9 @@ const toForecastPayload = (item: IVatTuDuTru, duTruValue?: number) => {
 
 const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru => {
     const quyCach = getNullableString(item.quyCach);
+    const legacyId = getNullableString(item.id);
+    const typeName = getNullableString(item.typeName);
+	const materialIdentifier = String(item.materialCode || '').trim() || typeName || legacyId;
     const slTrongQuyCach = extractPackQuantity(quyCach);
     const slXuat = getNullableNumber(item.xuatTrongKy);
     const slTon = getNullableNumber(item.tonDauKy); // Dùng tồn đầu kỳ, không phải cuối kỳ
@@ -195,10 +198,11 @@ const mapSupplyToForecastItem = (item: ApiSupply, index: number): IVatTuDuTru =>
 
     return {
         stt: index + 1,
-        maQuanLy: getNullableString(item.id),
-        maVtytCu: getNullableString(item.id),
+        // Keep both generations of identifiers during the ID -> TYPENAME transition.
+		maQuanLy: materialIdentifier,
+		maVtytCu: legacyId,
         tenNhom: getNullableString(item.groupName),
-        typeName: getNullableString(item.typeName),
+        typeName,
         tenVtytBv: getNullableString(item.name),
         maHieu: getNullableString(item.maHieu),
         hangSx: getNullableString(item.hangSx),
@@ -267,7 +271,7 @@ const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastCha
             maQuanLy: record.maQuanLy,
             maVtytCu: record.maVtytCu,
         });
-        const fallbackKey = (record.maVtytCu || '').trim();
+		const fallbackKey = (record.maVtytCu || '').trim().toLowerCase();
         const currentRecordTime = getForecastChangeHistoryTime(record);
 
         const existingRecord = latestRecordMap.get(materialKey);
@@ -284,7 +288,7 @@ const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastCha
 
     return rows.map((row) => {
         const rowKey = getMaterialKey(row);
-        const fallbackKey = (row.maVtytCu || '').trim();
+		const fallbackKey = (row.maVtytCu || '').trim().toLowerCase();
         const latestRecord = latestRecordMap.get(rowKey) || (fallbackKey ? latestRecordMap.get(fallbackKey) : undefined);
 
         if (!latestRecord) {
@@ -294,9 +298,10 @@ const applyForecastHistoryValues = (rows: IVatTuDuTru[], records: ApiForecastCha
         const latestDuTru = getLatestForecastChangeValue(latestRecord);
         const nextRow = {
             ...row,
-            maQuanLy: latestRecord.maQuanLy?.trim() || row.maQuanLy,
-            maVtytCu: latestRecord.maVtytCu?.trim() || row.maVtytCu,
-            tenVtytBv: latestRecord.tenVtytBv?.trim() || row.tenVtytBv,
+            // Prefer current catalog identifiers; old history can contain ID in both fields.
+            maQuanLy: row.maQuanLy || latestRecord.maQuanLy?.trim() || '',
+            maVtytCu: row.maVtytCu || latestRecord.maVtytCu?.trim() || '',
+            tenVtytBv: row.tenVtytBv || latestRecord.tenVtytBv?.trim() || '',
         };
 
         if (typeof latestDuTru !== 'number') {
@@ -604,7 +609,7 @@ export default function MaterialForecast() {
                     return {
                         id: entry.id,
                         stt: entry.id,
-                        maVtyt: entry.maVtytCu,
+						maVtyt: entry.maQuanLy || entry.maVtytCu,
                         tenVtyt: entry.tenVtytBv,
                         actionType: mappedActionType,
                         nguoiThucHien: entry.nguoiThucHien || 'Hệ thống',
@@ -774,7 +779,7 @@ export default function MaterialForecast() {
                 maQuanLy: record.maQuanLy,
                 maVtytCu: record.maVtytCu,
             });
-            const fallbackKey = (record.maVtytCu || '').trim();
+			const fallbackKey = (record.maVtytCu || '').trim().toLowerCase();
 
             approvalRecordMap.set(materialKey, record);
             if (fallbackKey && fallbackKey !== materialKey) {
@@ -783,7 +788,7 @@ export default function MaterialForecast() {
         });
 
         data.forEach((item) => {
-            const savedRecord = approvalRecordMap.get(getMaterialKey(item)) || approvalRecordMap.get((item.maVtytCu || '').trim());
+			const savedRecord = approvalRecordMap.get(getMaterialKey(item)) || approvalRecordMap.get((item.maVtytCu || '').trim().toLowerCase());
             if (!savedRecord) {
                 return;
             }
@@ -1209,7 +1214,7 @@ export default function MaterialForecast() {
     const handleExport = () => {
         const rows = filteredData.map((item) => ({
             'STT': item.stt,
-            'Mã VT': item.maVtytCu,
+			'Mã VT': item.maQuanLy || item.maVtytCu,
             'Tên vật tư': item.tenVtytBv,
             'Mã hiệu': item.maHieu,
             'Hãng SX': item.hangSx,

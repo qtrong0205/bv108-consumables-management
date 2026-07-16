@@ -70,14 +70,14 @@ const ApproveDialog = ({
         const maVtytCu = (item.maVtytCu || '').trim();
         const maQuanLy = (item.maQuanLy || '').trim();
 
-        if (maVtytCu && maQuanLy) {
-            return `${maVtytCu}::${maQuanLy}`;
-        }
-        if (maVtytCu) {
-            return maVtytCu;
-        }
-        if (maQuanLy) {
-            return maQuanLy;
+		if (maQuanLy && maVtytCu) {
+			return `${maQuanLy.toLowerCase()}::${maVtytCu.toLowerCase()}`;
+		}
+		if (maQuanLy) {
+			return maQuanLy.toLowerCase();
+		}
+		if (maVtytCu) {
+			return maVtytCu.toLowerCase();
         }
         return `stt:${item.stt}`;
     };
@@ -120,7 +120,7 @@ const ApproveDialog = ({
                         <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs p-3 bg-tertiary rounded-lg">
                             <div className="flex gap-1.5">
                                 <span className="text-muted-foreground w-16 shrink-0">Mã VT</span>
-                                <span className="font-medium font-mono">{selectedItem.maVtytCu}</span>
+								<span className="font-medium font-mono">{selectedItem.maQuanLy || selectedItem.maVtytCu}</span>
                             </div>
                             <div className="flex gap-1.5">
                                 <span className="text-muted-foreground w-16 shrink-0">Hãng SX</span>

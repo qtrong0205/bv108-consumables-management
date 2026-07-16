@@ -318,7 +318,7 @@ export default function InvoiceMatchHistoryTable({
                                                         <tr key={item.id} className="border-b border-border/60">
                                                             <td className="px-3 py-2 text-xs text-foreground">
                                                                 <div className="font-medium">{item.tenVtytBv}</div>
-                                                                <div className="text-[11px] text-muted-foreground">{item.maVtytCu || item.maQuanLy}</div>
+														<div className="text-[11px] text-muted-foreground">{item.maQuanLy || item.maVtytCu}</div>
                                                             </td>
                                                             <td className="px-3 py-2 text-xs text-foreground">
                                                                 <div className="font-medium">{item.invoiceItemName || '-'}</div>

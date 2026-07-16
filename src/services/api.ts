@@ -19,6 +19,7 @@ export interface ApiSupply {
   idx2: { String: string; Valid: boolean } | null;
   maHieu: { String: string; Valid: boolean } | null;
   typeName: { String: string; Valid: boolean } | null;
+  materialCode?: string;
   name: { String: string; Valid: boolean } | null;
   unit: { String: string; Valid: boolean } | null;
   quyCach: { String: string; Valid: boolean } | null;
@@ -111,6 +112,7 @@ export interface ApiForecastApproval {
   forecastYear: number;
   maQuanLy: string;
   maVtytCu: string;
+  materialCode?: string;
   tenVtytBv: string;
   status: 'approved' | 'rejected' | 'edited' | 'submitted';
   lyDo?: string;
@@ -143,6 +145,7 @@ export interface ApiForecastChangeHistoryRecord {
   forecastYear: number;
   maQuanLy: string;
   maVtytCu: string;
+  materialCode?: string;
   tenVtytBv: string;
   actionType: 'approve' | 'reject' | 'edit' | 'submit';
   statusBefore?: string;
@@ -193,6 +196,7 @@ export interface ApiInvoiceReconciliationRecord {
   nhaThau: string;
   maQuanLy: string;
   maVtytCu: string;
+  materialCode?: string;
   tenVtytBv: string;
   orderedQty: number;
   orderTime?: string;
@@ -350,7 +354,7 @@ export interface ErrorResponse {
 
 const shouldInvalidateAuthSession = (status: number, errorCode?: string): boolean => {
   if (status === 401) {
-    return true;
+    return errorCode === 'UNAUTHORIZED';
   }
 
   return status === 403 && errorCode === 'ACCOUNT_DISABLED';
@@ -436,6 +440,9 @@ export interface SupplyTaskStateResponse {
 export interface SupplyTaskAssignmentItem {
   idx1: number;
   code: string;
+  materialCode?: string;
+  typeName?: string;
+  legacyId?: string;
   name: string;
 }
 

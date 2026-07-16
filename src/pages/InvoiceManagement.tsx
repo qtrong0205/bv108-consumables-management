@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { ApiInvoiceReconciliationRecord, apiService, getStoredAuth } from '@/services/api';
 import InvoiceMatchHistoryTable from '@/components/orders/InvoiceMatchHistoryTable';
 
@@ -64,6 +64,7 @@ import InvoiceTable from '@/components/orders/InvoiceTable';
 import UBotInvoiceTable from '@/components/orders/UBotInvoiceTable';
 import { useOrder } from '@/context/OrderContext';
 import { useHoaDonUBot } from '@/hooks/use-hoadon-ubot';
+import { useAllSupplies } from '@/hooks/use-supplies';
 
 export default function InvoiceManagement() {
     ensureInvoiceUiCacheForCurrentSession();
@@ -149,6 +150,14 @@ export default function InvoiceManagement() {
 
     const { orderHistory, refreshOrders, loadingOrders, realtimeEventVersion, lastRealtimeEvent } = useOrder();
     const { hoaDons, loading, error, refetch } = useHoaDonUBot();
+    const { supplies } = useAllSupplies();
+    const supplyCodeIdentities = useMemo(
+        () => supplies.map((supply) => ({
+            legacyCode: supply.legacyId || '',
+            typeName: supply.typeName,
+        })),
+        [supplies],
+    );
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
     const [historyRecords, setHistoryRecords] = useState<ApiInvoiceReconciliationRecord[]>([]);
@@ -275,6 +284,7 @@ export default function InvoiceManagement() {
                                 <InvoiceTable 
                                     orders={orderHistory} 
                                     hoaDons={hoaDons} 
+                                    supplyCodeIdentities={supplyCodeIdentities}
                                     matchedInvoiceNumbers={matchedInvoiceNumbers}
                                     matchedReconciliations={matchedOrderRecords}
                                     onMatchedInvoicesSaved={handleMatchedInvoicesSaved}

@@ -115,14 +115,33 @@ const ChatBotDialog = ({
     onResetChat,
 }: ChatBotDialogProps) => {
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatMessages, isSendingChat]);
 
+    useEffect(() => {
+        if (!open || isSendingChat) return;
+
+        const animationFrame = window.requestAnimationFrame(() => {
+            chatInputRef.current?.focus({ preventScroll: true });
+        });
+
+        return () => window.cancelAnimationFrame(animationFrame);
+    }, [open, isSendingChat, chatMessages.length]);
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex flex-col sm:max-w-[85vw] w-[85vw] h-[85vh] max-h-[85vh] p-0 gap-0 rounded-xl overflow-hidden">
+            <DialogContent
+                className="flex flex-col sm:max-w-[85vw] w-[85vw] h-[85vh] max-h-[85vh] p-0 gap-0 rounded-xl overflow-hidden"
+                onOpenAutoFocus={(event) => {
+                    event.preventDefault();
+                    window.requestAnimationFrame(() => {
+                        chatInputRef.current?.focus({ preventScroll: true });
+                    });
+                }}
+            >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-primary/5">
                     <div>
                         <DialogTitle className="text-base font-semibold text-foreground">
@@ -189,6 +208,7 @@ const ChatBotDialog = ({
                             <RotateCcw className="w-4 h-4" />
                         </Button>
                         <Input
+                            ref={chatInputRef}
                             className="flex-1 rounded-full bg-muted/30 border-border px-4"
                             value={chatInput}
                             onChange={(e) => onChatInputChange(e.target.value)}

@@ -4,15 +4,19 @@ import { MedicalSupply } from '@/types';
 
 // Chuyển đổi API response sang định dạng MedicalSupply
 const convertApiSupplyToMedicalSupply = (apiSupply: ApiSupply, index: number): MedicalSupply => {
+	const legacyId = getNullableString(apiSupply.id);
+	const typeName = getNullableString(apiSupply.typeName);
+	const materialCode = String(apiSupply.materialCode || '').trim() || typeName || legacyId;
   // Tạo id unique từ nhiều trường để tránh trùng key
-  const uniqueId = `${apiSupply.idx1}-${apiSupply.id || ''}-${index}`;
+  const uniqueId = `${apiSupply.idx1}-${materialCode}-${index}`;
   return {
     id: uniqueId,
-    maVtyt: getNullableString(apiSupply.id),
+	maVtyt: materialCode,
+	legacyId,
     tenVtyt: getNullableString(apiSupply.name),
     tenThuongMai: getNullableString(apiSupply.name),
     maHieu: getNullableString(apiSupply.maHieu),
-    typeName: getNullableString(apiSupply.typeName),
+	typeName,
     maNhom: getNullableString(apiSupply.idx2),
     tenNhom: getNullableString(apiSupply.groupName),
     quyCach: getNullableString(apiSupply.quyCach),

@@ -187,10 +187,11 @@ export default function InventoryCatalog() {
     const keyword = searchInput.trim().toLowerCase();
     if (keyword) {
       filtered = filtered.filter((item) => {
-        const haystacks = [
-          item.tenVtyt,
-          item.maVtyt,
-          item.id,
+		const haystacks = [
+			item.tenVtyt,
+			item.maVtyt,
+			item.legacyId,
+			item.typeName,
           item.tenThuongMai,
           item.nhaThau,
           item.maHieu,

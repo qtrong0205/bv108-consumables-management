@@ -2,7 +2,8 @@ export type OrderSource = 'forecast' | 'manual';
 
 export interface MedicalSupply {
     id: string;                // Synthetic UI key
-    maVtyt: string;            // MA_VTYT_C
+    maVtyt: string;            // Mã chính: TYPENAME, fallback supplies.ID
+    legacyId?: string;         // supplies.ID trong giai đoạn chuyển đổi
     tenVtyt: string;           // TEN_VTYT_B
     tenThuongMai: string;      // TEN_THUON
     maHieu: string;            // MA_HIEU
@@ -32,6 +33,7 @@ export interface OrderRequest {
     nhaThau: string;           // NHA_THAU
     maQuanLy: string;          // MA_QUAN_LY
     maVtytCu: string;          // MA_VTYT_CU
+    materialCode?: string;     // Mã chính: TYPENAME, fallback ID
     tenVtytBv: string;         // TEN_VTYT_BV
     maHieu: string;            // MA_HIEU
     hangSx: string;            // HANG_SX

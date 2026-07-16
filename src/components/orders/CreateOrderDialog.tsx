@@ -128,8 +128,11 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
     };
 
     const handleSelectSupply = (supply: ApiSupply) => {
-        const maQuanLy = getNullableString(supply.idx2) || String(supply.idx1 || '');
-        const maVtytCu = getNullableString(supply.id);
+        const legacyId = getNullableString(supply.id);
+        const typeName = getNullableString(supply.typeName);
+		const materialCode = String(supply.materialCode || '').trim() || typeName || legacyId;
+		const maQuanLy = materialCode;
+		const maVtytCu = legacyId;
         const tenVtytBv = getNullableString(supply.name);
 
         setFormData((prev) => ({
@@ -225,7 +228,9 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
         const newErrors: Record<string, string> = {};
 
         if (!formData.nhaThau?.trim()) newErrors.nhaThau = 'Nhà thầu không được để trống';
-        if (!formData.maVtytCu?.trim()) newErrors.maVtytCu = 'Mã vật tư không được để trống';
+		if (!formData.maQuanLy?.trim() && !formData.maVtytCu?.trim()) {
+			newErrors.maQuanLy = 'TYPENAME hoặc ID vật tư không được để trống';
+		}
         if (!formData.tenVtytBv?.trim()) newErrors.tenVtytBv = 'Tên vật tư không được để trống';
         if (!formData.donViTinh?.trim()) newErrors.donViTinh = 'Đơn vị tính không được để trống';
         if (!formData.quyCach?.trim()) newErrors.quyCach = 'Quy cách không được để trống';
@@ -328,7 +333,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                                         type="button"
                                                         onMouseDown={(e) => e.preventDefault()}
                                                         onClick={() => handleSelectCompany(contact)}
-                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+														className="w-full px-3 py-2 text-left hover:bg-muted/50"
                                                     >
                                                         <div className="text-sm font-medium text-foreground">{contact.companyName}</div>
                                                         <div className="text-xs text-muted-foreground">
@@ -371,11 +376,11 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2 relative">
                                     <Label htmlFor="maQuanLy" className="text-foreground font-medium">
-                                        Mã quản lý
+										TYPENAME <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                         id="maQuanLy"
-                                        placeholder="VD: MA001"
+										placeholder="Mã TYPENAME (ưu tiên)"
                                         value={formData.maQuanLy || ''}
                                         onChange={(e) => handleSupplyLookupInput('maQuanLy', e.target.value)}
                                         onFocus={() => setShowSupplySuggestionsFor('maQuanLy')}
@@ -394,34 +399,34 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                                         type="button"
                                                         onMouseDown={(e) => e.preventDefault()}
                                                         onClick={() => handleSelectSupply(supply)}
-                                                        className="w-full px-3 py-2 text-left hover:bg-muted/50"
+														className="w-full px-3 py-2 text-left hover:bg-muted/50"
                                                     >
-                                                        <div className="text-sm font-medium text-foreground">{getNullableString(supply.idx2) || supply.idx1}</div>
-                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • {getNullableString(supply.id)}</div>
+														<div className="text-sm font-medium text-foreground">{getNullableString(supply.typeName) || getNullableString(supply.id)}</div>
+														<div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • ID cũ: {getNullableString(supply.id) || '—'}</div>
                                                     </button>
                                                 ))
-                                            ) : (
-                                                <div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
-                                            )}
-                                        </div>
-                                    )}
+											) : (
+												<div className="px-3 py-2 text-sm text-muted-foreground">Không có gợi ý</div>
+											)}
+										</div>
+									)}
+									{errors.maQuanLy && <p className="text-sm text-red-500">{errors.maQuanLy}</p>}
                                 </div>
 
                                 <div className="space-y-2 relative">
                                     <Label htmlFor="maVtytCu" className="text-foreground font-medium">
-                                        Mã vật tư <span className="text-red-500">*</span>
+										ID vật tư cũ (không bắt buộc)
                                     </Label>
                                     <Input
                                         id="maVtytCu"
-                                        placeholder="VD: VT001"
+										placeholder="Có thể để trống khi đã có TYPENAME"
                                         value={formData.maVtytCu || ''}
                                         onChange={(e) => handleSupplyLookupInput('maVtytCu', e.target.value)}
                                         onFocus={() => setShowSupplySuggestionsFor('maVtytCu')}
                                         onBlur={() => {
                                             window.setTimeout(() => setShowSupplySuggestionsFor(null), 120);
                                         }}
-                                        className={errors.maVtytCu ? 'border-red-500' : ''}
-                                    />
+									/>
                                     {showSupplySuggestionsFor === 'maVtytCu' && (
                                         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-background shadow-lg">
                                             {isLoadingSupplySuggestions ? (
@@ -435,8 +440,8 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                                         onClick={() => handleSelectSupply(supply)}
                                                         className="w-full px-3 py-2 text-left hover:bg-muted/50"
                                                     >
-                                                        <div className="text-sm font-medium text-foreground">{getNullableString(supply.id)}</div>
-                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • MQL: {getNullableString(supply.idx2) || supply.idx1}</div>
+														<div className="text-sm font-medium text-foreground">{getNullableString(supply.typeName) || getNullableString(supply.id)}</div>
+														<div className="text-xs text-muted-foreground">{getNullableString(supply.name)} • ID cũ: {getNullableString(supply.id) || '—'}</div>
                                                     </button>
                                                 ))
                                             ) : (
@@ -444,8 +449,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                             )}
                                         </div>
                                     )}
-                                    {errors.maVtytCu && <p className="text-sm text-red-500">{errors.maVtytCu}</p>}
-                                </div>
+								</div>
 
                                 <div className="space-y-2 col-span-2 relative">
                                     <Label htmlFor="tenVtytBv" className="text-foreground font-medium">
@@ -476,7 +480,7 @@ export default function CreateOrderDialog({ open, onOpenChange, onSubmit }: Crea
                                                         className="w-full px-3 py-2 text-left hover:bg-muted/50"
                                                     >
                                                         <div className="text-sm font-medium text-foreground">{getNullableString(supply.name)}</div>
-                                                        <div className="text-xs text-muted-foreground">{getNullableString(supply.id)} • {getNullableString(supply.unit)}</div>
+														<div className="text-xs text-muted-foreground">{getNullableString(supply.typeName) || getNullableString(supply.id)} • {getNullableString(supply.unit)}</div>
                                                     </button>
                                                 ))
                                             ) : (

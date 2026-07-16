@@ -24,6 +24,15 @@ const parseTypeNameParts = (typeName?: string): string[] => {
     return typeName.split('-').map(p => p.trim()).filter(Boolean);
 };
 
+const supplyMatchesMaterialCodes = (supply: MedicalSupply, ...codes: Array<string | undefined>): boolean => {
+	const supplyCodes = new Set(
+		[supply.typeName, supply.legacyId, supply.maVtyt]
+			.map((value) => (value || '').trim().toLowerCase())
+			.filter(Boolean),
+	);
+	return codes.some((code) => supplyCodes.has((code || '').trim().toLowerCase()));
+};
+
 const getMãCấp1 = (item: MedicalSupply): string => {
     if (item.maNhom) return item.maNhom.trim();
     const parts = parseTypeNameParts(item.typeName);
@@ -196,13 +205,15 @@ export default function Dashboard() {
         const pendingCount = approvedOrders.filter(order => {
             const key = (order.maQuanLy || '').trim();
             const cu = (order.maVtytCu || '').trim();
-            return filteredSupplies.some(s => s.maVtyt === key || s.maVtyt === cu || s.id === key);
+			return filteredSupplies.some((supply) => supplyMatchesMaterialCodes(supply, key, cu));
         }).length;
 
         // Submitted Forecast requests
         const submittedRequests = forecastApprovals.filter(req => {
             const matchStatus = req.status === 'submitted';
-            const matchSupply = filteredSupplies.some(s => s.maVtyt === req.maQuanLy || s.id === req.maQuanLy);
+			const matchSupply = filteredSupplies.some((supply) =>
+				supplyMatchesMaterialCodes(supply, req.maQuanLy, req.maVtytCu),
+			);
             return matchStatus && matchSupply;
         }).length;
 
@@ -300,7 +311,7 @@ export default function Dashboard() {
             // Check filters
             const orderKey = (order.maQuanLy || '').trim();
             const orderCu = (order.maVtytCu || '').trim();
-            const isMatch = filteredSupplies.some(s => s.maVtyt === orderKey || s.maVtyt === orderCu || s.id === orderKey);
+			const isMatch = filteredSupplies.some((supply) => supplyMatchesMaterialCodes(supply, orderKey, orderCu));
             if (!isMatch && filteredSupplies.length < supplies.length) {
                 return; // filter items if selected
             }

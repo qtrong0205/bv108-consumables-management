@@ -521,7 +521,7 @@ export default function OrderRequestTable({ orders, unreadGroupKeys, onMarkGroup
                                                                             {index + 1}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-xs font-mono text-foreground">
-                                                                            {order.maVtytCu}
+															{order.maQuanLy || order.maVtytCu}
                                                                         </td>
                                                                         <td className="px-4 py-2 text-sm text-foreground">
                                                                             <div className="max-w-[250px]">
