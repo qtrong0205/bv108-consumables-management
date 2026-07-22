@@ -1084,8 +1084,14 @@ const ForecastTable = ({
                                     );
                                   })()}
                                 </td>
-                                <td className="px-2 py-3 text-xs font-mono text-foreground whitespace-nowrap">
-								  {item.maQuanLy || item.maVtytCu}
+                                <td
+                                  className="px-2 py-3 text-xs font-mono text-foreground whitespace-normal leading-5"
+                                  title={item.maQuanLy || item.maVtytCu}
+                                >
+                                  {(item.maQuanLy || item.maVtytCu)?.replace(
+                                    /-/g,
+                                    "-\u200b",
+                                  )}
                                 </td>
                                 <td className="px-2 py-3 text-xs text-foreground">
                                   <div className="max-w-[300px]">

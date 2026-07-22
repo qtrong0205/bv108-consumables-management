@@ -209,9 +209,10 @@ export default function InventoryTable({
       className={`hover:bg-tertiary transition-colors cursor-pointer ${isOutOfStock(item) ? "bg-red-500/5" : isLowStock(item.maVtyt) ? "bg-warning/5" : ""} ${isIndented ? "bg-muted/20" : ""}`}
     >
       <td
-        className={`px-3 py-3 text-xs font-mono text-foreground whitespace-nowrap align-top ${isIndented ? "pl-12" : ""}`}
+        className={`px-3 py-3 text-xs font-mono text-foreground whitespace-normal leading-5 align-top ${isIndented ? "pl-12" : ""}`}
+        title={displayValue(item.maVtyt)}
       >
-        {displayValue(item.maVtyt)}
+        {displayValue(item.maVtyt).replace(/-/g, "-\u200b")}
       </td>
       <td className="px-3 py-3 text-xs text-foreground align-top">
         <div>
