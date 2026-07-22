@@ -499,10 +499,10 @@ export default function InventoryTable({
           <div
             ref={tableScrollRef}
             onScroll={handleTableScroll}
-            className="overflow-x-auto"
+            className="max-h-[calc(100vh-12rem)] overflow-auto"
           >
             <table className="w-full min-w-[1260px] table-fixed">
-              <thead className="bg-primary text-primary-foreground">
+              <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                 <tr>
                   <th className="px-3 py-3 text-left text-xs font-medium whitespace-nowrap w-[88px]">
                     Mã VT

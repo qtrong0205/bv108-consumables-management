@@ -35,9 +35,9 @@ const HistoryForecast = ({
                             <p className="text-sm mt-2">Các thay đổi về phê duyệt, từ chối và sửa dự trù sẽ được hiển thị ở đây</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="max-h-[calc(100vh-12rem)] overflow-auto">
                             <table className="w-full">
-                                <thead className="bg-primary text-primary-foreground">
+                                <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Thời gian</th>
                                         <th className="px-4 py-3 text-left text-xs font-medium whitespace-nowrap">Hành động</th>

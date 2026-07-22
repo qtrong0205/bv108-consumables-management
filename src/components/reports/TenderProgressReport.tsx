@@ -309,7 +309,7 @@ export default function TenderProgressReport({ supplies: rawSupplies, loading }:
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="max-h-[calc(100vh-12rem)] overflow-auto rounded-lg border border-border">
             <table className="min-w-[1400px] w-full border-collapse">
               <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                 <tr>

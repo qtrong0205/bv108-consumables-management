@@ -909,9 +909,9 @@ const ForecastTable = ({
         <>
           <Card className="bg-neutral border-border">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <div className="max-h-[calc(100vh-12rem)] overflow-auto">
                 <table className="w-full table-fixed">
-                  <thead className="bg-primary text-primary-foreground">
+                  <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                     <tr>
                       <th className="px-2 py-3 text-center text-xs font-medium whitespace-nowrap w-9">
                         <span

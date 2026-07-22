@@ -226,7 +226,7 @@ export default function OrderHistoryTable({ orders, selectedOrderIds, setSelecte
                 )}
             </div>
             <div className="rounded-md border border-border overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="max-h-[calc(100vh-12rem)] overflow-auto">
                     <table className="w-full" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
                             <col style={{ width: '44px' }} />
@@ -236,7 +236,7 @@ export default function OrderHistoryTable({ orders, selectedOrderIds, setSelecte
                             <col style={{ width: '110px' }} />
                             <col style={{ width: '140px' }} />
                         </colgroup>
-                        <thead className="bg-primary text-primary-foreground">
+                        <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium">
                                     <Checkbox

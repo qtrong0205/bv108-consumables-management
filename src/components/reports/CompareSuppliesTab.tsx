@@ -446,9 +446,9 @@ export default function CompareSuppliesTab() {
             </div>
           </div>
 
-          <div className="overflow-x-auto border border-border rounded-md">
+          <div className="max-h-[calc(100vh-12rem)] overflow-auto border border-border rounded-md">
             <table className="w-full min-w-[920px]">
-              <thead className="bg-primary text-primary-foreground">
+              <thead className="sticky top-0 z-20 bg-primary text-primary-foreground">
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium">Chọn</th>
                   <th className="px-3 py-3 text-left text-xs font-medium">Mã thư viện</th>
