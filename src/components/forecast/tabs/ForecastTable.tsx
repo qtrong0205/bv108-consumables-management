@@ -39,6 +39,7 @@ interface IForecastTableProps {
   };
   tableData: {
     filteredData: IVatTuDuTru[];
+    allFilteredData: IVatTuDuTru[];
     totalOnPage: number;
     searchTerm: string;
     isSearching: boolean;
@@ -134,6 +135,7 @@ const ForecastTable = ({
   const { totalForecast, totalValue, approvedCount } = statistics;
   const {
     filteredData,
+    allFilteredData,
     totalOnPage,
     searchTerm,
     isSearching,
@@ -229,6 +231,17 @@ const ForecastTable = ({
       a.label.localeCompare(b.label),
     );
   }, [filteredData]);
+
+  const groupItemCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    allFilteredData.forEach((item) => {
+      const level1Code = getTypeLevel1(item.typeName);
+      const groupName = (item.tenNhom || "").trim();
+      const code = level1Code || groupName || "unknown";
+      counts.set(code, (counts.get(code) || 0) + 1);
+    });
+    return counts;
+  }, [allFilteredData]);
 
   const [expandedTypeGroups, setExpandedTypeGroups] = React.useState<
     Set<string>
@@ -1037,7 +1050,7 @@ const ForecastTable = ({
                                     variant="outline"
                                     className="bg-blue-50 text-blue-700 border-blue-200"
                                   >
-                                    {group.items.length} vật tư
+                                    {(groupItemCounts.get(group.key) ?? group.items.length).toLocaleString("vi-VN")} vật tư
                                   </Badge>
                                 </div>
                               </div>

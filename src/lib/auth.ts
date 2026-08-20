@@ -165,3 +165,6 @@ export const canRunInternalSupplySync = (role?: string | null): boolean => {
   return normalizeRole(role) === 'admin';
 };
 
+export const canEditSupplyData = (role?: string | null): boolean => {
+  return normalizeRole(role) === 'admin';
+};

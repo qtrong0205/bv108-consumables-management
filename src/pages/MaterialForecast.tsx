@@ -148,15 +148,6 @@ const getTypeLevel2 = (typeName?: string): string => {
     return parts.length >= 2 ? parts[1] : '';
 };
 
-const shouldShowInForecast = (item: ApiSupply): boolean => {
-    const tonDauKy = getNullableNumber(item.tonDauKy);
-    const nhapTrongKy = getNullableNumber(item.nhapTrongKy);
-    const xuatTrongKy = getNullableNumber(item.xuatTrongKy);
-    const tongNhap = getNullableNumber(item.tongNhap);
-
-    return !(tonDauKy === 0 && nhapTrongKy === 0 && xuatTrongKy === 0 && tongNhap === 0);
-};
-
 const calculateOrderQuantity = (duTru: number, slTrongQuyCach: number = 1): number => {
     if (duTru <= 0 || slTrongQuyCach <= 0) return 0;
     return Math.ceil(duTru / slTrongQuyCach);
@@ -725,9 +716,7 @@ export default function MaterialForecast() {
                 const response = await apiService.getForecastCatalog(keyword);
                 const allSupplies = response.data;
 
-                const forecastRows = allSupplies
-                    .filter(shouldShowInForecast)
-                    .map((item, index) => mapSupplyToForecastItem(item, index));
+                const forecastRows = allSupplies.map((item, index) => mapSupplyToForecastItem(item, index));
                 const forecastRowsWithPersistedEdits = applyForecastHistoryValues(forecastRows, latestForecastChangesRef.current);
                 const forecastRowsWithOverrides = applyForecastOverrides(forecastRowsWithPersistedEdits);
 
@@ -1873,6 +1862,7 @@ export default function MaterialForecast() {
                     }}
                     tableData={{
                         filteredData: paginatedFilteredData,
+                        allFilteredData: filteredData,
                         searchTerm,
                         isSearching: searchTerm.trim().length > 0,
                         categories,

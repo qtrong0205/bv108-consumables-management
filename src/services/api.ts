@@ -23,6 +23,8 @@ export interface ApiSupply {
   name: { String: string; Valid: boolean } | null;
   unit: { String: string; Valid: boolean } | null;
   quyCach: { String: string; Valid: boolean } | null;
+  quyCachGiaoHang?: { String: string; Valid: boolean } | null;
+  quyCachToiThieu?: { String: string; Valid: boolean } | null;
   thongTinThau: { String: string; Valid: boolean } | null;
   tongThau: { String: string; Valid: boolean } | null;
   hangSx: { String: string; Valid: boolean } | null;
@@ -70,6 +72,114 @@ export interface CreateOrderItemRequest {
 export interface MutationMessageResponse {
   message: string;
   count?: number;
+}
+
+export interface VinmesMappingValidationError {
+  field: string;
+  sourceValue: string;
+  message: string;
+}
+
+export interface VinmesMappedPurchaseOrder {
+  master: {
+    options: { dml: boolean };
+    binds: Record<string, unknown> & { p_invoiceno: string };
+  };
+  details: Array<{
+    options: { dml: boolean };
+    binds: Record<string, unknown> & {
+      p_po_id: number | null;
+      p_product_id: number | null;
+      p_qtyorder: number;
+    };
+  }>;
+  source: {
+    soPhieu: string;
+    soHoaDon: string;
+    nhaCungCap: string;
+    maSoThueNhaCungCap: string;
+    soTkNganHangNhaCungCap: string;
+    reconciliationIds: number[];
+  };
+  partnerMatchMethod?: string;
+  validationErrors: VinmesMappingValidationError[];
+}
+
+export interface VinmesCallResult {
+  httpStatus?: number;
+  response?: string;
+  result: 'PASS' | 'FAIL' | 'TIMEOUT' | 'UNKNOWN' | 'NOT_CALLED';
+  rvalue?: number;
+  elapsedSeconds: number;
+  error?: string;
+}
+
+export interface VinmesPurchaseOrderExecutionResult {
+  source: VinmesMappedPurchaseOrder['source'];
+  readyToSend: boolean;
+  blockingErrors: VinmesMappingValidationError[];
+  master: VinmesCallResult;
+  poId?: number;
+  details: Array<VinmesCallResult & {
+    productId: number | null;
+    qty: number;
+    poIdUsed?: number;
+    lineId?: number;
+  }>;
+  result: 'PASS' | 'FAIL' | 'PARTIAL_FAIL' | 'SKIPPED' | 'FAIL_UNCERTAIN';
+  error?: string;
+}
+
+export type VinmesPurchaseOrderBatchStatus = 'PASS' | 'FAIL' | 'PARTIAL_FAIL' | 'SKIPPED' | 'FAIL_UNCERTAIN';
+
+export interface VinmesPurchaseOrderBatchDetailResult {
+  product_id: number | null;
+  qty: number;
+  rvalue?: number;
+  line_id?: number;
+  result: 'PASS' | 'FAIL' | 'TIMEOUT' | 'NOT_CALLED';
+  error?: string | null;
+  http_status?: number;
+  raw_response?: string;
+}
+
+export interface VinmesPurchaseOrderBatchItemResult {
+  soPhieu: string;
+  soHoaDon: string;
+  result: VinmesPurchaseOrderBatchStatus;
+  po_id?: number;
+  master_rvalue?: number;
+  details: VinmesPurchaseOrderBatchDetailResult[];
+  error?: string | null;
+  master_http_status?: number;
+  master_raw_response?: string;
+}
+
+export interface VinmesPurchaseOrderBatchResponse {
+  total: number;
+  success: number;
+  failed: number;
+  skipped: number;
+  results: VinmesPurchaseOrderBatchItemResult[];
+}
+
+export interface VinmesExportResponse {
+  data: Array<Record<string, unknown> | VinmesMappedPurchaseOrder>;
+  count: number;
+  detailCount: number;
+  invalidCount?: number;
+  month: number;
+  year: number;
+  all: boolean;
+  materialCode: string;
+}
+
+export interface VinmesExportFilters {
+  month?: number;
+  year?: number;
+  all?: boolean;
+  materialCode?: string;
+  limit?: number;
 }
 
 export interface CompanyContactSuggestion {
@@ -867,6 +977,98 @@ class ApiService {
       { method: 'GET' },
       true,
     );
+  }
+
+  async getSupplyMappingCatalog(): Promise<{ data: ApiSupply[]; total: number }> {
+    return this.request<{ data: ApiSupply[]; total: number }>('/supplies/mapping-catalog', {
+      method: 'GET',
+    }, true);
+  }
+
+  async getExportToVinmes(filters: VinmesExportFilters = {}): Promise<VinmesExportResponse> {
+    const params = new URLSearchParams();
+    if (filters.month !== undefined) params.set('month', String(filters.month));
+    if (filters.year !== undefined) params.set('year', String(filters.year));
+    if (filters.all !== undefined) params.set('all', String(filters.all));
+    if (filters.materialCode?.trim()) params.set('materialCode', filters.materialCode.trim());
+    if (filters.limit !== undefined) params.set('limit', String(filters.limit));
+
+    const query = params.toString();
+    return this.request<VinmesExportResponse>(`/export-to-vinmes${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async getMappedExportToVinmes(filters: VinmesExportFilters = {}): Promise<VinmesExportResponse> {
+    const params = new URLSearchParams();
+    if (filters.month !== undefined) params.set('month', String(filters.month));
+    if (filters.year !== undefined) params.set('year', String(filters.year));
+    if (filters.all !== undefined) params.set('all', String(filters.all));
+    if (filters.materialCode?.trim()) params.set('materialCode', filters.materialCode.trim());
+    if (filters.limit !== undefined) params.set('limit', String(filters.limit));
+
+    const query = params.toString();
+    return this.request<VinmesExportResponse>(`/export-to-vinmes/mapping-preview${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    }, true);
+  }
+
+  async createVinmesPurchaseOrder(item: VinmesMappedPurchaseOrder): Promise<VinmesPurchaseOrderExecutionResult> {
+    return this.request<VinmesPurchaseOrderExecutionResult>('/export-to-vinmes/create-one', {
+      method: 'POST',
+      body: JSON.stringify(item),
+    }, true);
+  }
+
+  async createVinmesPurchaseOrderBatch(data: VinmesMappedPurchaseOrder[]): Promise<VinmesPurchaseOrderBatchResponse> {
+    return this.request<VinmesPurchaseOrderBatchResponse>('/export-to-vinmes/create-batch', {
+      method: 'POST',
+      body: JSON.stringify({ data }),
+    }, true);
+  }
+
+  async downloadSupplyMappingExcel(): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${this.baseUrl}/supplies/mapping-export`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(true),
+    });
+    if (!response.ok) {
+      let message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const error = await response.json() as ErrorResponse;
+        message = error.message || message;
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const matchedFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1]?.trim();
+    return {
+      blob: await response.blob(),
+      filename: matchedFilename || 'sua-data-vat-tu.xlsx',
+    };
+  }
+
+  async importSupplyMappingExcel(file: File): Promise<MutationMessageResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${this.baseUrl}/supplies/mapping-import`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(true),
+      body: formData,
+    });
+    if (!response.ok) {
+      let message = `Lỗi HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const error = await response.json() as ErrorResponse;
+        message = error.message || message;
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
+    }
+    return response.json() as Promise<MutationMessageResponse>;
   }
 
   async syncInternalSupplies(): Promise<MutationMessageResponse> {

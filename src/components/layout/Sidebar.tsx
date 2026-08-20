@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { useOrder } from '@/context/OrderContext';
-import { canViewInvoices } from '@/lib/auth';
+import { canEditSupplyData, canViewInvoices } from '@/lib/auth';
 
 interface SidebarProps {
     currentPath: string;
@@ -22,6 +22,13 @@ export default function Sidebar({ currentPath, userRole }: SidebarProps) {
         { path: '/suppliers', label: 'Gọi Hàng' },
         { path: '/reports', label: 'Báo cáo' },
     ];
+
+    if (canEditSupplyData(userRole)) {
+        navItems.push(
+            { path: '/supply-data', label: 'Sửa dữ liệu vật tư' },
+            { path: '/vinmes-export', label: 'API to Vinmes' },
+        );
+    }
 
     if (canViewInvoices(userRole)) {
         navItems.splice(4, 0, { path: '/invoices', label: 'Hóa đơn' });

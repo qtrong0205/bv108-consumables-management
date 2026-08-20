@@ -20,12 +20,14 @@ import {
     recordAuthActivity,
     storeAuth,
 } from './services/api';
-import { canCreateUsers, canManageSupplyTasks, canViewInvoices, formatRoleLabel } from '@/lib/auth';
+import { canCreateUsers, canEditSupplyData, canManageSupplyTasks, canViewInvoices, formatRoleLabel } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const InventoryCatalog = lazy(() => import('./pages/InventoryCatalog'));
 const Reports = lazy(() => import('./pages/Reports'));
+const SupplyDataManagement = lazy(() => import('./pages/SupplyDataManagement'));
+const VinmesExport = lazy(() => import('./pages/VinmesExport'));
 const SupplierOrder = lazy(() => import('./pages/SupplierOrder'));
 const MaterialForecast = lazy(() => import('./pages/MaterialForecast'));
 const InvoiceManagement = lazy(() => import('./pages/InvoiceManagement'));
@@ -315,6 +317,14 @@ function App() {
                             element={canManageSupplyTasks(userRole) ? withSuspense(<TaskManagement />) : <Navigate to="/dashboard" replace />}
                         />
                         <Route path="reports" element={withSuspense(<Reports />)} />
+                        <Route
+                            path="supply-data"
+                            element={canEditSupplyData(userRole) ? withSuspense(<SupplyDataManagement />) : <Navigate to="/dashboard" replace />}
+                        />
+                        <Route
+                            path="vinmes-export"
+                            element={canEditSupplyData(userRole) ? withSuspense(<VinmesExport />) : <Navigate to="/dashboard" replace />}
+                        />
                         <Route path="profile" element={withSuspense(<ProfilePage />)} />
                     </Route>
                     <Route path="*" element={<Navigate to="/login" replace />} />
