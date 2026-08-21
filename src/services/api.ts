@@ -172,6 +172,10 @@ export interface VinmesExportResponse {
   year: number;
   all: boolean;
   materialCode: string;
+	generated?: boolean;
+	apiTotal?: number;
+	candidateTotal?: number;
+	catalogSource?: 'live' | 'cache';
 }
 
 export interface VinmesExportFilters {
@@ -1019,6 +1023,12 @@ class ApiService {
       body: JSON.stringify(item),
     }, true);
   }
+
+	async generateFakeVinmesOrders(): Promise<VinmesExportResponse> {
+		return this.request<VinmesExportResponse>('/export-to-vinmes/generate-fake', {
+			method: 'POST',
+		}, true);
+	}
 
   async createVinmesPurchaseOrderBatch(data: VinmesMappedPurchaseOrder[]): Promise<VinmesPurchaseOrderBatchResponse> {
     return this.request<VinmesPurchaseOrderBatchResponse>('/export-to-vinmes/create-batch', {

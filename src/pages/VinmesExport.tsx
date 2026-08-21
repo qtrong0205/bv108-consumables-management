@@ -57,6 +57,7 @@ export default function VinmesExport() {
   const [result, setResult] = useState<VinmesExportResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
+	const [fakeLoading, setFakeLoading] = useState(false);
   const [batchResult, setBatchResult] = useState<VinmesPurchaseOrderBatchResponse | null>(null);
   const [creatingRow, setCreatingRow] = useState<string | null>(null);
   const [rowResults, setRowResults] = useState<Record<string, VinmesPurchaseOrderExecutionResult>>({});
@@ -139,7 +140,7 @@ export default function VinmesExport() {
   };
 
   const handleCreateBatch = async () => {
-    if (!result || mappedOrders.length === 0 || result.invalidCount !== 0) return;
+    if (!result || mappedOrders.length === 0) return;
     const confirmed = window.confirm(
       `Bạn sắp tạo ${mappedOrders.length} phiếu Purchase Order trên VINMES. Tiếp tục?`,
     );
@@ -164,6 +165,31 @@ export default function VinmesExport() {
       setBatchLoading(false);
     }
   };
+
+	const handleGenerateFake = async () => {
+		setFakeLoading(true);
+		try {
+			const response = await apiService.generateFakeVinmesOrders();
+			setApiType('mapped');
+			setResult(response);
+			setBatchResult(null);
+			setRowResults({});
+			toast({
+				title: 'Đã tạo 10 phiếu fake hợp lệ',
+				description: response.catalogSource === 'cache'
+					? 'VINMES đang lỗi catalog; đã dùng catalog cache gần nhất và map đủ ID.'
+					: 'Danh sách đã map đủ ID từ catalog VINMES và sẵn sàng để gửi.',
+			});
+		} catch (error) {
+			toast({
+				variant: 'destructive',
+				title: 'Không thể tạo dữ liệu fake',
+				description: error instanceof Error ? error.message : 'Yêu cầu thất bại',
+			});
+		} finally {
+			setFakeLoading(false);
+		}
+	};
 
   const handleCreateOne = async (item: VinmesMappedPurchaseOrder, index: number) => {
     const key = `${item.source.soPhieu}-${index}`;
@@ -251,19 +277,30 @@ export default function VinmesExport() {
                 {mappedOrders.length} phiếu đã map, {result?.invalidCount ?? 0} phiếu không hợp lệ
               </p>
             </div>
-            <Button
-              type="button"
-              onClick={() => void handleCreateBatch()}
-              disabled={batchLoading || creatingRow !== null || mappedOrders.length === 0 || (result?.invalidCount ?? 0) !== 0}
-            >
-              {batchLoading ? <RefreshCw className="animate-spin" /> : <Send />}
-              {batchLoading ? `Đang xử lý ${mappedOrders.length} phiếu...` : 'Đẩy lên VINMES'}
-            </Button>
+			<div className="flex flex-wrap gap-2">
+				<Button
+					type="button"
+					variant="outline"
+					onClick={() => void handleGenerateFake()}
+					disabled={fakeLoading || batchLoading || creatingRow !== null}
+				>
+					<RefreshCw className={fakeLoading ? 'animate-spin' : ''} />
+					{fakeLoading ? 'Đang gen dữ liệu...' : 'Gen 10 data fake'}
+				</Button>
+				<Button
+					type="button"
+					onClick={() => void handleCreateBatch()}
+					disabled={fakeLoading || batchLoading || creatingRow !== null || mappedOrders.length === 0}
+				>
+					{batchLoading ? <RefreshCw className="animate-spin" /> : <Send />}
+					{batchLoading ? `Đang xử lý ${mappedOrders.length} phiếu...` : 'Đẩy lên VINMES'}
+				</Button>
+			</div>
           </CardHeader>
           <CardContent className="space-y-4">
             {(result?.invalidCount ?? 0) > 0 && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                Không thể đẩy theo lô khi còn phiếu chưa map đủ ID. Hãy sửa toàn bộ lỗi validation trước.
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                Batch vẫn sẽ đẩy các phiếu hợp lệ. Phiếu còn lỗi validation sẽ được bỏ qua và giữ lại để sửa sau.
               </div>
             )}
 
